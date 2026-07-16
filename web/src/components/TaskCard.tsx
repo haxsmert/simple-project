@@ -44,6 +44,7 @@ export function TaskCard({ task, actor, onOpen, draggable, dragging, onDragStart
   return (
     <div className={`card${blocked ? ' blocked' : ''}${dragging ? ' dragging' : ''}`} onClick={() => onOpen(task.id)}
       draggable={draggable} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} onDragEnd={onDragEnd}>
+      {task.parentTitle && <div className="card-project">{task.parentTitle}</div>}
       <div className="card-top">
         <RoleChip role={task.currentRole} />
         {blocked && <EdgeChip type="clarifies" label="待决策" />}

@@ -21,6 +21,7 @@ export interface BoardCard extends Task {
   subtaskCount: number;
   doneSubtaskCount: number;
   edges: { out: Edge[]; in: Edge[] };
+  parentTitle: string | null;
 }
 
 export class RelayService {
@@ -69,6 +70,7 @@ export class RelayService {
       subtaskCount: children.length,
       doneSubtaskCount: children.filter((c) => c.state === 'done').length,
       edges: { out: edgesFrom(this.db, t.id), in: edgesTo(this.db, t.id) },
+      parentTitle: t.parentId ? (getTask(this.db, t.parentId)?.title ?? null) : null,
     };
   }
 

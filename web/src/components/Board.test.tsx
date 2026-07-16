@@ -73,6 +73,32 @@ describe('Board', () => {
     expect(card.querySelectorAll('.edge').length).toBe(1); // 仅阻塞 chip 本身, 无重复的 clarifies 边 chip
   });
 
+  it('卡片带 parentTitle 时渲染 .card-project 项目名; 不带 parentTitle 时不渲染', () => {
+    const projTitleColumns: BoardColumn[] = [
+      {
+        state: 'executing',
+        tasks: [
+          {
+            id: 'R-80', title: '带项目名的任务', state: 'executing', currentActor: 'a', currentRole: 'executor',
+            parentId: 'R-79', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi',
+            parentTitle: '演示项目',
+          },
+          {
+            id: 'R-81', title: '无项目名的任务', state: 'executing', currentActor: 'a', currentRole: 'executor',
+            parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi',
+          },
+        ],
+      },
+      { state: 'awaiting_decision', tasks: [] }, { state: 'planning', tasks: [] },
+      { state: 'awaiting_confirm', tasks: [] }, { state: 'testing', tasks: [] }, { state: 'done', tasks: [] },
+    ];
+    const { container } = render(<Board columns={projTitleColumns} actorsById={actors} onOpen={vi.fn()} />);
+    const cards = container.querySelectorAll('.card');
+    expect(within(cards[0] as HTMLElement).getByText('演示项目')).toBeInTheDocument();
+    expect(cards[0].querySelector('.card-project')).toBeTruthy();
+    expect(cards[1].querySelector('.card-project')).toBeFalsy();
+  });
+
   it('全空看板渲染 board-empty 与提示文案', () => {
     const emptyColumns: BoardColumn[] = ALL_STATES_EMPTY();
     const { container } = render(

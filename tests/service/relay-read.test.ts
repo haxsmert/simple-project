@@ -130,6 +130,21 @@ describe('RelayService reads', () => {
     expect(card.edges).toEqual({ out: [], in: [] });
   });
 
+  it('taskBoard/allTasksBoard 的任务卡带 parentTitle(所属项目名); projectBoard 的项目卡 parentTitle 为 null', () => {
+    const { db, service } = svc();
+    createTask(db, { id: 'R-70', title: '项目蒸汽机', state: 'planning' });
+    createTask(db, { id: 'R-71', title: '任务1', parentId: 'R-70', state: 'executing' });
+
+    const taskCard = service.taskBoard('R-70').find((c) => c.state === 'executing')!.tasks.find((t) => t.id === 'R-71')!;
+    expect(taskCard.parentTitle).toBe('项目蒸汽机');
+
+    const allCard = service.allTasksBoard().find((c) => c.state === 'executing')!.tasks.find((t) => t.id === 'R-71')!;
+    expect(allCard.parentTitle).toBe('项目蒸汽机');
+
+    const projectCard = service.projectBoard().find((c) => c.state === 'planning')!.tasks.find((t) => t.id === 'R-70')!;
+    expect(projectCard.parentTitle).toBeNull();
+  });
+
   it('reorder 前列内按 id 排序(rank 为 null), reorder 后按给定顺序并回填 rank', () => {
     const { db, service } = svc();
     createTask(db, { id: 'R-60', title: '父' });
