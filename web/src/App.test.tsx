@@ -19,4 +19,10 @@ describe('App shell', () => {
     fireEvent.click(await screen.findByText('演示任务'));
     await waitFor(() => expect(screen.getByText('演示目标')).toBeInTheDocument()); // 详情里的 goal
   });
+
+  it('看板加载失败时显示错误横幅', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({ error: '数据库炸了' }) })) as any);
+    render(<App />);
+    expect(await screen.findByText(/数据库炸了/)).toBeInTheDocument();
+  });
 });

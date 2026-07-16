@@ -11,29 +11,40 @@ export function App() {
   const [tree, setTree] = useState<TaskNode[]>([]);
   const [actors, setActors] = useState<Actor[]>([]);
   const [detail, setDetail] = useState<TaskPackage | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const actorsById = Object.fromEntries(actors.map((a) => [a.id, a]));
+
+  const guard = useCallback(async (fn: () => Promise<void>) => {
+    try { setError(null); await fn(); } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+  }, []);
 
   const refresh = useCallback(async () => {
     const [b, t, a] = await Promise.all([api.board(), api.tree(), api.actors()]);
     setBoard(b); setTree(t); setActors(a);
   }, []);
-  useEffect(() => { refresh().catch(() => {}); }, [refresh]);
+  useEffect(() => { guard(refresh); }, [refresh, guard]);
 
-  const open = useCallback(async (id: string) => { setDetail(await api.task(id)); }, []);
-  const onAnswer = useCallback(async (clarId: string, answer: string) => {
+  const open = useCallback((id: string) => guard(async () => { setDetail(await api.task(id)); }), [guard]);
+  const onAnswer = useCallback((clarId: string, answer: string) => guard(async () => {
     const you = actors.find((a) => a.type === 'human')?.id ?? 'you';
     await api.answer(clarId, { byActor: you, answer });
     await refresh();
     if (detail) setDetail(await api.task(detail.task.id));
-  }, [actors, detail, refresh]);
-  const create = useCallback(async () => {
+  }), [actors, detail, refresh, guard]);
+  const create = useCallback(() => guard(async () => {
     const title = window.prompt('新任务标题');
     if (title) { await api.createTask({ title }); await refresh(); }
-  }, [refresh]);
+  }), [refresh, guard]);
 
   return (
     <div className="app">
+      {error && (
+        <div role="alert" onClick={() => setError(null)}
+          style={{ background: 'var(--danger-soft)', color: 'var(--danger)', border: '1px solid var(--danger)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, cursor: 'pointer', fontSize: 13 }}>
+          ⚠ {error}(点击关闭)
+        </div>
+      )}
       <div className="topbar">
         <div className="brand"><span className="logo" />Relay</div>
         <div className="tabs">

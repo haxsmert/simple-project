@@ -22,5 +22,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const service = new RelayService(db, 'data/tasks');
   const app = buildStaticApp(service, dist);
   const port = Number(process.env.PORT ?? 3000);
-  app.listen({ port, host: '127.0.0.1' }).then(() => console.log(`✅ Relay Web 已启动: http://127.0.0.1:${port}`));
+  app.listen({ port, host: '127.0.0.1' }).then(() => console.log(`✅ Relay Web 已启动: http://127.0.0.1:${port}`))
+    .catch((e) => { console.error(e); process.exit(1); });
 }

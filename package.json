@@ -11,6 +11,7 @@
     "web:dev": "vite --config web/vite.config.ts",
     "web:build": "vite build --config web/vite.config.ts",
     "web:test": "vitest run --config web/vite.config.ts",
+    "web:typecheck": "tsc -p web --noEmit",
     "web": "vite build --config web/vite.config.ts && tsx src/web/bin.ts"
   },
   "dependencies": {
