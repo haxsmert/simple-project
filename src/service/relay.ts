@@ -61,20 +61,40 @@ export class RelayService {
     return listActors(this.db, type);
   }
 
+  // 单任务 → BoardCard: 补子任务计数 + 关系边(board/projectBoard/taskBoard 共用富化逻辑)
+  private enrich(t: Task): BoardCard {
+    const children = listChildren(this.db, t.id);
+    return {
+      ...t,
+      subtaskCount: children.length,
+      doneSubtaskCount: children.filter((c) => c.state === 'done').length,
+      edges: { out: edgesFrom(this.db, t.id), in: edgesTo(this.db, t.id) },
+    };
+  }
+
+  // 任务列表 → 按六态分组的富化看板列(board/projectBoard/taskBoard 共用分组逻辑)
+  private groupByState(tasks: Task[]): Array<{ state: TaskState; tasks: BoardCard[] }> {
+    return STATE_ORDER.map((state) => ({
+      state,
+      tasks: tasks.filter((t) => t.state === state).map((t) => this.enrich(t)),
+    }));
+  }
+
   board(): Array<{ state: TaskState; tasks: BoardCard[] }> {
     const all = (this.db.prepare('SELECT id FROM tasks').all() as { id: string }[])
       .map((r) => getTask(this.db, r.id))
       .filter((t): t is Task => t !== null);
-    const toCard = (t: Task): BoardCard => {
-      const children = listChildren(this.db, t.id);
-      return {
-        ...t,
-        subtaskCount: children.length,
-        doneSubtaskCount: children.filter((c) => c.state === 'done').length,
-        edges: { out: edgesFrom(this.db, t.id), in: edgesTo(this.db, t.id) },
-      };
-    };
-    return STATE_ORDER.map((state) => ({ state, tasks: all.filter((t) => t.state === state).map(toCard) }));
+    return this.groupByState(all);
+  }
+
+  // 项目 = 顶层任务(parentId null)
+  projectBoard(): Array<{ state: TaskState; tasks: BoardCard[] }> {
+    return this.groupByState(listRoots(this.db));
+  }
+
+  // 任务 = 项目的直接子任务
+  taskBoard(projectId: string): Array<{ state: TaskState; tasks: BoardCard[] }> {
+    return this.groupByState(listChildren(this.db, projectId));
   }
 
   tree(): TaskNode[] {

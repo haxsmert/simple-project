@@ -44,6 +44,33 @@ describe('web api', () => {
     expect(ans.json().parent.state).toBe('executing');
   });
 
+  it('GET /api/projects 返回六态分组的顶层任务', async () => {
+    const { service, app } = mk();
+    const project = service.createTask({ title: '项目', state: 'executing' });
+    service.createTask({ title: '子任务', parentId: project.id, state: 'done' });
+    const res = await app.inject({ method: 'GET', url: '/api/projects' });
+    expect(res.statusCode).toBe(200);
+    const board = res.json();
+    expect(board).toHaveLength(6);
+    const executing = board.find((c: any) => c.state === 'executing');
+    expect(executing.tasks.map((t: any) => t.id)).toEqual([project.id]);
+    const allIds = board.flatMap((c: any) => c.tasks.map((t: any) => t.id));
+    expect(allIds).not.toContain(undefined);
+  });
+
+  it('GET /api/projects/:id/board 返回该项目的直接子任务', async () => {
+    const { service, app } = mk();
+    const project = service.createTask({ title: '项目', state: 'planning' });
+    const task = service.createTask({ title: '子任务', parentId: project.id, state: 'executing' });
+    service.createTask({ title: '孙任务', parentId: task.id, state: 'planning' });
+    const res = await app.inject({ method: 'GET', url: `/api/projects/${project.id}/board` });
+    expect(res.statusCode).toBe(200);
+    const board = res.json();
+    expect(board).toHaveLength(6);
+    const allIds = board.flatMap((c: any) => c.tasks.map((t: any) => t.id));
+    expect(allIds).toEqual([task.id]);
+  });
+
   it('非法操作 → 400 + error', async () => {
     const { app } = mk();
     const res = await app.inject({ method: 'GET', url: '/api/tasks/不存在' });

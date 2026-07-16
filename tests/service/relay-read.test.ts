@@ -60,4 +60,44 @@ describe('RelayService reads', () => {
     expect(card.edges.out[0].toTask).toBe('R-13');
     expect(card.edges.in).toEqual([]);
   });
+
+  it('projectBoard 只按状态分组顶层任务(项目), 不含子任务/孙任务', () => {
+    const { db, service } = svc();
+    createTask(db, { id: 'R-20', title: '项目', state: 'planning' });
+    createTask(db, { id: 'R-21', title: '任务1', parentId: 'R-20', state: 'executing' });
+    createTask(db, { id: 'R-22', title: '任务2', parentId: 'R-20', state: 'done' });
+    createTask(db, { id: 'R-23', title: '孙任务', parentId: 'R-21', state: 'planning' });
+
+    const board = service.projectBoard();
+    expect(board.map((c) => c.state)).toEqual(STATE_ORDER);
+    const allIds = board.flatMap((c) => c.tasks.map((t) => t.id));
+    expect(allIds).toEqual(['R-20']);
+    expect(allIds).not.toContain('R-21');
+    expect(allIds).not.toContain('R-22');
+    expect(allIds).not.toContain('R-23');
+
+    const card = board.find((c) => c.state === 'planning')!.tasks.find((t) => t.id === 'R-20')!;
+    expect(card.subtaskCount).toBe(2);
+    expect(card.doneSubtaskCount).toBe(1);
+    expect(card.edges).toEqual({ out: [], in: [] });
+  });
+
+  it('taskBoard(projectId) 只按状态分组该项目的直接子任务, 不含孙任务', () => {
+    const { db, service } = svc();
+    createTask(db, { id: 'R-30', title: '项目', state: 'planning' });
+    createTask(db, { id: 'R-31', title: '任务1', parentId: 'R-30', state: 'executing' });
+    createTask(db, { id: 'R-32', title: '任务2', parentId: 'R-30', state: 'done' });
+    createTask(db, { id: 'R-33', title: '孙任务', parentId: 'R-31', state: 'planning' });
+
+    const board = service.taskBoard('R-30');
+    expect(board.map((c) => c.state)).toEqual(STATE_ORDER);
+    const allIds = board.flatMap((c) => c.tasks.map((t) => t.id));
+    expect(allIds.sort()).toEqual(['R-31', 'R-32']);
+    expect(allIds).not.toContain('R-30');
+    expect(allIds).not.toContain('R-33');
+
+    const card = board.find((c) => c.state === 'executing')!.tasks.find((t) => t.id === 'R-31')!;
+    expect(card.subtaskCount).toBe(1);
+    expect(card.doneSubtaskCount).toBe(0);
+  });
 });
