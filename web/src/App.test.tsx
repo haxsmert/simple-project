@@ -16,6 +16,7 @@ const taskCard = {
   parentId: 'P-1', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null,
 };
 const taskBoard = ALL_STATES.map((s) => ({ state: s, tasks: s === 'executing' ? [taskCard] : [] }));
+const allTasksBoard = ALL_STATES.map((s) => ({ state: s, tasks: s === 'executing' ? [taskCard] : [] }));
 
 const actors = [{ id: 'a', name: '执行A', type: 'agent', handle: null }];
 const pkg = {
@@ -28,6 +29,7 @@ beforeEach(() => {
     ok: true,
     json: async () =>
       url.includes('/api/projects/') && url.includes('/board') ? taskBoard :
+      url.includes('/api/tasks-board') ? allTasksBoard :
       url.includes('/api/projects') ? projectBoard :
       url.includes('/api/actors') ? actors :
       url.includes('/api/tree') ? [] :
@@ -36,14 +38,16 @@ beforeEach(() => {
 });
 
 describe('App shell', () => {
-  it('项目看板显示项目, 钻进项目看到任务', async () => {
+  it('项目看板点项目跳到任务tab并带筛选', async () => {
     render(<App />);
     fireEvent.click(await screen.findByText('演示项目'));
     await waitFor(() => expect(screen.getByText('演示任务')).toBeInTheDocument());
-    expect(screen.getByText(/演示项目/)).toBeInTheDocument(); // 面包屑
+    expect(screen.getByRole('button', { name: '任务' })).toHaveClass('active');
+    const select = screen.getByRole('combobox') as HTMLSelectElement;
+    expect(select.value).toBe('P-1');
   });
 
-  it('点任务打开详情抽屉', async () => {
+  it('点任务打开详情', async () => {
     render(<App />);
     fireEvent.click(await screen.findByText('演示项目'));
     fireEvent.click(await screen.findByText('演示任务'));

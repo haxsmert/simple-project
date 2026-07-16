@@ -59,4 +59,30 @@ describe('Board', () => {
     expect(within(card).queryAllByText('待确认').length).toBe(0);
     expect(card.querySelectorAll('.edge').length).toBe(1); // 仅阻塞 chip 本身, 无重复的 clarifies 边 chip
   });
+
+  it('全空看板渲染 board-empty 与提示文案', () => {
+    const emptyColumns: BoardColumn[] = ALL_STATES_EMPTY();
+    const { container } = render(
+      <Board columns={emptyColumns} actorsById={actors} onOpen={vi.fn()}
+        emptyHint={<><b>还没有任务</b><div>去追加一个吧</div></>} />
+    );
+    expect(container.querySelector('.board-empty')).toBeTruthy();
+    expect(screen.getByText('还没有任务')).toBeInTheDocument();
+    expect(screen.getByText('去追加一个吧')).toBeInTheDocument();
+    expect(container.querySelector('.board')).toBeFalsy();
+  });
+
+  it('部分列为空时, 空列渲染 col-empty 占位', () => {
+    const { container } = render(<Board columns={columns} actorsById={actors} onOpen={vi.fn()} />);
+    const cols = container.querySelectorAll('.col');
+    // planning/awaiting_confirm/testing/done 列在 fixture 里没有任务
+    expect(container.querySelectorAll('.col-empty').length).toBe(4);
+    expect(cols.length).toBe(6);
+  });
 });
+
+function ALL_STATES_EMPTY(): BoardColumn[] {
+  return ['planning', 'awaiting_confirm', 'executing', 'awaiting_decision', 'testing', 'done'].map((state) => ({
+    state: state as BoardColumn['state'], tasks: [],
+  }));
+}
