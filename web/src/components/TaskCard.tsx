@@ -49,6 +49,7 @@ export function TaskCard({ task, actor, onOpen, draggable, dragging, onDragStart
         <RoleChip role={task.currentRole} />
         {blocked && <EdgeChip type="clarifies" label="待决策" />}
         {visibleChips.map((c) => <EdgeChip key={c.key} type={c.type} label={c.label} />)}
+        {!!task.attention && task.attention > 0 && <span className="attn-chip">{task.attention} 待决策</span>}
       </div>
       <p className="card-title">{task.title}</p>
       {hasSubtasks && (

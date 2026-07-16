@@ -17,6 +17,7 @@ export interface BoardCard extends Task {
   doneSubtaskCount?: number;
   edges?: { out: Edge[]; in: Edge[] };
   parentTitle?: string | null;
+  attention?: number;
 }
 export interface BoardColumn { state: TaskState; tasks: BoardCard[]; }
 export interface TaskEvent { id: string; taskId: string; actorId: string; kind: string; roleFrom: Role | null; roleTo: Role | null; body: string | null; createdAt: string; }

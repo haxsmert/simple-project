@@ -15,9 +15,11 @@ export function App() {
   const [actors, setActors] = useState<Actor[]>([]);
   const [detail, setDetail] = useState<TaskPackage | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [draft, setDraft] = useState<{ kind: 'project' | 'task'; title: string } | null>(null);
 
   const actorsById = Object.fromEntries(actors.map((a) => [a.id, a]));
   const projects = projectCols.flatMap((c) => c.tasks).map((t) => ({ id: t.id, title: t.title }));
+  const pendingTotal = projectCols.flatMap((c) => c.tasks).reduce((s, t) => s + (t.attention ?? 0), 0);
 
   const guard = useCallback(async (fn: () => Promise<void>) => {
     try { setError(null); await fn(); } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
@@ -57,16 +59,13 @@ export function App() {
     if (view === 'tasks') await loadTaskBoard(filterProject);
   }, [refresh, view, loadTaskBoard, filterProject]);
 
-  const newProject = useCallback(() => guard(async () => {
-    const title = window.prompt('新项目标题');
-    if (title) { await api.createTask({ title }); await refresh(); }
-  }), [refresh, guard]);
-
-  const addTask = useCallback(() => guard(async () => {
-    if (filterProject === 'all') return;
-    const title = window.prompt('追加任务标题');
-    if (title) { await api.createTask({ title, parentId: filterProject }); await loadTaskBoard(filterProject); await refresh(); }
-  }), [guard, filterProject, loadTaskBoard, refresh]);
+  const submitDraft = useCallback(() => guard(async () => {
+    if (!draft || !draft.title.trim()) { setDraft(null); return; }
+    if (draft.kind === 'project') { await api.createTask({ title: draft.title.trim() }); }
+    else { await api.createTask({ title: draft.title.trim(), parentId: filterProject }); await loadTaskBoard(filterProject); }
+    await refresh();
+    setDraft(null);
+  }), [draft, filterProject, loadTaskBoard, refresh, guard]);
 
   const onAnswer = useCallback((clarId: string, answer: string) => guard(async () => {
     const you = actors.find((a) => a.type === 'human')?.id ?? 'you';
@@ -107,8 +106,23 @@ export function App() {
           <button className={`tab${view === 'tasks' ? ' active' : ''}`} onClick={gotoTasks}>任务</button>
           <button className={`tab${view === 'tree' ? ' active' : ''}`} onClick={() => setView('tree')}>任务树</button>
         </div>
+        {pendingTotal > 0 && (
+          <button className="attn-pill" onClick={() => { setView('tasks'); changeFilter('all'); }}>
+            🔔 待你决策 {pendingTotal}
+          </button>
+        )}
         {view === 'projects' && (
-          <button className="btn" style={{ marginLeft: 'auto' }} onClick={newProject}>+ 新建项目</button>
+          draft?.kind === 'project' ? (
+            <form className="inline-create" style={{ marginLeft: 'auto' }} onSubmit={(e) => { e.preventDefault(); submitDraft(); }}>
+              <input autoFocus placeholder="项目标题…"
+                value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                onKeyDown={(e) => { if (e.key === 'Escape') setDraft(null); }} />
+              <button type="submit" className="btn primary">确定</button>
+              <button type="button" className="btn" onClick={() => setDraft(null)}>取消</button>
+            </form>
+          ) : (
+            <button className="btn" style={{ marginLeft: 'auto' }} onClick={() => setDraft({ kind: 'project', title: '' })}>+ 新建项目</button>
+          )
         )}
       </div>
 
@@ -119,7 +133,17 @@ export function App() {
             <ProjectPicker projects={projects} value={filterProject} onChange={changeFilter} />
           </div>
           {filterProject !== 'all' && (
-            <button className="btn" style={{ marginLeft: 'auto' }} onClick={addTask}>+ 追加任务</button>
+            draft?.kind === 'task' ? (
+              <form className="inline-create" style={{ marginLeft: 'auto' }} onSubmit={(e) => { e.preventDefault(); submitDraft(); }}>
+                <input autoFocus placeholder="任务标题…"
+                  value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                  onKeyDown={(e) => { if (e.key === 'Escape') setDraft(null); }} />
+                <button type="submit" className="btn primary">确定</button>
+                <button type="button" className="btn" onClick={() => setDraft(null)}>取消</button>
+              </form>
+            ) : (
+              <button className="btn" style={{ marginLeft: 'auto' }} onClick={() => setDraft({ kind: 'task', title: '' })}>+ 追加任务</button>
+            )
           )}
         </div>
       )}

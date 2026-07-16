@@ -7,7 +7,7 @@ const ALL_STATES = ['planning', 'awaiting_confirm', 'executing', 'awaiting_decis
 const projectCard = {
   id: 'P-1', title: '演示项目', state: 'executing', currentActor: 'a', currentRole: 'executor',
   parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null,
-  subtaskCount: 1, doneSubtaskCount: 0,
+  subtaskCount: 1, doneSubtaskCount: 0, attention: 2,
 };
 const projectBoard = ALL_STATES.map((s) => ({ state: s, tasks: s === 'executing' ? [projectCard] : [] }));
 
@@ -68,5 +68,52 @@ describe('App shell', () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({ error: '数据库炸了' }) })) as any);
     render(<App />);
     expect(await screen.findByText(/数据库炸了/)).toBeInTheDocument();
+  });
+
+  it('项目卡展示待决策 attention chip, 顶栏展示可点击的全局 pill', async () => {
+    render(<App />);
+    await screen.findByText('演示项目');
+    expect(screen.getByText('2 待决策')).toBeInTheDocument();
+    expect(screen.getByText('🔔 待你决策 2')).toBeInTheDocument();
+  });
+
+  it('顶栏 pill 点击后跳到任务 tab 并切到全部项目筛选', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByText('🔔 待你决策 2'));
+    await waitFor(() => expect(screen.getByRole('button', { name: '任务' })).toHaveClass('active'));
+  });
+
+  it('新建项目改为内联输入, 不再弹 window.prompt', async () => {
+    const promptSpy = vi.spyOn(window, 'prompt');
+    const calls: Array<{ url: string; opts?: RequestInit }> = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, opts?: RequestInit) => {
+      calls.push({ url, opts });
+      return {
+        ok: true,
+        json: async () =>
+          url.includes('/api/projects/') && url.includes('/board') ? taskBoard :
+          url.includes('/api/tasks-board') ? allTasksBoard :
+          url.includes('/api/projects') ? projectBoard :
+          url.includes('/api/actors') ? actors :
+          url.includes('/api/tree') ? [] :
+          opts?.method === 'POST' ? { id: 'NEW-1', ...JSON.parse(String(opts.body)) } :
+          pkg,
+      };
+    }) as any);
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: '+ 新建项目' }));
+    const input = await screen.findByPlaceholderText('项目标题…');
+    expect(promptSpy).not.toHaveBeenCalled();
+
+    fireEvent.change(input, { target: { value: '新项目A' } });
+    fireEvent.submit(input.closest('form')!);
+
+    await waitFor(() => {
+      const postCall = calls.find((c) => c.opts?.method === 'POST');
+      expect(postCall).toBeTruthy();
+      expect(JSON.parse(String(postCall!.opts!.body))).toMatchObject({ title: '新项目A' });
+    });
+    await waitFor(() => expect(screen.queryByPlaceholderText('项目标题…')).not.toBeInTheDocument());
   });
 });
