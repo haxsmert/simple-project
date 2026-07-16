@@ -25,6 +25,14 @@ export function App() {
   }, []);
   useEffect(() => { guard(refresh); }, [refresh, guard]);
 
+  // 详情抽屉: Esc 关闭
+  useEffect(() => {
+    if (!detail) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDetail(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [detail]);
+
   const open = useCallback((id: string) => guard(async () => { setDetail(await api.task(id)); }), [guard]);
   const onAnswer = useCallback((clarId: string, answer: string) => guard(async () => {
     const you = actors.find((a) => a.type === 'human')?.id ?? 'you';
@@ -74,7 +82,10 @@ export function App() {
         : <Tree nodes={tree} onOpen={open} />}
 
       {detail && (
-        <TaskDetail pkg={detail} actorsById={actorsById} onAnswer={onAnswer} onHandoff={onHandoff} onComment={onComment} onClose={() => setDetail(null)} />
+        <>
+          <div className="drawer-backdrop" onClick={() => setDetail(null)} aria-hidden="true" />
+          <TaskDetail pkg={detail} actorsById={actorsById} onAnswer={onAnswer} onHandoff={onHandoff} onComment={onComment} onClose={() => setDetail(null)} />
+        </>
       )}
     </div>
   );

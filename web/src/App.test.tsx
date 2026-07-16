@@ -20,6 +20,16 @@ describe('App shell', () => {
     await waitFor(() => expect(screen.getByText('演示目标')).toBeInTheDocument()); // 详情里的 goal
   });
 
+  it('点击背景遮罩关闭详情抽屉', async () => {
+    const { container } = render(<App />);
+    fireEvent.click(await screen.findByText('演示任务'));
+    await waitFor(() => expect(screen.getByText('演示目标')).toBeInTheDocument());
+    const backdrop = container.querySelector('.drawer-backdrop');
+    expect(backdrop).toBeTruthy();
+    fireEvent.click(backdrop!);
+    await waitFor(() => expect(screen.queryByText('演示目标')).not.toBeInTheDocument());
+  });
+
   it('看板加载失败时显示错误横幅', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({ error: '数据库炸了' }) })) as any);
     render(<App />);
