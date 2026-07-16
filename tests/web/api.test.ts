@@ -71,6 +71,24 @@ describe('web api', () => {
     expect(allIds).toEqual([task.id]);
   });
 
+  it('GET /api/tasks-board 返回六态分组的全部项目一层任务', async () => {
+    const { service, app } = mk();
+    const projectA = service.createTask({ title: '项目A', state: 'planning' });
+    const taskA = service.createTask({ title: 'A-任务', parentId: projectA.id, state: 'executing' });
+    service.createTask({ title: 'A-孙任务', parentId: taskA.id, state: 'planning' });
+    const projectB = service.createTask({ title: '项目B', state: 'executing' });
+    const taskB = service.createTask({ title: 'B-任务', parentId: projectB.id, state: 'done' });
+
+    const res = await app.inject({ method: 'GET', url: '/api/tasks-board' });
+    expect(res.statusCode).toBe(200);
+    const board = res.json();
+    expect(board).toHaveLength(6);
+    const allIds = board.flatMap((c: any) => c.tasks.map((t: any) => t.id));
+    expect(allIds.sort()).toEqual([taskA.id, taskB.id].sort());
+    expect(allIds).not.toContain(projectA.id);
+    expect(allIds).not.toContain(projectB.id);
+  });
+
   it('非法操作 → 400 + error', async () => {
     const { app } = mk();
     const res = await app.inject({ method: 'GET', url: '/api/tasks/不存在' });

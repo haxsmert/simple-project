@@ -100,4 +100,33 @@ describe('RelayService reads', () => {
     expect(card.subtaskCount).toBe(1);
     expect(card.doneSubtaskCount).toBe(0);
   });
+
+  it('allTasksBoard 聚合全部项目的一层任务(depth 1), 不含项目本身与更深子任务', () => {
+    const { db, service } = svc();
+    createTask(db, { id: 'R-40', title: '项目A', state: 'planning' });
+    createTask(db, { id: 'R-41', title: 'A-任务1', parentId: 'R-40', state: 'executing' });
+    createTask(db, { id: 'R-42', title: 'A-任务2', parentId: 'R-40', state: 'done' });
+    createTask(db, { id: 'R-43', title: 'A-孙任务', parentId: 'R-41', state: 'planning' });
+
+    createTask(db, { id: 'R-50', title: '项目B', state: 'executing' });
+    createTask(db, { id: 'R-51', title: 'B-任务1', parentId: 'R-50', state: 'planning' });
+    createTask(db, { id: 'R-52', title: 'B-任务2', parentId: 'R-50', state: 'done' });
+
+    const board = service.allTasksBoard();
+    expect(board.map((c) => c.state)).toEqual(STATE_ORDER);
+    const allIds = board.flatMap((c) => c.tasks.map((t) => t.id));
+    expect(allIds.sort()).toEqual(['R-41', 'R-42', 'R-51', 'R-52']);
+    expect(allIds).not.toContain('R-40');
+    expect(allIds).not.toContain('R-50');
+    expect(allIds).not.toContain('R-43');
+
+    expect(board.find((c) => c.state === 'planning')!.tasks.map((t) => t.id)).toEqual(['R-51']);
+    expect(board.find((c) => c.state === 'executing')!.tasks.map((t) => t.id)).toEqual(['R-41']);
+    expect(board.find((c) => c.state === 'done')!.tasks.map((t) => t.id).sort()).toEqual(['R-42', 'R-52']);
+
+    const card = board.find((c) => c.state === 'executing')!.tasks.find((t) => t.id === 'R-41')!;
+    expect(card.subtaskCount).toBe(1);
+    expect(card.doneSubtaskCount).toBe(0);
+    expect(card.edges).toEqual({ out: [], in: [] });
+  });
 });

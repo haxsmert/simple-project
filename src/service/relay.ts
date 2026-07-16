@@ -97,6 +97,12 @@ export class RelayService {
     return this.groupByState(listChildren(this.db, projectId));
   }
 
+  // 全部项目的一层任务: 跨所有项目聚合直接子任务(depth 1), 供任务看板"全部项目"筛选; 不含项目本身与更深的执行子任务
+  allTasksBoard(): Array<{ state: TaskState; tasks: BoardCard[] }> {
+    const tasks = listRoots(this.db).flatMap((project) => listChildren(this.db, project.id));
+    return this.groupByState(tasks);
+  }
+
   tree(): TaskNode[] {
     const build = (t: Task): TaskNode => ({
       ...t,
