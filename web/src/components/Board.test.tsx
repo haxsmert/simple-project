@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import { Board } from './Board';
+import { Board, reorderIds } from './Board';
 import type { BoardColumn } from '../types';
 
 const columns: BoardColumn[] = [
@@ -9,6 +9,19 @@ const columns: BoardColumn[] = [
   { state: 'planning', tasks: [] }, { state: 'awaiting_confirm', tasks: [] }, { state: 'testing', tasks: [] }, { state: 'done', tasks: [] },
 ];
 const actors = { a: { id: 'a', name: '执行A', type: 'agent' as const, handle: null }, you: { id: 'you', name: '你', type: 'human' as const, handle: null } };
+
+// 同一列(executing)下 3 张卡片, 专供拖拽排序测试使用
+const dragColumns: BoardColumn[] = [
+  {
+    state: 'executing',
+    tasks: (['R-1', 'R-2', 'R-3'] as const).map((id, i) => ({
+      id, title: `任务${i + 1}`, state: 'executing', currentActor: 'a', currentRole: 'executor',
+      parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi',
+    })),
+  },
+  { state: 'awaiting_decision', tasks: [] }, { state: 'planning', tasks: [] },
+  { state: 'awaiting_confirm', tasks: [] }, { state: 'testing', tasks: [] }, { state: 'done', tasks: [] },
+];
 
 describe('Board', () => {
   it('渲染卡片, 待决策列高亮, 点击回调', () => {
@@ -78,6 +91,40 @@ describe('Board', () => {
     // planning/awaiting_confirm/testing/done 列在 fixture 里没有任务
     expect(container.querySelectorAll('.col-empty').length).toBe(4);
     expect(cols.length).toBe(6);
+  });
+
+  it('传入 onReorder 时卡片可拖拽(draggable=true); 不传时卡片不可拖拽', () => {
+    const { container: withReorder } = render(<Board columns={columns} actorsById={actors} onOpen={vi.fn()} onReorder={vi.fn()} />);
+    expect((withReorder.querySelector('.card') as HTMLElement).getAttribute('draggable')).toBe('true');
+
+    const { container: withoutReorder } = render(<Board columns={columns} actorsById={actors} onOpen={vi.fn()} />);
+    expect((withoutReorder.querySelector('.card') as HTMLElement).getAttribute('draggable')).not.toBe('true');
+  });
+
+  it('同列内拖拽: 拖到某张卡片之前, onReorder 收到插到该卡之前的新顺序(dragStart/drop 事件模拟)', () => {
+    const onReorder = vi.fn();
+    const { container } = render(<Board columns={dragColumns} actorsById={actors} onOpen={vi.fn()} onReorder={onReorder} />);
+    const cards = container.querySelectorAll('.card');
+    fireEvent.dragStart(cards[0]); // 拖起 R-1
+    fireEvent.dragOver(cards[2]); // 悬停在 R-3 上
+    fireEvent.drop(cards[2]); // 松手在 R-3 上 → R-1 插到 R-3 之前
+    expect(onReorder).toHaveBeenCalledWith(['R-2', 'R-1', 'R-3']);
+  });
+
+  it('同列内拖拽到列尾空白区域: onReorder 收到追加到末尾的新顺序', () => {
+    const onReorder = vi.fn();
+    const { container } = render(<Board columns={dragColumns} actorsById={actors} onOpen={vi.fn()} onReorder={onReorder} />);
+    const cards = container.querySelectorAll('.card');
+    const cardsContainer = container.querySelector('.cards') as HTMLElement;
+    fireEvent.dragStart(cards[0]); // 拖起 R-1
+    fireEvent.drop(cardsContainer); // 松手在列的空白容器上(未命中任何卡片)
+    expect(onReorder).toHaveBeenCalledWith(['R-2', 'R-3', 'R-1']);
+  });
+
+  it('reorderIds 纯函数: 插到目标之前 / 追加到列尾(不依赖 DOM 事件, 保证非 flaky)', () => {
+    expect(reorderIds(['a', 'b', 'c'], 'a', 'c')).toEqual(['b', 'a', 'c']); // 拖 a 到 c 之前
+    expect(reorderIds(['a', 'b', 'c'], 'c', 'a')).toEqual(['c', 'a', 'b']); // 拖 c 到 a 之前
+    expect(reorderIds(['a', 'b', 'c'], 'b', null)).toEqual(['a', 'c', 'b']); // 拖 b 到列尾
   });
 });
 

@@ -87,6 +87,10 @@ export function App() {
     await reloadCurrent();
     if (detail) setDetail(await api.task(detail.task.id));
   }), [actors, detail, reloadCurrent, guard]);
+  const onReorder = useCallback((ids: string[]) => guard(async () => {
+    await api.reorder(ids);
+    await reloadCurrent();
+  }), [guard, reloadCurrent]);
 
   return (
     <div className="app">
@@ -121,11 +125,11 @@ export function App() {
       )}
 
       {view === 'projects' && (
-        <Board columns={projectCols} actorsById={actorsById} onOpen={openProjectAsTasks}
+        <Board columns={projectCols} actorsById={actorsById} onOpen={openProjectAsTasks} onReorder={onReorder}
           emptyHint={<><b>还没有项目</b><div>点右上角「+ 新建项目」开始</div></>} />
       )}
       {view === 'tasks' && (
-        <Board columns={taskCols} actorsById={actorsById} onOpen={openTask}
+        <Board columns={taskCols} actorsById={actorsById} onOpen={openTask} onReorder={onReorder}
           emptyHint={<><b>还没有任务</b><div>{filterProject === 'all' ? '去某个项目里追加任务' : '点「+ 追加任务」添加'}</div></>} />
       )}
       {view === 'tree' && <Tree nodes={tree} onOpen={openTask} />}

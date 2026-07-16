@@ -24,4 +24,5 @@ export const api = {
   raise: (body: { parentId: string; byActor: string; question: string; options?: string[]; toDecider?: string }) => post('/api/clarifications', body),
   answer: (id: string, body: { byActor: string; answer: string }) => post(`/api/clarifications/${id}/answer`, body),
   comment: (id: string, body: { actor: string; body: string }) => post(`/api/tasks/${id}/comment`, body),
+  reorder: (ids: string[]) => post<{ ok: boolean }>('/api/reorder', { ids }),
 };

@@ -1,3 +1,4 @@
+import type { DragEvent } from 'react';
 import type { BoardCard, Actor, EdgeType } from '../types';
 import { ActorBadge } from './ActorBadge';
 import { RoleChip } from './RoleChip';
@@ -11,7 +12,12 @@ const NOTABLE_OUT_LABEL: Partial<Record<EdgeType, string>> = {
 };
 const MAX_EDGE_CHIPS = 2;
 
-export function TaskCard({ task, actor, onOpen }: { task: BoardCard; actor: Actor | null; onOpen: (id: string) => void }) {
+export function TaskCard({ task, actor, onOpen, draggable, dragging, onDragStart, onDragOver, onDrop, onDragEnd }: {
+  task: BoardCard; actor: Actor | null; onOpen: (id: string) => void;
+  draggable?: boolean; dragging?: boolean;
+  onDragStart?: (e: DragEvent<HTMLDivElement>) => void; onDragOver?: (e: DragEvent<HTMLDivElement>) => void;
+  onDrop?: (e: DragEvent<HTMLDivElement>) => void; onDragEnd?: (e: DragEvent<HTMLDivElement>) => void;
+}) {
   const blocked = task.state === 'awaiting_decision';
 
   // 关系边 chip: 出边按类型去重, 再补一个"被依赖"的入边, 最后按上限截断避免拥挤
@@ -36,7 +42,8 @@ export function TaskCard({ task, actor, onOpen }: { task: BoardCard; actor: Acto
   const pct = hasSubtasks ? Math.round((doneSubtaskCount / subtaskCount) * 100) : 0;
 
   return (
-    <div className={`card${blocked ? ' blocked' : ''}`} onClick={() => onOpen(task.id)}>
+    <div className={`card${blocked ? ' blocked' : ''}${dragging ? ' dragging' : ''}`} onClick={() => onOpen(task.id)}
+      draggable={draggable} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} onDragEnd={onDragEnd}>
       <div className="card-top">
         <RoleChip role={task.currentRole} />
         {blocked && <EdgeChip type="clarifies" label="待决策" />}
