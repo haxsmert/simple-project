@@ -3,7 +3,7 @@ import { ActorBadge } from './ActorBadge';
 
 const STATE_NAME: Record<TaskState, string> = { planning: '待规划', awaiting_confirm: '待确认', executing: '执行中', awaiting_decision: '待决策', testing: '测试中', done: '完成' };
 // 与看板 STRIPE 同色, 保持全站状态色一致
-const STATE_COLOR: Record<TaskState, string> = { planning: 'var(--text-faint)', awaiting_confirm: '#8b7bd8', executing: 'var(--human)', awaiting_decision: 'var(--warn)', testing: '#37a6b3', done: 'var(--done)' };
+const STATE_COLOR: Record<TaskState, string> = { planning: 'var(--text-faint)', awaiting_confirm: 'var(--confirm)', executing: 'var(--human)', awaiting_decision: 'var(--warn)', testing: 'var(--testing)', done: 'var(--done)' };
 
 export function Tree({ nodes, onOpen, actorsById = {} }: { nodes: TaskNode[]; onOpen: (id: string) => void; actorsById?: Record<string, Actor> }) {
   return (

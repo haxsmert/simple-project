@@ -4,7 +4,7 @@ import type { BoardColumn, TaskState, Actor } from '../types';
 import { TaskCard } from './TaskCard';
 
 const NAME: Record<TaskState, string> = { planning: '待规划', awaiting_confirm: '待确认', executing: '执行中', awaiting_decision: '待决策', testing: '测试中', done: '完成' };
-const STRIPE: Record<TaskState, string> = { planning: 'var(--text-faint)', awaiting_confirm: '#8b7bd8', executing: 'var(--human)', awaiting_decision: 'var(--warn)', testing: '#37a6b3', done: 'var(--done)' };
+const STRIPE: Record<TaskState, string> = { planning: 'var(--text-faint)', awaiting_confirm: 'var(--confirm)', executing: 'var(--human)', awaiting_decision: 'var(--warn)', testing: 'var(--testing)', done: 'var(--done)' };
 
 // 纯函数: 计算"把 dragId 插到 dropId 之前"后的新顺序 —— 不依赖 DOM/事件, 便于在 jsdom 之外单测拖拽排序算法本身。
 // dropId 为 null 时表示拖到列尾(空白区域 drop), 直接把 dragId 追加到末尾。

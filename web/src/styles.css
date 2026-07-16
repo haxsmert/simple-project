@@ -3,6 +3,8 @@
   --border:#dde3ea; --border-2:#cdd6e0; --text:#1b2433; --text-dim:#596576; --text-faint:#8593a4;
   --human:#2f6fe0; --human-soft:#e7eefc; --agent:#0c9683; --agent-soft:#daf3ee;
   --warn:#b9741a; --warn-soft:#fbeed6; --done:#2c8f5b; --done-soft:#e0f2e7; --danger:#cc4a3a; --danger-soft:#fbe6e2;
+  /* 状态色令牌 · 全站单一来源(看板条纹/树点/状态 pill/角色点都引它); 亮色取深值, 作文字对比 ≥5:1(WCAG AA) */
+  --confirm:#634fb0; --testing:#1e6a75;
   --font-ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI","PingFang SC",system-ui,sans-serif;
   --font-mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
 }
@@ -13,6 +15,7 @@
     --human:#5b9cff; --human-soft:rgba(91,156,255,.15); --agent:#2dd4b3; --agent-soft:rgba(45,212,179,.15);
     --warn:#e7a63f; --warn-soft:rgba(231,166,63,.15); --done:#4fc582; --done-soft:rgba(79,197,130,.15);
     --danger:#f0705c; --danger-soft:rgba(240,112,92,.15);
+    --confirm:#8b7bd8; --testing:#37a6b3; /* 暗色取亮值, 作点/文字均达标 */
   }
 }
 * { box-sizing:border-box; }
@@ -28,7 +31,7 @@ body { margin:0; background:var(--bg); color:var(--text); font-family:var(--font
 /* role chip */
 .role { font-size:10.5px; font-weight:600; letter-spacing:.04em; color:var(--text-dim); background:var(--surface-2); border:1px solid var(--border); border-radius:6px; padding:2px 6px; display:inline-flex; align-items:center; gap:5px; }
 .role .rd { width:6px; height:6px; border-radius:50%; background:var(--text-faint); }
-.role.plan .rd{ background:#8b7bd8; } .role.exec .rd{ background:var(--human); } .role.test .rd{ background:#37a6b3; }
+.role.plan .rd{ background:var(--confirm); } .role.exec .rd{ background:var(--human); } .role.test .rd{ background:var(--testing); }
 .role.ask .rd,.role.decide .rd{ background:var(--warn); }
 
 /* edge chip */
@@ -99,10 +102,11 @@ body { margin:0; background:var(--bg); color:var(--text); font-family:var(--font
 .status-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:20px; }
 .pill { font-size:12px; font-weight:600; border-radius:20px; padding:3px 11px 3px 9px; display:inline-flex; gap:6px; align-items:center; background:var(--surface-2); color:var(--text-dim); }
 .pill .d { width:7px; height:7px; border-radius:50%; background:var(--text-faint); }
+/* 状态 pill 与看板 STRIPE / 角色点 / 边 chip 同一状态同一色(#1 一致性): 待确认=紫, 待决策=琥珀, 测试=teal */
 .pill.exec { color:var(--human); background:var(--human-soft); } .pill.exec .d { background:var(--human); }
-.pill.confirm { color:var(--warn); background:var(--warn-soft); } .pill.confirm .d { background:var(--warn); }
-.pill.decide { color:var(--danger); background:var(--danger-soft); } .pill.decide .d { background:var(--danger); }
-.pill.test { color:var(--agent); background:var(--agent-soft); } .pill.test .d { background:var(--agent); }
+.pill.confirm { color:var(--confirm); background:color-mix(in srgb,var(--confirm) 15%,transparent); } .pill.confirm .d { background:var(--confirm); }
+.pill.decide { color:var(--warn); background:var(--warn-soft); } .pill.decide .d { background:var(--warn); }
+.pill.test { color:var(--testing); background:color-mix(in srgb,var(--testing) 15%,transparent); } .pill.test .d { background:var(--testing); }
 .pill.done { color:var(--done); background:var(--done-soft); } .pill.done .d { background:var(--done); }
 .pill.plan { color:var(--text-dim); background:var(--surface-2); } .pill.plan .d { background:var(--text-faint); }
 
