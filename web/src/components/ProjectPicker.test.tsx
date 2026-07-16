@@ -36,4 +36,34 @@ describe('ProjectPicker', () => {
     fireEvent.click(screen.getByText('演示项目'));
     expect(onChange).toHaveBeenCalledWith('P-1');
   });
+
+  it('输入关键词后按 Escape 关闭,重新打开时搜索词已清空、显示全部项目', () => {
+    render(<ProjectPicker projects={projects} value="all" onChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button'));
+    fireEvent.change(screen.getByPlaceholderText('搜索项目…'), { target: { value: '演示' } });
+    expect(screen.queryByText('另一个项目')).not.toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByPlaceholderText('搜索项目…')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByPlaceholderText('搜索项目…')).toHaveValue('');
+    expect(screen.getByText('演示项目')).toBeInTheDocument();
+    expect(screen.getByText('另一个项目')).toBeInTheDocument();
+  });
+
+  it('输入关键词后点击外部关闭,重新打开时搜索词已清空', () => {
+    render(<ProjectPicker projects={projects} value="all" onChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button'));
+    fireEvent.change(screen.getByPlaceholderText('搜索项目…'), { target: { value: '演示' } });
+    expect(screen.queryByText('另一个项目')).not.toBeInTheDocument();
+
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByPlaceholderText('搜索项目…')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByPlaceholderText('搜索项目…')).toHaveValue('');
+    expect(screen.getByText('演示项目')).toBeInTheDocument();
+    expect(screen.getByText('另一个项目')).toBeInTheDocument();
+  });
 });

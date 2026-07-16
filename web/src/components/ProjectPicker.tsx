@@ -11,16 +11,18 @@ export function ProjectPicker({ projects, value, onChange }: {
   const label = value === 'all' ? '全部任务' : (projects.find((p) => p.id === value)?.title ?? value);
   const filtered = projects.filter((p) => p.title.toLowerCase().includes(query.toLowerCase()));
 
+  const close = () => { setOpen(false); setQuery(''); };
+
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) close(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
     return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
   }, [open]);
 
-  const pick = (v: string) => { onChange(v); setOpen(false); setQuery(''); };
+  const pick = (v: string) => { onChange(v); close(); };
 
   return (
     <div className="picker" ref={ref}>

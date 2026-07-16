@@ -8,6 +8,7 @@ export interface Task {
   currentActor: string | null; currentRole: Role | null;
   goal: string | null; inputsMd: string | null; outputsMd: string | null; summary: string | null;
   priority: 'hi' | 'mid' | 'lo' | null;
+  rank?: number | null;
 }
 export interface Actor { id: string; name: string; type: ActorType; handle: string | null; }
 export interface Edge { id: string; fromTask: string; toTask: string; type: EdgeType; }

@@ -80,7 +80,6 @@ export class RelayService {
       state,
       tasks: tasks
         .filter((t) => t.state === state)
-        .slice()
         .sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity) || byIdNum(a.id) - byIdNum(b.id))
         .map((t) => this.enrich(t)),
     }));
@@ -189,6 +188,6 @@ export class RelayService {
 
   // 列内拖拽重排: 按给定顺序把 rank 赋为 0,1,2,... (同一状态列内的顺序即持久化顺序)
   reorder(ids: string[]): void {
-    ids.forEach((id, i) => setRank(this.db, id, i));
+    this.db.transaction(() => { ids.forEach((id, i) => setRank(this.db, id, i)); })();
   }
 }
