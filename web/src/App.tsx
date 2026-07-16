@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { api } from './api';
 import type { BoardColumn, TaskNode, TaskPackage, Actor } from './types';
 import { Board } from './components/Board';
@@ -17,6 +17,10 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false); // 首屏数据是否已到 —— 未到前不渲染空态, 避免误报"还没有项目"
   const [draft, setDraft] = useState<{ kind: 'project' | 'task'; title: string } | null>(null);
+  const triggerRef = useRef<HTMLElement | null>(null); // 打开抽屉的那张卡, 关闭后把焦点还给它(键盘闭环)
+
+  // 关抽屉并把焦点还给触发卡片 —— 卡片已可聚焦, 否则 Esc/关闭后焦点落到 body 就丢了
+  const closeDetail = useCallback(() => { setDetail(null); triggerRef.current?.focus?.(); }, []);
 
   const actorsById = Object.fromEntries(actors.map((a) => [a.id, a]));
   const projects = projectCols.flatMap((c) => c.tasks).map((t) => ({ id: t.id, title: t.title }));
@@ -35,10 +39,10 @@ export function App() {
 
   useEffect(() => {
     if (!detail) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDetail(null); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeDetail(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [detail]);
+  }, [detail, closeDetail]);
 
   const loadTaskBoard = useCallback(async (filter: string) => {
     setTaskCols(filter === 'all' ? await api.allTasks() : await api.taskBoard(filter));
@@ -54,7 +58,10 @@ export function App() {
   const gotoTasks = useCallback(() => guard(async () => { setView('tasks'); await loadTaskBoard(filterProject); }), [guard, loadTaskBoard, filterProject]);
   const changeFilter = useCallback((f: string) => guard(async () => { setFilterProject(f); await loadTaskBoard(f); }), [guard, loadTaskBoard]);
 
-  const openTask = useCallback((id: string) => guard(async () => { setDetail(await api.task(id)); }), [guard]);
+  const openTask = useCallback((id: string) => {
+    triggerRef.current = document.activeElement as HTMLElement; // 记住触发卡片, 供关闭时归还焦点
+    return guard(async () => { setDetail(await api.task(id)); });
+  }, [guard]);
 
   const reloadCurrent = useCallback(async () => {
     await refresh();
@@ -165,8 +172,8 @@ export function App() {
 
       {detail && (
         <>
-          <div className="drawer-backdrop" onClick={() => setDetail(null)} aria-hidden="true" />
-          <TaskDetail pkg={detail} actorsById={actorsById} onAnswer={onAnswer} onHandoff={onHandoff} onComment={onComment} onClose={() => setDetail(null)} />
+          <div className="drawer-backdrop" onClick={closeDetail} aria-hidden="true" />
+          <TaskDetail pkg={detail} actorsById={actorsById} onAnswer={onAnswer} onHandoff={onHandoff} onComment={onComment} onClose={closeDetail} />
         </>
       )}
     </div>
