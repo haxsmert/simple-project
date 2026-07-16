@@ -265,7 +265,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
         <RoleChip role={t.currentRole} />
       </div>
 
-      {clarSlot}
+      {openClarCount > 0 && clarSlot}
 
       <div className="slot">
         <SlotHead icon={<IconFile />} tint="human" title="输入" en="Inputs" tag="上一棒交付" />
@@ -298,6 +298,8 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
           {pkg.outputs.summary && <div className="summary"><b>摘要:</b> {pkg.outputs.summary}</div>}
         </div>
       </div>
+
+      {openClarCount === 0 && clarSlot}
 
       {pkg.subtasks.length > 0 && (
         <div className="slot">

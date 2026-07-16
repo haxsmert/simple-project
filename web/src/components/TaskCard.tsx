@@ -1,5 +1,5 @@
 import type { DragEvent } from 'react';
-import type { BoardCard, Actor, EdgeType } from '../types';
+import type { BoardCard, Actor, EdgeType, TaskState } from '../types';
 import { ActorBadge } from './ActorBadge';
 import { RoleChip } from './RoleChip';
 import { EdgeChip } from './EdgeChip';
@@ -13,6 +13,7 @@ const NOTABLE_OUT_LABEL: Partial<Record<EdgeType, string>> = {
 const MAX_EDGE_CHIPS = 2;
 // 优先级用文字(高/中/低)承载, 颜色只作强化 —— 不靠颜色单独传意, 灰度/色盲也能区分
 const PRIO_LABEL: Record<'hi' | 'mid' | 'lo', string> = { hi: '高', mid: '中', lo: '低' };
+const STATE_NAME: Record<TaskState, string> = { planning: '待规划', awaiting_confirm: '待确认', executing: '执行中', awaiting_decision: '待决策', testing: '测试中', done: '完成' };
 
 export function TaskCard({ task, actor, onOpen, draggable, dragging, onDragStart, onDragOver, onDrop, onDragEnd }: {
   task: BoardCard; actor: Actor | null; onOpen: (id: string) => void;
@@ -43,9 +44,17 @@ export function TaskCard({ task, actor, onOpen, draggable, dragging, onDragStart
   const doneSubtaskCount = task.doneSubtaskCount ?? 0;
   const pct = hasSubtasks ? Math.round((doneSubtaskCount / subtaskCount) * 100) : 0;
 
+  // 可及名把视觉上的关键信号(所属项目/状态/待你决策数/优先级)一并纳入, 否则屏幕阅读器只听到"标题·id"
+  const a11yLabel = [
+    task.parentTitle, task.title, STATE_NAME[task.state],
+    task.attention ? `${task.attention} 项待你决策` : '',
+    task.priority ? `优先级${PRIO_LABEL[task.priority]}` : '',
+    task.id,
+  ].filter(Boolean).join(' · ');
+
   return (
     <div className={`card${blocked ? ' blocked' : ''}${dragging ? ' dragging' : ''}`} onClick={() => onOpen(task.id)}
-      role="button" tabIndex={0} aria-label={`${task.title} · ${task.id}`}
+      role="button" tabIndex={0} aria-label={a11yLabel}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(task.id); } }}
       draggable={draggable} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} onDragEnd={onDragEnd}>
       {task.parentTitle && <div className="card-project">{task.parentTitle}</div>}

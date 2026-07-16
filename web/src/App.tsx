@@ -28,9 +28,10 @@ export function App() {
 
   const refresh = useCallback(async () => {
     const [p, t, a] = await Promise.all([api.projects(), api.tree(), api.actors()]);
-    setProjectCols(p); setTree(t); setActors(a); setLoaded(true);
+    setProjectCols(p); setTree(t); setActors(a);
   }, []);
-  useEffect(() => { guard(refresh); }, [refresh, guard]);
+  // 首屏无论成败都置 loaded: 成功→出看板, 失败→出错误横幅+可导航的空看板, 绝不因失败卡死在"加载中…"
+  useEffect(() => { guard(refresh).finally(() => setLoaded(true)); }, [refresh, guard]);
 
   useEffect(() => {
     if (!detail) return;
@@ -149,7 +150,7 @@ export function App() {
         </div>
       )}
 
-      {!loaded && <div className="board-empty">加载中…</div>}
+      {!loaded && !error && <div className="board-empty">加载中…</div>}
       {loaded && view === 'projects' && (
         <Board columns={projectCols} actorsById={actorsById} onOpen={openProjectAsTasks} onReorder={onReorder}
           emptyHint={<><b>还没有项目</b><div>点右上角「+ 新建项目」开始</div></>} />

@@ -37,6 +37,17 @@ describe('TaskDetail', () => {
     expect(heads.indexOf('换手')).toBeGreaterThan(heads.indexOf('交互记录')); // 换手降到底部
   });
 
+  it('待确认全部已决策时, 该槽位下沉到「输入」之下(不再占据决策优先的顶部)', () => {
+    const resolvedPkg: TaskPackage = {
+      ...pkg,
+      task: { ...pkg.task, state: 'executing' },
+      clarifications: [{ id: 'R-148', title: '待确认: 富文本?', state: 'done', currentActor: 'you', currentRole: 'decider', parentId: 'R-142', goal: '富文本?', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }],
+    };
+    const { container } = render(<TaskDetail pkg={resolvedPkg} actorsById={actors} onAnswer={() => {}} onHandoff={() => {}} onComment={() => {}} onClose={() => {}} />);
+    const heads = Array.from(container.querySelectorAll('.slot-head h4')).map((h) => h.textContent);
+    expect(heads.indexOf('待确认')).toBeGreaterThan(heads.indexOf('输入')); // 已决策=历史, 让位给输入/产出
+  });
+
   it('点选项即答复(direct manipulation): 点 "A. 含全部" 直接以该选项答复', () => {
     const onAnswer = vi.fn();
     const optPkg: TaskPackage = {
