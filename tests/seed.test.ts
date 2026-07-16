@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openDb } from '../src/db/connection';
-import { seed } from '../src/seed';
+import { seed, runSeedCli } from '../src/seed';
 import { getTask } from '../src/repo/tasks';
 
 describe('seed 端到端', () => {
@@ -18,5 +18,15 @@ describe('seed 端到端', () => {
     expect(getTask(db, 'R-142')!.state).toBe('awaiting_decision');
     // 镜像文件真的写出来了
     expect(readFileSync(join(dir, 'R-142.md'), 'utf8')).toContain('# 搭建 SQLite 数据层与任务模型');
+  });
+
+  it('runSeedCli 可重复运行(重置后再 seed 不撞主键)', () => {
+    const base = mkdtempSync(join(tmpdir(), 'relay-cli-'));
+    const dbPath = join(base, 'relay.db');
+    const dir = join(base, 'tasks');
+    const first = runSeedCli(dbPath, dir);
+    const second = runSeedCli(dbPath, dir); // 第二次不应抛
+    expect(second.taskCount).toBe(first.taskCount);
+    expect(second.files.length).toBe(second.taskCount);
   });
 });

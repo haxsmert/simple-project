@@ -1,3 +1,5 @@
+import { mkdirSync, rmSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { openDb, type DB } from './db/connection';
 import { createActor } from './repo/actors';
 import { createTask } from './repo/tasks';
@@ -40,9 +42,18 @@ export function seed(db: DB, dir: string): { taskCount: number; files: string[] 
   return { taskCount: ids.length, files };
 }
 
-// CLI: npm run seed → 落到 data/relay.db 并镜像到 tasks/
+// 从干净状态跑一次 seed 到指定 db 文件 + 镜像目录; 可重复运行(每次先重置)
+export function runSeedCli(dbPath: string, dir: string): { taskCount: number; files: string[] } {
+  mkdirSync(dirname(dbPath), { recursive: true });
+  for (const f of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
+    rmSync(f, { force: true });
+  }
+  const db = openDb(dbPath);
+  return seed(db, dir);
+}
+
+// CLI: npm run seed → 重置 data/relay.db 并镜像到 tasks/
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const db = openDb('data/relay.db');
-  const res = seed(db, 'tasks');
+  const res = runSeedCli('data/relay.db', 'tasks');
   console.log(`✅ seed 完成: ${res.taskCount} 个任务, 镜像 ${res.files.length} 个文件到 tasks/`);
 }
