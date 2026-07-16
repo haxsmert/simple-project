@@ -1,0 +1,56 @@
+import { describe, it, expect } from 'vitest';
+import { openDb } from '../../src/db/connection';
+import { createActor } from '../../src/repo/actors';
+import { createTask, getTask } from '../../src/repo/tasks';
+import { edgesFrom, edgesTo } from '../../src/repo/edges';
+import { listEvents } from '../../src/repo/events';
+import { raiseClarification, answerClarification } from '../../src/core/clarification';
+
+describe('待确认闭环', () => {
+  it('执行者卡住 → 触发待确认 → 父任务挂起', () => {
+    const db = openDb(':memory:');
+    createActor(db, { id: 'exec', name: '执行·A', type: 'agent' });
+    createActor(db, { id: 'you', name: '你', type: 'human' });
+    const parent = createTask(db, {
+      title: '搭建数据层', state: 'executing', currentActor: 'exec', currentRole: 'executor',
+    });
+
+    const { clarTask } = raiseClarification(db, {
+      parentId: parent.id, byActor: 'exec',
+      question: '信息包是否允许附件?', options: ['纯 Markdown', '结构化 JSON'], toDecider: 'you',
+    });
+
+    expect(getTask(db, parent.id)!.state).toBe('awaiting_decision'); // 父挂起
+    expect(clarTask.parentId).toBe(parent.id);
+    expect(clarTask.state).toBe('awaiting_decision');
+    expect(clarTask.currentRole).toBe('decider');
+    expect(clarTask.goal).toContain('信息包是否允许附件?');
+    expect(clarTask.goal).toContain('纯 Markdown'); // 选项进了 goal
+
+    // 边: 子 --clarifies--> 父, 父 --spawns--> 子
+    expect(edgesFrom(db, clarTask.id).some((e) => e.type === 'clarifies' && e.toTask === parent.id)).toBe(true);
+    expect(edgesTo(db, clarTask.id).some((e) => e.type === 'spawns' && e.fromTask === parent.id)).toBe(true);
+    expect(listEvents(db, parent.id).at(-1)!.kind).toBe('clarify');
+  });
+
+  it('决策者答复 → 答案回流 → 父任务解冻续跑', () => {
+    const db = openDb(':memory:');
+    createActor(db, { id: 'exec', name: '执行·A', type: 'agent' });
+    createActor(db, { id: 'you', name: '你', type: 'human' });
+    const parent = createTask(db, {
+      title: '搭建数据层', state: 'executing', currentActor: 'exec', currentRole: 'executor',
+    });
+    const { clarTask } = raiseClarification(db, {
+      parentId: parent.id, byActor: 'exec', question: '附件?', toDecider: 'you',
+    });
+
+    const { clarTask: closed, parent: resumed } = answerClarification(db, {
+      clarTaskId: clarTask.id, byActor: 'you', answer: '方案 A: 纯 Markdown + 外链',
+    });
+
+    expect(closed.state).toBe('done');
+    expect(closed.outputsMd).toBe('方案 A: 纯 Markdown + 外链');
+    expect(resumed.state).toBe('executing'); // 父解冻
+    expect(listEvents(db, parent.id).at(-1)!.kind).toBe('decide');
+  });
+});
