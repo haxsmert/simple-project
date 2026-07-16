@@ -95,16 +95,11 @@ export class RelayService {
     return this.groupByState(all);
   }
 
-  // 项目子树里待决策(state === 'awaiting_decision')的后代数量, 供项目卡的 attention 信号使用
-  // 不含 rootId 自身, 只数子孙; 小树规模, 简单递归足够
+  // 项目「直接任务(depth-1)」里 awaiting_decision 的数量 —— 刻意只数一层:
+  // 这正是该项目任务看板「待决策」列里能看到、人类会点开去决策的那些卡, 数字与看板一致、可对账。
+  // (更深的待确认子任务是 agent 领地, 由其父任务的挂起体现, 不重复计数。)
   private pendingDecisions(rootId: string): number {
-    const children = listChildren(this.db, rootId);
-    let count = 0;
-    for (const child of children) {
-      if (child.state === 'awaiting_decision') count++;
-      count += this.pendingDecisions(child.id);
-    }
-    return count;
+    return listChildren(this.db, rootId).filter((t) => t.state === 'awaiting_decision').length;
   }
 
   // 项目 = 顶层任务(parentId null); 项目卡额外带 attention(子树里等待人类决策的任务数, 人类最高价值信号)

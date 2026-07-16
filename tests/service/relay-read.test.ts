@@ -145,7 +145,7 @@ describe('RelayService reads', () => {
     expect(projectCard.parentTitle).toBeNull();
   });
 
-  it('projectBoard 的项目卡带 attention(子树里 awaiting_decision 的后代数), taskBoard/allTasksBoard 不带', () => {
+  it('projectBoard 项目卡 attention = 直接任务里 awaiting_decision 数(与该项目任务看板待决策列一致), taskBoard/allTasksBoard 不带', () => {
     const { db, service } = svc();
     service.registerActor({ id: 'x', name: 'X', type: 'agent' });
     service.registerActor({ id: 'you', name: '你', type: 'human' });
@@ -162,11 +162,14 @@ describe('RelayService reads', () => {
     const projectBoard = service.projectBoard();
     const cardA = projectBoard.find((c) => c.state === 'planning')!.tasks.find((t) => t.id === 'R-80')!;
     const cardB = projectBoard.find((c) => c.state === 'planning')!.tasks.find((t) => t.id === 'R-90')!;
-    expect(cardA.attention).toBe(2); // R-81(转为 awaiting_decision) + 其 clarification 子任务
-    expect(cardA.attention).toBeGreaterThanOrEqual(1);
+    expect(cardA.attention).toBe(1); // 只数直接任务 R-81(待决策); 更深的 clarification 子任务不重复计数
     expect(cardB.attention).toBe(0);
 
-    const taskCard = service.taskBoard('R-80').find((c) => c.state === 'awaiting_decision')!.tasks.find((t) => t.id === 'R-81')!;
+    // 诚实/可对账: attention 必须等于该项目任务看板「待决策」列的卡数(所见即所计)
+    const decisionCol = service.taskBoard('R-80').find((c) => c.state === 'awaiting_decision')!;
+    expect(cardA.attention).toBe(decisionCol.tasks.length);
+
+    const taskCard = decisionCol.tasks.find((t) => t.id === 'R-81')!;
     expect(taskCard.attention).toBeUndefined();
 
     const allCard = service.allTasksBoard().find((c) => c.state === 'awaiting_decision')!.tasks.find((t) => t.id === 'R-81')!;
