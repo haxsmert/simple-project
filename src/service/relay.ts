@@ -33,13 +33,16 @@ export class RelayService {
 
   // 受影响集合 = 任务本身 + 父任务(父的 .md 内嵌子任务状态) + 依赖本任务的任务(它们的 .md 内嵌本任务摘要)
   protected mirror(...ids: Array<string | null | undefined>): void {
-    const affected = new Set<string>();
-    for (const id of ids) {
-      if (!id) continue;
-      affected.add(id);
-      const t = getTask(this.db, id);
-      if (t?.parentId) affected.add(t.parentId);
-      for (const e of edgesTo(this.db, id)) if (e.type === 'depends_on') affected.add(e.fromTask);
+    const affected = new Set<string>(ids.filter((x): x is string => !!x));
+    try {
+      // 扩展受影响集合的读操作也纳入尽力而为: 计算失败绝不能让已提交的写操作失败(否则 agent 重试会重复追加事件)
+      for (const id of [...affected]) {
+        const t = getTask(this.db, id);
+        if (t?.parentId) affected.add(t.parentId);
+        for (const e of edgesTo(this.db, id)) if (e.type === 'depends_on') affected.add(e.fromTask);
+      }
+    } catch {
+      // 扩展失败则退回到只镜像直接传入的任务
     }
     for (const id of affected) this.mirrorOne(id);
   }
