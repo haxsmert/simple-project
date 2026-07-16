@@ -138,12 +138,16 @@ function findRaiser(thread: TaskEvent[], question: string): string | null {
   return null;
 }
 
-function ClarBox({ clarId, onAnswer }: { clarId: string; onAnswer: (id: string, answer: string) => void }) {
+// 答复框: 回车即提交, 自动聚焦(抽屉打开即可键盘作答), 提交后清空; 空白不提交
+function ClarBox({ clarId, autoFocus, onAnswer }: { clarId: string; autoFocus?: boolean; onAnswer: (id: string, answer: string) => void }) {
   const [v, setV] = useState('');
+  const submit = () => { const a = v.trim(); if (a) { onAnswer(clarId, a); setV(''); } };
   return (
     <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
-      <input placeholder="答复决策…" value={v} onChange={(e) => setV(e.target.value)} style={{ flex: 1 }} />
-      <button className="btn primary" onClick={() => onAnswer(clarId, v)}>答复</button>
+      <input autoFocus={autoFocus} placeholder="答复决策…(或直接点上面的选项)" value={v}
+        onChange={(e) => setV(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} style={{ flex: 1 }} />
+      <button className="btn primary" onClick={submit}>答复</button>
     </div>
   );
 }
@@ -175,10 +179,12 @@ function HandoffBox({ taskId, currentState, actors, onHandoff }: {
 
 function CommentBox({ taskId, onComment }: { taskId: string; onComment: (taskId: string, body: string) => void }) {
   const [v, setV] = useState('');
+  const submit = () => { const b = v.trim(); if (b) { onComment(taskId, b); setV(''); } };
   return (
     <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-      <input placeholder="写条评论…" value={v} onChange={(e) => setV(e.target.value)} style={{ flex: 1 }} />
-      <button className="btn" onClick={() => { onComment(taskId, v); setV(''); }}>评论</button>
+      <input placeholder="写条评论…" value={v} onChange={(e) => setV(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} style={{ flex: 1 }} />
+      <button className="btn" onClick={submit}>评论</button>
     </div>
   );
 }
@@ -193,7 +199,60 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
   const t = pkg.task;
   const inputPlan = parsePlan(pkg.inputs.inputsMd);
   const outputArtifacts = parseArtifacts(pkg.outputs.outputsMd);
-  const openClarCount = pkg.clarifications.filter((c) => c.state !== 'done').length;
+  const openClar = pkg.clarifications.filter((c) => c.state !== 'done');
+  const openClarCount = openClar.length;
+  const firstOpenId = openClar[0]?.id ?? null; // 只给第一条待决策自动聚焦
+
+  // 待决策槽位: 决策者最高价值动作, 提到最顶(status 行正下方); 全部已决策则作为历史保留在原语义位置
+  const clarSlot = pkg.clarifications.length > 0 && (
+    <div className="slot">
+      <SlotHead icon={<IconQuestion />} tint="warn" title="待确认" en="Clarification" tag={openClarCount > 0 ? '阻塞中 · 已挂起本任务' : '已全部决策'} />
+      <div className="slot-body">
+        {pkg.clarifications.map((c) => {
+          if (c.state === 'done') {
+            return (
+              <div key={c.id} className="clar-done">
+                <IconCheck />
+                <span>{clarQuestion(c)}</span>
+                <span className="clar-done-tag">已决策</span>
+              </div>
+            );
+          }
+          const opts = parseOptions(c.goal);
+          const raiserId = findRaiser(pkg.thread, clarQuestion(c));
+          const raiser = raiserId ? actorsById[raiserId] ?? null : null;
+          const decider = c.currentActor ? actorsById[c.currentActor] ?? null : null;
+          return (
+            <div key={c.id} className="clar">
+              <div className="clar-head">
+                <IconWarnTriangle />
+                遇到问题触发待确认
+                <span className="st">{c.id} · 待你决策</span>
+              </div>
+              <div className="clar-body">
+                <p className="clar-q">{clarQuestion(c)}</p>
+                <div className="clar-route">
+                  <ActorBadge actor={raiser} /> 提问
+                  <IconArrowRight />
+                  <ActorBadge actor={decider} /> 决策
+                </div>
+                {opts.length > 0 && (
+                  <div className="opts">
+                    {opts.map((o, i) => (
+                      <button key={i} type="button" className="opt" onClick={() => onAnswer(c.id, `${o.letter}. ${o.text}`)}>
+                        {o.letter}. {o.text}<span className="k">选这个</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <ClarBox clarId={c.id} autoFocus={c.id === firstOpenId} onAnswer={onAnswer} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   return (
     <div className="drawer">
@@ -206,12 +265,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
         <RoleChip role={t.currentRole} />
       </div>
 
-      <div className="slot">
-        <SlotHead icon={<IconHandoff />} tint="human" title="换手" en="Handoff" tag="转交给下一棒" />
-        <div className="slot-body">
-          <HandoffBox taskId={t.id} currentState={t.state} actors={Object.values(actorsById)} onHandoff={onHandoff} />
-        </div>
-      </div>
+      {clarSlot}
 
       <div className="slot">
         <SlotHead icon={<IconFile />} tint="human" title="输入" en="Inputs" tag="上一棒交付" />
@@ -244,52 +298,6 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
           {pkg.outputs.summary && <div className="summary"><b>摘要:</b> {pkg.outputs.summary}</div>}
         </div>
       </div>
-
-      {pkg.clarifications.length > 0 && (
-        <div className="slot">
-          <SlotHead icon={<IconQuestion />} tint="warn" title="待确认" en="Clarification" tag={openClarCount > 0 ? '阻塞中 · 已挂起本任务' : '已全部决策'} />
-          <div className="slot-body">
-            {pkg.clarifications.map((c) => {
-              if (c.state === 'done') {
-                return (
-                  <div key={c.id} className="clar-done">
-                    <IconCheck />
-                    <span>{clarQuestion(c)}</span>
-                    <span className="clar-done-tag">已决策</span>
-                  </div>
-                );
-              }
-              const opts = parseOptions(c.goal);
-              const raiserId = findRaiser(pkg.thread, clarQuestion(c));
-              const raiser = raiserId ? actorsById[raiserId] ?? null : null;
-              const decider = c.currentActor ? actorsById[c.currentActor] ?? null : null;
-              return (
-                <div key={c.id} className="clar">
-                  <div className="clar-head">
-                    <IconWarnTriangle />
-                    遇到问题触发待确认
-                    <span className="st">{c.id} · 待你决策</span>
-                  </div>
-                  <div className="clar-body">
-                    <p className="clar-q">{clarQuestion(c)}</p>
-                    <div className="clar-route">
-                      <ActorBadge actor={raiser} /> 提问
-                      <IconArrowRight />
-                      <ActorBadge actor={decider} /> 决策
-                    </div>
-                    {opts.length > 0 && (
-                      <div className="opts">
-                        {opts.map((o, i) => <div key={i} className="opt">{o.letter}. {o.text}<span className="k">选项</span></div>)}
-                      </div>
-                    )}
-                    <ClarBox clarId={c.id} onAnswer={onAnswer} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {pkg.subtasks.length > 0 && (
         <div className="slot">
@@ -344,6 +352,13 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
               );
             })}
           </div>
+        </div>
+      </div>
+
+      <div className="slot">
+        <SlotHead icon={<IconHandoff />} tint="human" title="换手" en="Handoff" tag="转交给下一棒" />
+        <div className="slot-body">
+          <HandoffBox taskId={t.id} currentState={t.state} actors={Object.values(actorsById)} onHandoff={onHandoff} />
         </div>
       </div>
 

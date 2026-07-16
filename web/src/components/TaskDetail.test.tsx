@@ -29,6 +29,25 @@ describe('TaskDetail', () => {
     expect(onAnswer).toHaveBeenCalledWith('R-148', '方案A');
   });
 
+  it('决策优先: 待确认槽位排在「输入」之上, 换手降到「交互记录」之下', () => {
+    const { container } = render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={() => {}} onHandoff={() => {}} onComment={() => {}} onClose={() => {}} />);
+    const heads = Array.from(container.querySelectorAll('.slot-head h4')).map((h) => h.textContent);
+    expect(heads.indexOf('待确认')).toBeGreaterThanOrEqual(0);
+    expect(heads.indexOf('待确认')).toBeLessThan(heads.indexOf('输入'));      // 决策提到最顶
+    expect(heads.indexOf('换手')).toBeGreaterThan(heads.indexOf('交互记录')); // 换手降到底部
+  });
+
+  it('点选项即答复(direct manipulation): 点 "A. 含全部" 直接以该选项答复', () => {
+    const onAnswer = vi.fn();
+    const optPkg: TaskPackage = {
+      ...pkg,
+      clarifications: [{ id: 'R-148', title: '待确认: 导出范围?', state: 'awaiting_decision', currentActor: 'you', currentRole: 'decider', parentId: 'R-142', goal: '导出范围?\n- A. 含全部\n- B. 仅未完成', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }],
+    };
+    render(<TaskDetail pkg={optPkg} actorsById={actors} onAnswer={onAnswer} onHandoff={() => {}} onComment={() => {}} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /A\. 含全部/ }));
+    expect(onAnswer).toHaveBeenCalledWith('R-148', 'A. 含全部');
+  });
+
   it('换手控件调用 onHandoff', () => {
     const onHandoff = vi.fn();
     render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={() => {}} onHandoff={onHandoff} onComment={() => {}} onClose={() => {}} />);
