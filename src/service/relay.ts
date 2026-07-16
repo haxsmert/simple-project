@@ -8,6 +8,10 @@ import { createActor } from '../repo/actors';
 import { createTask, updateTask, type CreateTaskInput, type TaskPatch } from '../repo/tasks';
 import { appendEvent } from '../repo/events';
 import type { TaskEvent } from '../model/types';
+import { handoff, type HandoffInput } from '../core/handoff';
+import { raiseClarification, answerClarification, type RaiseInput, type AnswerInput } from '../core/clarification';
+import { createEdge } from '../repo/edges';
+import type { Edge, EdgeType } from '../model/types';
 
 export const STATE_ORDER: TaskState[] = [
   'planning', 'awaiting_confirm', 'executing', 'awaiting_decision', 'testing', 'done',
@@ -94,5 +98,29 @@ export class RelayService {
     const ev = appendEvent(this.db, { taskId, actorId, kind: 'comment', body });
     this.mirror(taskId);
     return ev;
+  }
+
+  handoff(input: HandoffInput): Task {
+    const t = handoff(this.db, input);
+    this.mirror(input.taskId);
+    return t;
+  }
+
+  raiseClarification(input: RaiseInput): { clarTask: Task; parent: Task } {
+    const r = raiseClarification(this.db, input);
+    this.mirror(r.parent.id, r.clarTask.id);
+    return r;
+  }
+
+  answerClarification(input: AnswerInput): { clarTask: Task; parent: Task } {
+    const r = answerClarification(this.db, input);
+    this.mirror(r.clarTask.id, r.parent.id);
+    return r;
+  }
+
+  linkEdge(input: { fromTask: string; toTask: string; type: EdgeType }): Edge {
+    const e = createEdge(this.db, input);
+    this.mirror(input.fromTask, input.toTask);
+    return e;
   }
 }
