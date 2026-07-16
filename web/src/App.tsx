@@ -156,7 +156,9 @@ export function App() {
         <Board columns={taskCols} actorsById={actorsById} onOpen={openTask} onReorder={onReorder}
           emptyHint={<><b>还没有任务</b><div>{filterProject === 'all' ? '去某个项目里追加任务' : '点「+ 追加任务」添加'}</div></>} />
       )}
-      {view === 'tree' && <Tree nodes={tree} onOpen={openTask} />}
+      {view === 'tree' && (tree.length > 0
+        ? <Tree nodes={tree} onOpen={openTask} actorsById={actorsById} />
+        : <div className="board-empty"><b>还没有任务</b><div>新建项目后,任务树会在这里展开</div></div>)}
 
       {detail && (
         <>

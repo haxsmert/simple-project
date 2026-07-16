@@ -177,7 +177,20 @@ ul.plan li.done span { color:var(--text-faint); text-decoration:line-through; te
 .twhen { font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint); margin-top:2px; }
 .btn { font-size:12.5px; font-weight:550; border-radius:8px; padding:6px 12px; border:1px solid var(--border-2); background:var(--surface); color:var(--text); cursor:pointer; }
 .btn.primary { background:var(--human); border-color:var(--human); color:#fff; }
-.tree-node { padding:4px 0; } .tree-children { margin-left:18px; border-left:1px solid var(--border); padding-left:12px; }
+/* 任务树 · 每行显状态点/标题/状态名/待决策标记/负责人, 与看板同一状态语言 */
+.tree { padding:4px 0; }
+.tree-node { padding:1px 0; }
+.tree-children { margin-left:16px; border-left:1px solid var(--border); padding-left:10px; }
+.trow { display:flex; align-items:center; gap:9px; width:100%; text-align:left; padding:6px 9px; border:1px solid transparent; border-radius:8px; background:none; font-family:inherit; font-size:13px; color:var(--text); cursor:pointer; transition:background .12s, border-color .12s; }
+.trow:hover { background:var(--surface-2); border-color:var(--border); }
+.trow:focus-visible { outline:2px solid var(--human); outline-offset:1px; }
+.trow.decide { background:var(--warn-soft); border-color:color-mix(in srgb,var(--warn) 30%,var(--border)); }
+.trow .tdot { width:8px; height:8px; border-radius:50%; flex:none; }
+.trow .tid { font-family:var(--font-mono); font-size:11px; color:var(--text-faint); flex:none; }
+.trow .ttitle { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.trow .tstate { font-size:11px; color:var(--text-dim); flex:none; }
+.trow .tflag { font-size:10.5px; font-weight:600; color:#fff; background:var(--warn); border-radius:20px; padding:1px 8px; flex:none; }
+.trow .tactor { flex:none; }
 
 /* 表单控件:主题化, 别掉进浏览器默认白底 */
 input, select, textarea {
