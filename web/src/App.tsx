@@ -4,6 +4,7 @@ import type { BoardColumn, TaskNode, TaskPackage, Actor } from './types';
 import { Board } from './components/Board';
 import { Tree } from './components/Tree';
 import { TaskDetail } from './components/TaskDetail';
+import { ProjectPicker } from './components/ProjectPicker';
 
 export function App() {
   const [view, setView] = useState<'projects' | 'tasks' | 'tree'>('projects');
@@ -109,13 +110,10 @@ export function App() {
 
       {view === 'tasks' && (
         <div className="topbar">
-          <label className="crumb" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            项目筛选
-            <select value={filterProject} onChange={(e) => changeFilter(e.target.value)}>
-              <option value="all">全部</option>
-              {projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
-            </select>
-          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span className="crumb">任务看板 ▸</span>
+            <ProjectPicker projects={projects} value={filterProject} onChange={changeFilter} />
+          </div>
           {filterProject !== 'all' && (
             <button className="btn" style={{ marginLeft: 'auto' }} onClick={addTask}>+ 追加任务</button>
           )}

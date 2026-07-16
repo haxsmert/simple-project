@@ -174,3 +174,15 @@ input, select, textarea {
 input:focus, select:focus, textarea:focus { border-color:var(--human); box-shadow:0 0 0 2px var(--human-soft); }
 input::placeholder, textarea::placeholder { color:var(--text-faint); }
 select { cursor:pointer; }
+
+/* project picker · 可搜索项目选择器 */
+.picker { position:relative; display:inline-block; }
+.picker-btn { display:inline-flex; align-items:center; gap:8px; font-size:14px; font-weight:600; color:var(--text); background:var(--surface-2); border:1px solid var(--border); border-radius:9px; padding:6px 12px; cursor:pointer; }
+.picker-btn:hover { border-color:var(--border-2); }
+.picker-btn .caret { color:var(--text-faint); font-size:10px; }
+.picker-pop { position:absolute; top:calc(100% + 4px); left:0; z-index:30; width:250px; background:var(--surface); border:1px solid var(--border-2); border-radius:10px; box-shadow:0 8px 28px rgba(0,0,0,.28); padding:7px; }
+.picker-pop input { width:100%; margin-bottom:7px; }
+.picker-opt { padding:6px 9px; border-radius:6px; font-size:13px; cursor:pointer; color:var(--text); }
+.picker-opt:hover { background:var(--surface-2); }
+.picker-opt.sel { color:var(--human); font-weight:600; }
+.picker-empty { padding:6px 9px; font-size:12px; color:var(--text-faint); }

@@ -43,8 +43,7 @@ describe('App shell', () => {
     fireEvent.click(await screen.findByText('演示项目'));
     await waitFor(() => expect(screen.getByText('演示任务')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: '任务' })).toHaveClass('active');
-    const select = screen.getByRole('combobox') as HTMLSelectElement;
-    expect(select.value).toBe('P-1');
+    expect(screen.getByText('演示项目')).toBeInTheDocument();
   });
 
   it('点任务打开详情', async () => {
