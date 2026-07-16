@@ -52,8 +52,8 @@ export function runSeedCli(dbPath: string, dir: string): { taskCount: number; fi
   return seed(db, dir);
 }
 
-// CLI: npm run seed → 重置 data/relay.db 并镜像到 tasks/
+// CLI: npm run seed → 重置 data/relay.db 并镜像到 data/tasks/
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const res = runSeedCli('data/relay.db', 'tasks');
-  console.log(`✅ seed 完成: ${res.taskCount} 个任务, 镜像 ${res.files.length} 个文件到 tasks/`);
+  const res = runSeedCli('data/relay.db', 'data/tasks');
+  console.log(`✅ seed 完成: ${res.taskCount} 个任务, 镜像 ${res.files.length} 个文件到 data/tasks/`);
 }

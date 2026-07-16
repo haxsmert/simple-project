@@ -78,11 +78,11 @@ export function updateTask(db: DB, id: string, patch: TaskPatch): Task {
 }
 
 export function listChildren(db: DB, parentId: string): Task[] {
-  return (db.prepare('SELECT * FROM tasks WHERE parent_id=? ORDER BY id').all(parentId) as TaskRow[]).map(map);
+  return (db.prepare('SELECT * FROM tasks WHERE parent_id=? ORDER BY CAST(substr(id, 3) AS INTEGER)').all(parentId) as TaskRow[]).map(map);
 }
 
 export function listRoots(db: DB): Task[] {
-  return (db.prepare('SELECT * FROM tasks WHERE parent_id IS NULL ORDER BY id').all() as TaskRow[]).map(map);
+  return (db.prepare('SELECT * FROM tasks WHERE parent_id IS NULL ORDER BY CAST(substr(id, 3) AS INTEGER)').all() as TaskRow[]).map(map);
 }
 
 export function ancestors(db: DB, id: string): Task[] {

@@ -32,4 +32,12 @@ describe('tasks repo', () => {
     expect(u.updatedAt >= before).toBe(true);
     expect(getTask(db, t.id)?.state).toBe('executing');
   });
+
+  it('子任务按数字后缀排序(R-10 不排在 R-2 前)', () => {
+    const db = openDb(':memory:');
+    const root = createTask(db, { title: 'root' }); // R-1
+    const ids: string[] = [];
+    for (let i = 0; i < 10; i++) ids.push(createTask(db, { title: `c${i}`, parentId: root.id }).id); // R-2..R-11
+    expect(listChildren(db, root.id).map((t) => t.id)).toEqual(ids); // 数字序, 非字符串序
+  });
 });
