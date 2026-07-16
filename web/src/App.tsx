@@ -36,7 +36,7 @@ export function App() {
   }, [detail]);
 
   const loadTasks = useCallback(async (projectId: string) => {
-    setTaskCols(await api.projectBoard(projectId));
+    setTaskCols(await api.taskBoard(projectId));
   }, []);
 
   const openProject = useCallback((id: string) => guard(async () => {

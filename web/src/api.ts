@@ -14,7 +14,7 @@ const post = <T>(url: string, body: unknown) => j<T>(url, { method: 'POST', body
 export const api = {
   board: () => j<BoardColumn[]>('/api/board'),
   projects: () => j<BoardColumn[]>('/api/projects'),
-  projectBoard: (id: string) => j<BoardColumn[]>(`/api/projects/${id}/board`),
+  taskBoard: (id: string) => j<BoardColumn[]>(`/api/projects/${id}/board`),
   tree: () => j<TaskNode[]>('/api/tree'),
   actors: () => j<Actor[]>('/api/actors'),
   task: (id: string) => j<TaskPackage>(`/api/tasks/${id}`),
