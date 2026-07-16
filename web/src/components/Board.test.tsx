@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { Board } from './Board';
 import type { BoardColumn } from '../types';
 
@@ -40,5 +40,23 @@ describe('Board', () => {
     expect(container.querySelector('.sub-mini')).toBeTruthy(); // 子任务进度条
     expect(screen.getByText('子任务 3/5')).toBeInTheDocument();
     expect(container.querySelector('.edge.dep')).toBeTruthy(); // 依赖关系边 chip
+  });
+
+  it('待确认子任务卡片(clarifies 出边)只显示"待决策"阻塞 chip, 不重复渲染"待确认"边 chip', () => {
+    const clarColumns: BoardColumn[] = [
+      {
+        state: 'awaiting_decision',
+        tasks: [{
+          id: 'R-148', title: '待确认: 要不要富文本?', state: 'awaiting_decision', currentActor: 'you', currentRole: 'decider',
+          parentId: 'R-142', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi',
+          edges: { out: [{ id: 'e2', fromTask: 'R-148', toTask: 'R-142', type: 'clarifies' }], in: [] },
+        }],
+      },
+    ];
+    const { container } = render(<Board columns={clarColumns} actorsById={actors} onOpen={vi.fn()} />);
+    const card = container.querySelector('.card') as HTMLElement;
+    expect(within(card).getByText('待决策')).toBeInTheDocument();
+    expect(within(card).queryAllByText('待确认').length).toBe(0);
+    expect(card.querySelectorAll('.edge').length).toBe(1); // 仅阻塞 chip 本身, 无重复的 clarifies 边 chip
   });
 });

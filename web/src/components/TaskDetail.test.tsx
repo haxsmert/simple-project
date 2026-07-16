@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { TaskDetail } from './TaskDetail';
 import type { TaskPackage } from '../types';
 
@@ -42,5 +42,40 @@ describe('TaskDetail', () => {
     fireEvent.change(screen.getByPlaceholderText('写条评论…'), { target: { value: '看这里' } });
     fireEvent.click(screen.getByRole('button', { name: '评论' }));
     expect(onComment).toHaveBeenCalledWith('R-142', '看这里');
+  });
+
+  it('时间线动词对齐真实 EventKind: output 渲染为"提交产出"而非原始英文 "output"', () => {
+    const outputPkg: TaskPackage = {
+      ...pkg,
+      thread: [
+        ...pkg.thread,
+        { id: 'e2', taskId: 'R-142', actorId: 'a', kind: 'output', roleFrom: 'executor', roleTo: null, body: '交了产物', createdAt: '2026-07-16T03:00:00' },
+      ],
+    };
+    render(<TaskDetail pkg={outputPkg} actorsById={actors} onAnswer={() => {}} onHandoff={() => {}} onComment={() => {}} onClose={() => {}} />);
+    expect(screen.getByText(/提交产出/)).toBeInTheDocument();
+    expect(screen.queryByText(/^output/)).toBeNull();
+  });
+
+  it('多个待确认并发时, 各卡片按自身问题定位提问方(而非全线程最后一条 clarify 事件)', () => {
+    const multiPkg: TaskPackage = {
+      ...pkg,
+      clarifications: [
+        { id: 'R-148', title: '待确认: 要不要富文本?', state: 'awaiting_decision', currentActor: 'you', currentRole: 'decider', parentId: 'R-142', goal: '要不要富文本?', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' },
+        { id: 'R-149', title: '待确认: 要不要暗色模式?', state: 'awaiting_decision', currentActor: 'you', currentRole: 'decider', parentId: 'R-142', goal: '要不要暗色模式?', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' },
+      ],
+      thread: [
+        { id: 'e1', taskId: 'R-142', actorId: 'a', kind: 'clarify', roleFrom: 'executor', roleTo: 'decider', body: '要不要富文本?', createdAt: '2026-07-16T01:00:00' },
+        { id: 'e2', taskId: 'R-142', actorId: 'b', kind: 'clarify', roleFrom: 'executor', roleTo: 'decider', body: '要不要暗色模式?', createdAt: '2026-07-16T02:00:00' },
+      ],
+    };
+    const multiActors = { ...actors, b: { id: 'b', name: '执行B', type: 'agent' as const, handle: null } };
+    const { container } = render(<TaskDetail pkg={multiPkg} actorsById={multiActors} onAnswer={() => {}} onHandoff={() => {}} onComment={() => {}} onClose={() => {}} />);
+    const clarCards = container.querySelectorAll('.clar');
+    expect(clarCards.length).toBe(2);
+    expect(within(clarCards[0] as HTMLElement).getByText('执行A')).toBeInTheDocument();
+    expect(within(clarCards[0] as HTMLElement).queryByText('执行B')).toBeNull();
+    expect(within(clarCards[1] as HTMLElement).getByText('执行B')).toBeInTheDocument();
+    expect(within(clarCards[1] as HTMLElement).queryByText('执行A')).toBeNull();
   });
 });

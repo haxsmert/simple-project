@@ -10,7 +10,7 @@ const ROLE_NAME: Record<Role, string> = { planner: '规划', executor: '执行',
 const ALL_STATES: TaskState[] = ['planning', 'awaiting_confirm', 'executing', 'awaiting_decision', 'testing', 'done'];
 const ALL_ROLES: Role[] = ['planner', 'executor', 'tester', 'questioner', 'decider'];
 const KIND_VERB: Record<string, string> = {
-  handoff: '换手', clarify: '提出待确认', decide: '给出决策', comment: '发表评论', claim: '认领任务', submit: '提交产出', update: '更新产出',
+  handoff: '换手', comment: '评论', output: '提交产出', clarify: '提出待确认', decide: '决策', claim: '领取',
 };
 
 // ——— 图标(照搬 mockup 的 inline SVG) ———
@@ -125,7 +125,13 @@ function clarQuestion(c: Task): string {
   return c.goal ?? c.title;
 }
 
-function findRaiser(thread: TaskEvent[]): string | null {
+// 提问方限定到"这一条"待确认: 多个待确认并发时, 不能只取全线程最后一条 clarify 事件的 actor
+// (那样会让所有并发卡片都显示同一个、往往是错的提问方)。优先找 body 恰好等于该待确认问题的
+// 最后一条 clarify 事件; 找不到(理论上不该发生, 兜底)再退回旧行为——取全线程最后一条 clarify。
+function findRaiser(thread: TaskEvent[], question: string): string | null {
+  for (let i = thread.length - 1; i >= 0; i--) {
+    if (thread[i].kind === 'clarify' && thread[i].body === question) return thread[i].actorId;
+  }
   for (let i = thread.length - 1; i >= 0; i--) {
     if (thread[i].kind === 'clarify') return thread[i].actorId;
   }
@@ -254,7 +260,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
                 );
               }
               const opts = parseOptions(c.goal);
-              const raiserId = findRaiser(pkg.thread);
+              const raiserId = findRaiser(pkg.thread, clarQuestion(c));
               const raiser = raiserId ? actorsById[raiserId] ?? null : null;
               const decider = c.currentActor ? actorsById[c.currentActor] ?? null : null;
               return (

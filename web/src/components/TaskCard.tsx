@@ -3,9 +3,11 @@ import { ActorBadge } from './ActorBadge';
 import { RoleChip } from './RoleChip';
 import { EdgeChip } from './EdgeChip';
 
-// 卡片顶部可展示的"值得一提"关系边类型 → 展示文案(depends_on/clarifies/spawns 出边)
+// 卡片顶部可展示的"值得一提"关系边类型 → 展示文案(depends_on/spawns 出边)
+// 注: clarifies 出边故意不在此列 —— 待决策子任务卡已由 state 驱动的"待决策"阻塞 chip 表达该关系,
+// 若再加一个"待确认"边 chip 会与其重复(见 TaskCard 复审修复 · Fix 1)。
 const NOTABLE_OUT_LABEL: Partial<Record<EdgeType, string>> = {
-  depends_on: '依赖', clarifies: '待确认', spawns: '引出',
+  depends_on: '依赖', spawns: '引出',
 };
 const MAX_EDGE_CHIPS = 2;
 
