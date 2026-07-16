@@ -6,8 +6,10 @@ import { Tree } from './components/Tree';
 import { TaskDetail } from './components/TaskDetail';
 
 export function App() {
-  const [view, setView] = useState<'board' | 'tree'>('board');
-  const [board, setBoard] = useState<BoardColumn[]>([]);
+  const [view, setView] = useState<'projects' | 'tree'>('projects');
+  const [selectedProject, setSelectedProject] = useState<{ id: string; title: string } | null>(null);
+  const [projectCols, setProjectCols] = useState<BoardColumn[]>([]);
+  const [taskCols, setTaskCols] = useState<BoardColumn[]>([]);
   const [tree, setTree] = useState<TaskNode[]>([]);
   const [actors, setActors] = useState<Actor[]>([]);
   const [detail, setDetail] = useState<TaskPackage | null>(null);
@@ -20,8 +22,8 @@ export function App() {
   }, []);
 
   const refresh = useCallback(async () => {
-    const [b, t, a] = await Promise.all([api.board(), api.tree(), api.actors()]);
-    setBoard(b); setTree(t); setActors(a);
+    const [p, t, a] = await Promise.all([api.projects(), api.tree(), api.actors()]);
+    setProjectCols(p); setTree(t); setActors(a);
   }, []);
   useEffect(() => { guard(refresh); }, [refresh, guard]);
 
@@ -33,32 +35,58 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [detail]);
 
-  const open = useCallback((id: string) => guard(async () => { setDetail(await api.task(id)); }), [guard]);
+  const loadTasks = useCallback(async (projectId: string) => {
+    setTaskCols(await api.projectBoard(projectId));
+  }, []);
+
+  const openProject = useCallback((id: string) => guard(async () => {
+    const title = projectCols.flatMap((c) => c.tasks).find((t) => t.id === id)?.title ?? id;
+    setSelectedProject({ id, title });
+    await loadTasks(id);
+  }), [guard, projectCols, loadTasks]);
+
+  const openTask = useCallback((id: string) => guard(async () => { setDetail(await api.task(id)); }), [guard]);
+
+  const backToProjects = useCallback(() => { setSelectedProject(null); setDetail(null); }, []);
+
+  const newProject = useCallback(() => guard(async () => {
+    const title = window.prompt('新项目标题');
+    if (title) { await api.createTask({ title }); await refresh(); }
+  }), [refresh, guard]);
+
+  const addTask = useCallback(() => guard(async () => {
+    const title = window.prompt('追加任务标题');
+    if (title) {
+      await api.createTask({ title, parentId: selectedProject!.id });
+      await loadTasks(selectedProject!.id);
+      await refresh();
+    }
+  }), [guard, selectedProject, loadTasks, refresh]);
+
   const onAnswer = useCallback((clarId: string, answer: string) => guard(async () => {
     const you = actors.find((a) => a.type === 'human')?.id ?? 'you';
     await api.answer(clarId, { byActor: you, answer });
     await refresh();
+    if (selectedProject) await loadTasks(selectedProject.id);
     if (detail) setDetail(await api.task(detail.task.id));
-  }), [actors, detail, refresh, guard]);
+  }), [actors, detail, refresh, guard, selectedProject, loadTasks]);
   const onHandoff = useCallback((input: { taskId: string; toActor: string; toRole: string; toState: string; note: string }) =>
     guard(async () => {
       const you = actors.find((a) => a.type === 'human')?.id ?? 'you';
       await api.handoff({ ...input, byActor: you });
       await refresh();
+      if (selectedProject) await loadTasks(selectedProject.id);
       if (detail) setDetail(await api.task(detail.task.id));
-    }), [actors, detail, refresh, guard]);
+    }), [actors, detail, refresh, guard, selectedProject, loadTasks]);
 
   const onComment = useCallback((taskId: string, body: string) =>
     guard(async () => {
       const you = actors.find((a) => a.type === 'human')?.id ?? 'you';
       await api.comment(taskId, { actor: you, body });
       await refresh();
+      if (selectedProject) await loadTasks(selectedProject.id);
       if (detail) setDetail(await api.task(detail.task.id));
-    }), [actors, detail, refresh, guard]);
-  const create = useCallback(() => guard(async () => {
-    const title = window.prompt('新任务标题');
-    if (title) { await api.createTask({ title }); await refresh(); }
-  }), [refresh, guard]);
+    }), [actors, detail, refresh, guard, selectedProject, loadTasks]);
 
   return (
     <div className="app">
@@ -71,15 +99,28 @@ export function App() {
       <div className="topbar">
         <div className="brand"><span className="logo" />Relay</div>
         <div className="tabs">
-          <button className={`tab${view === 'board' ? ' active' : ''}`} onClick={() => setView('board')}>看板</button>
+          <button className={`tab${view === 'projects' ? ' active' : ''}`} onClick={() => setView('projects')}>项目</button>
           <button className={`tab${view === 'tree' ? ' active' : ''}`} onClick={() => setView('tree')}>任务树</button>
         </div>
-        <button className="btn" style={{ marginLeft: 'auto' }} onClick={create}>+ 新建任务</button>
+        {view === 'projects' && !selectedProject && (
+          <button className="btn" style={{ marginLeft: 'auto' }} onClick={newProject}>+ 新建项目</button>
+        )}
       </div>
 
-      {view === 'board'
-        ? <Board columns={board} actorsById={actorsById} onOpen={open} />
-        : <Tree nodes={tree} onOpen={open} />}
+      {view === 'projects' && selectedProject && (
+        <div className="topbar">
+          <span className="crumb" style={{ cursor: 'pointer' }} onClick={backToProjects}>
+            ← 项目 ▸ {selectedProject.title}
+          </span>
+          <button className="btn" style={{ marginLeft: 'auto' }} onClick={addTask}>+ 追加任务</button>
+        </div>
+      )}
+
+      {view === 'projects'
+        ? (selectedProject
+          ? <Board columns={taskCols} actorsById={actorsById} onOpen={openTask} />
+          : <Board columns={projectCols} actorsById={actorsById} onOpen={openProject} />)
+        : <Tree nodes={tree} onOpen={openTask} />}
 
       {detail && (
         <>
