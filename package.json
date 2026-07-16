@@ -10,9 +10,11 @@
     "mcp": "tsx src/mcp/bin.ts",
     "web:dev": "vite --config web/vite.config.ts",
     "web:build": "vite build --config web/vite.config.ts",
-    "web:test": "vitest run --config web/vite.config.ts"
+    "web:test": "vitest run --config web/vite.config.ts",
+    "web": "vite build --config web/vite.config.ts && tsx src/web/bin.ts"
   },
   "dependencies": {
+    "@fastify/static": "^10.1.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "better-sqlite3": "^11.8.0",
     "fastify": "^5.10.0",
