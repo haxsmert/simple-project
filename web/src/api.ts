@@ -20,4 +20,5 @@ export const api = {
   handoff: (body: { taskId: string; byActor: string; toActor: string; toRole: string; toState?: string; note?: string }) => post<Task>('/api/handoff', body),
   raise: (body: { parentId: string; byActor: string; question: string; options?: string[]; toDecider?: string }) => post('/api/clarifications', body),
   answer: (id: string, body: { byActor: string; answer: string }) => post(`/api/clarifications/${id}/answer`, body),
+  comment: (id: string, body: { actor: string; body: string }) => post(`/api/tasks/${id}/comment`, body),
 };

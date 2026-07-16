@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import type { TaskPackage, Actor, TaskState } from '../types';
+import type { TaskPackage, Actor, TaskState, Role } from '../types';
 import { ActorBadge } from './ActorBadge';
 import { RoleChip } from './RoleChip';
 import { EdgeChip } from './EdgeChip';
 
 const STATE_NAME: Record<TaskState, string> = { planning: '待规划', awaiting_confirm: '待确认', executing: '执行中', awaiting_decision: '待决策', testing: '测试中', done: '完成' };
+const ROLE_NAME: Record<Role, string> = { planner: '规划', executor: '执行', tester: '测试', questioner: '提问', decider: '决策' };
+const ALL_STATES: TaskState[] = ['planning', 'awaiting_confirm', 'executing', 'awaiting_decision', 'testing', 'done'];
+const ALL_ROLES: Role[] = ['planner', 'executor', 'tester', 'questioner', 'decider'];
 
 function ClarBox({ clarId, onAnswer }: { clarId: string; onAnswer: (id: string, answer: string) => void }) {
   const [v, setV] = useState('');
@@ -16,8 +19,47 @@ function ClarBox({ clarId, onAnswer }: { clarId: string; onAnswer: (id: string, 
   );
 }
 
-export function TaskDetail({ pkg, actorsById, onAnswer, onClose }: {
-  pkg: TaskPackage; actorsById: Record<string, Actor>; onAnswer: (clarId: string, answer: string) => void; onClose: () => void;
+function HandoffBox({ taskId, currentState, actors, onHandoff }: {
+  taskId: string; currentState: TaskState; actors: Actor[];
+  onHandoff: (input: { taskId: string; toActor: string; toRole: Role; toState: TaskState; note: string }) => void;
+}) {
+  const [toActor, setToActor] = useState(actors[0]?.id ?? '');
+  const [toRole, setToRole] = useState<Role>('executor');
+  const [toState, setToState] = useState<TaskState>(currentState);
+  const [note, setNote] = useState('');
+  return (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+      <select aria-label="换手给" value={toActor} onChange={(e) => setToActor(e.target.value)}>
+        {actors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+      </select>
+      <select aria-label="角色" value={toRole} onChange={(e) => setToRole(e.target.value as Role)}>
+        {ALL_ROLES.map((r) => <option key={r} value={r}>{ROLE_NAME[r]}</option>)}
+      </select>
+      <select aria-label="目标状态" value={toState} onChange={(e) => setToState(e.target.value as TaskState)}>
+        {ALL_STATES.map((s) => <option key={s} value={s}>{STATE_NAME[s]}</option>)}
+      </select>
+      <input placeholder="备注(可选)" value={note} onChange={(e) => setNote(e.target.value)} style={{ flex: 1, minWidth: 80 }} />
+      <button className="btn primary" onClick={() => onHandoff({ taskId, toActor, toRole, toState, note })}>换手</button>
+    </div>
+  );
+}
+
+function CommentBox({ taskId, onComment }: { taskId: string; onComment: (taskId: string, body: string) => void }) {
+  const [v, setV] = useState('');
+  return (
+    <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+      <input placeholder="写条评论…" value={v} onChange={(e) => setV(e.target.value)} style={{ flex: 1 }} />
+      <button className="btn" onClick={() => onComment(taskId, v)}>评论</button>
+    </div>
+  );
+}
+
+export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, onClose }: {
+  pkg: TaskPackage; actorsById: Record<string, Actor>;
+  onAnswer: (clarId: string, answer: string) => void;
+  onHandoff: (input: { taskId: string; toActor: string; toRole: Role; toState: TaskState; note: string }) => void;
+  onComment: (taskId: string, body: string) => void;
+  onClose: () => void;
 }) {
   const t = pkg.task;
   return (
@@ -29,6 +71,10 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onClose }: {
         <span className="pill">{STATE_NAME[t.state]}</span>
         <ActorBadge actor={t.currentActor ? actorsById[t.currentActor] ?? null : null} />
         <RoleChip role={t.currentRole} />
+      </div>
+
+      <div className="slot"><h4>换手 Handoff</h4>
+        <HandoffBox taskId={t.id} currentState={t.state} actors={Object.values(actorsById)} onHandoff={onHandoff} />
       </div>
 
       <div className="slot"><h4>输入 Inputs</h4>
@@ -70,6 +116,10 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onClose }: {
         {pkg.thread.map((ev) => (
           <div key={ev.id} className="ev">{ev.createdAt} · {ev.actorId} · {ev.kind}{ev.body ? `: ${ev.body}` : ''}</div>
         ))}
+      </div>
+
+      <div className="slot"><h4>评论 Comment</h4>
+        <CommentBox taskId={t.id} onComment={onComment} />
       </div>
     </div>
   );

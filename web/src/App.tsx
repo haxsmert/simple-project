@@ -32,6 +32,21 @@ export function App() {
     await refresh();
     if (detail) setDetail(await api.task(detail.task.id));
   }), [actors, detail, refresh, guard]);
+  const onHandoff = useCallback((input: { taskId: string; toActor: string; toRole: string; toState: string; note: string }) =>
+    guard(async () => {
+      const you = actors.find((a) => a.type === 'human')?.id ?? 'you';
+      await api.handoff({ ...input, byActor: you });
+      await refresh();
+      if (detail) setDetail(await api.task(detail.task.id));
+    }), [actors, detail, refresh, guard]);
+
+  const onComment = useCallback((taskId: string, body: string) =>
+    guard(async () => {
+      const you = actors.find((a) => a.type === 'human')?.id ?? 'you';
+      await api.comment(taskId, { actor: you, body });
+      await refresh();
+      if (detail) setDetail(await api.task(detail.task.id));
+    }), [actors, detail, refresh, guard]);
   const create = useCallback(() => guard(async () => {
     const title = window.prompt('新任务标题');
     if (title) { await api.createTask({ title }); await refresh(); }
@@ -59,7 +74,7 @@ export function App() {
         : <Tree nodes={tree} onOpen={open} />}
 
       {detail && (
-        <TaskDetail pkg={detail} actorsById={actorsById} onAnswer={onAnswer} onClose={() => setDetail(null)} />
+        <TaskDetail pkg={detail} actorsById={actorsById} onAnswer={onAnswer} onHandoff={onHandoff} onComment={onComment} onClose={() => setDetail(null)} />
       )}
     </div>
   );

@@ -18,7 +18,7 @@ const actors = { a: { id: 'a', name: '执行A', type: 'agent' as const, handle: 
 describe('TaskDetail', () => {
   it('渲染四槽位并能答复待确认', () => {
     const onAnswer = vi.fn();
-    render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={onAnswer} onClose={() => {}} />);
+    render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={onAnswer} onHandoff={() => {}} onComment={() => {}} onClose={() => {}} />);
     expect(screen.getByText('搭建数据层')).toBeInTheDocument();
     expect(screen.getByText('建三张表')).toBeInTheDocument();          // 输入
     expect(screen.getByText(/schema.sql/)).toBeInTheDocument();        // 产出
@@ -27,5 +27,20 @@ describe('TaskDetail', () => {
     fireEvent.change(screen.getByPlaceholderText(/答复/), { target: { value: '方案A' } });
     fireEvent.click(screen.getByRole('button', { name: /答复/ }));
     expect(onAnswer).toHaveBeenCalledWith('R-148', '方案A');
+  });
+
+  it('换手控件调用 onHandoff', () => {
+    const onHandoff = vi.fn();
+    render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={() => {}} onHandoff={onHandoff} onComment={() => {}} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: '换手' }));
+    expect(onHandoff).toHaveBeenCalledWith(expect.objectContaining({ taskId: 'R-142' }));
+  });
+
+  it('评论控件调用 onComment', () => {
+    const onComment = vi.fn();
+    render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={() => {}} onHandoff={() => {}} onComment={onComment} onClose={() => {}} />);
+    fireEvent.change(screen.getByPlaceholderText('写条评论…'), { target: { value: '看这里' } });
+    fireEvent.click(screen.getByRole('button', { name: '评论' }));
+    expect(onComment).toHaveBeenCalledWith('R-142', '看这里');
   });
 });
