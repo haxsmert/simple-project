@@ -46,7 +46,7 @@ body { margin:0; background:var(--bg); color:var(--text); font-family:var(--font
 
 /* board */
 .app { max-width:1760px; margin:0 auto; padding:16px clamp(20px,2.5vw,40px) 60px; }
-.topbar { display:flex; align-items:center; gap:14px; margin-bottom:16px; }
+.topbar { display:flex; align-items:center; gap:14px; margin-bottom:16px; flex-wrap:wrap; }
 .brand { display:flex; align-items:center; gap:8px; font-weight:640; }
 .logo { width:20px; height:20px; border-radius:6px; flex:none; background:linear-gradient(135deg,var(--human),var(--agent)); position:relative; }
 .logo::after{ content:""; position:absolute; inset:6px; border-radius:2px;

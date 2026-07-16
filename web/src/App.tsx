@@ -15,6 +15,7 @@ export function App() {
   const [actors, setActors] = useState<Actor[]>([]);
   const [detail, setDetail] = useState<TaskPackage | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false); // 首屏数据是否已到 —— 未到前不渲染空态, 避免误报"还没有项目"
   const [draft, setDraft] = useState<{ kind: 'project' | 'task'; title: string } | null>(null);
 
   const actorsById = Object.fromEntries(actors.map((a) => [a.id, a]));
@@ -27,7 +28,7 @@ export function App() {
 
   const refresh = useCallback(async () => {
     const [p, t, a] = await Promise.all([api.projects(), api.tree(), api.actors()]);
-    setProjectCols(p); setTree(t); setActors(a);
+    setProjectCols(p); setTree(t); setActors(a); setLoaded(true);
   }, []);
   useEffect(() => { guard(refresh); }, [refresh, guard]);
 
@@ -148,15 +149,16 @@ export function App() {
         </div>
       )}
 
-      {view === 'projects' && (
+      {!loaded && <div className="board-empty">加载中…</div>}
+      {loaded && view === 'projects' && (
         <Board columns={projectCols} actorsById={actorsById} onOpen={openProjectAsTasks} onReorder={onReorder}
           emptyHint={<><b>还没有项目</b><div>点右上角「+ 新建项目」开始</div></>} />
       )}
-      {view === 'tasks' && (
+      {loaded && view === 'tasks' && (
         <Board columns={taskCols} actorsById={actorsById} onOpen={openTask} onReorder={onReorder}
           emptyHint={<><b>还没有任务</b><div>{filterProject === 'all' ? '去某个项目里追加任务' : '点「+ 追加任务」添加'}</div></>} />
       )}
-      {view === 'tree' && (tree.length > 0
+      {loaded && view === 'tree' && (tree.length > 0
         ? <Tree nodes={tree} onOpen={openTask} actorsById={actorsById} />
         : <div className="board-empty"><b>还没有任务</b><div>新建项目后,任务树会在这里展开</div></div>)}
 
