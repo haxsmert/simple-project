@@ -43,4 +43,21 @@ describe('RelayService reads', () => {
     expect(service.listByActor('a').map((t) => t.id).sort()).toEqual(['R-1', 'R-2']);
     expect(service.listByActor('a', 'tester').map((t) => t.id)).toEqual(['R-2']);
   });
+
+  it('board 把每个任务富化成 BoardCard: 子任务计数 + 关系边', () => {
+    const { db, service } = svc();
+    createTask(db, { id: 'R-10', title: '有子任务与依赖的任务', state: 'executing' });
+    createTask(db, { id: 'R-11', title: '子任务1', parentId: 'R-10', state: 'done' });
+    createTask(db, { id: 'R-12', title: '子任务2', parentId: 'R-10', state: 'executing' });
+    createTask(db, { id: 'R-13', title: '被依赖任务', state: 'done' });
+    service.linkEdge({ fromTask: 'R-10', toTask: 'R-13', type: 'depends_on' });
+
+    const board = service.board();
+    const card = board.find((c) => c.state === 'executing')!.tasks.find((t) => t.id === 'R-10')!;
+    expect(card.subtaskCount).toBe(2);
+    expect(card.doneSubtaskCount).toBe(1);
+    expect(card.edges.out.map((e) => e.type)).toEqual(['depends_on']);
+    expect(card.edges.out[0].toTask).toBe('R-13');
+    expect(card.edges.in).toEqual([]);
+  });
 });

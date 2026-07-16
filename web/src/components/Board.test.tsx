@@ -20,4 +20,25 @@ describe('Board', () => {
     fireEvent.click(screen.getByText('搭建数据层'));
     expect(onOpen).toHaveBeenCalledWith('R-1');
   });
+
+  it('卡片渲染优先级标记 / 子任务进度 / 关系边 chip(BoardCard 富化字段)', () => {
+    const richColumns: BoardColumn[] = [
+      {
+        state: 'executing',
+        tasks: [{
+          id: 'R-20', title: '带富化信息的卡片', state: 'executing', currentActor: 'a', currentRole: 'executor',
+          parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi',
+          subtaskCount: 5, doneSubtaskCount: 3,
+          edges: { out: [{ id: 'e1', fromTask: 'R-20', toTask: 'R-30', type: 'depends_on' }], in: [] },
+        }],
+      },
+      { state: 'awaiting_decision', tasks: [] }, { state: 'planning', tasks: [] },
+      { state: 'awaiting_confirm', tasks: [] }, { state: 'testing', tasks: [] }, { state: 'done', tasks: [] },
+    ];
+    const { container } = render(<Board columns={richColumns} actorsById={actors} onOpen={vi.fn()} />);
+    expect(container.querySelector('.prio.hi')).toBeTruthy(); // 优先级菱形标记
+    expect(container.querySelector('.sub-mini')).toBeTruthy(); // 子任务进度条
+    expect(screen.getByText('子任务 3/5')).toBeInTheDocument();
+    expect(container.querySelector('.edge.dep')).toBeTruthy(); // 依赖关系边 chip
+  });
 });

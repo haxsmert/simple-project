@@ -7,7 +7,7 @@ import { mirrorTask } from '../mirror/writer';
 import { appendEvent } from '../repo/events';
 import { handoff, type HandoffInput } from '../core/handoff';
 import { raiseClarification, answerClarification, type RaiseInput, type AnswerInput } from '../core/clarification';
-import { createEdge, edgesTo } from '../repo/edges';
+import { createEdge, edgesFrom, edgesTo } from '../repo/edges';
 
 export const STATE_ORDER: TaskState[] = [
   'planning', 'awaiting_confirm', 'executing', 'awaiting_decision', 'testing', 'done',
@@ -15,6 +15,12 @@ export const STATE_ORDER: TaskState[] = [
 
 export interface TaskNode extends Task {
   children: TaskNode[];
+}
+
+export interface BoardCard extends Task {
+  subtaskCount: number;
+  doneSubtaskCount: number;
+  edges: { out: Edge[]; in: Edge[] };
 }
 
 export class RelayService {
@@ -55,11 +61,20 @@ export class RelayService {
     return listActors(this.db, type);
   }
 
-  board(): Array<{ state: TaskState; tasks: Task[] }> {
+  board(): Array<{ state: TaskState; tasks: BoardCard[] }> {
     const all = (this.db.prepare('SELECT id FROM tasks').all() as { id: string }[])
       .map((r) => getTask(this.db, r.id))
       .filter((t): t is Task => t !== null);
-    return STATE_ORDER.map((state) => ({ state, tasks: all.filter((t) => t.state === state) }));
+    const toCard = (t: Task): BoardCard => {
+      const children = listChildren(this.db, t.id);
+      return {
+        ...t,
+        subtaskCount: children.length,
+        doneSubtaskCount: children.filter((c) => c.state === 'done').length,
+        edges: { out: edgesFrom(this.db, t.id), in: edgesTo(this.db, t.id) },
+      };
+    };
+    return STATE_ORDER.map((state) => ({ state, tasks: all.filter((t) => t.state === state).map(toCard) }));
   }
 
   tree(): TaskNode[] {

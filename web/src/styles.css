@@ -55,6 +55,16 @@ body { margin:0; background:var(--bg); color:var(--text); font-family:var(--font
 .card-title { font-size:13.5px; font-weight:550; line-height:1.34; margin:0; }
 .card-foot { display:flex; align-items:center; justify-content:space-between; gap:6px; margin-top:10px; }
 .card-id { font-family:var(--font-mono); font-size:11px; color:var(--text-faint); }
+.card-meta { display:flex; align-items:center; gap:9px; color:var(--text-faint); font-size:11px; font-family:var(--font-mono); }
+
+/* 优先级标记: 旋转 45° 的小方块(菱形), 高/中/低三档 */
+.prio { width:7px; height:7px; border-radius:2px; transform:rotate(45deg); flex:none; }
+.prio.hi { background:var(--danger); } .prio.mid { background:var(--warn); } .prio.lo { background:var(--text-faint); }
+
+/* 子任务迷你进度条 */
+.sub-mini { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-faint); font-family:var(--font-mono); margin-top:8px; }
+.bar { width:44px; height:4px; border-radius:3px; background:var(--surface-2); overflow:hidden; border:1px solid var(--border); flex:none; }
+.bar > i { display:block; height:100%; background:var(--human); }
 
 /* detail drawer */
 .drawer { position:fixed; top:0; right:0; width:min(560px,92vw); height:100vh; overflow-y:auto; background:var(--surface); border-left:1px solid var(--border); box-shadow:-8px 0 30px rgba(0,0,0,.15); padding:20px 22px; }

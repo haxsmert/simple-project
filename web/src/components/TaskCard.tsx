@@ -1,20 +1,58 @@
-import type { Task, Actor } from '../types';
+import type { BoardCard, Actor, EdgeType } from '../types';
 import { ActorBadge } from './ActorBadge';
 import { RoleChip } from './RoleChip';
 import { EdgeChip } from './EdgeChip';
 
-export function TaskCard({ task, actor, onOpen }: { task: Task; actor: Actor | null; onOpen: (id: string) => void }) {
+// 卡片顶部可展示的"值得一提"关系边类型 → 展示文案(depends_on/clarifies/spawns 出边)
+const NOTABLE_OUT_LABEL: Partial<Record<EdgeType, string>> = {
+  depends_on: '依赖', clarifies: '待确认', spawns: '引出',
+};
+const MAX_EDGE_CHIPS = 2;
+
+export function TaskCard({ task, actor, onOpen }: { task: BoardCard; actor: Actor | null; onOpen: (id: string) => void }) {
   const blocked = task.state === 'awaiting_decision';
+
+  // 关系边 chip: 出边按类型去重, 再补一个"被依赖"的入边, 最后按上限截断避免拥挤
+  const chips: { key: string; type: EdgeType; label: string }[] = [];
+  const seenTypes = new Set<EdgeType>();
+  for (const e of task.edges?.out ?? []) {
+    const label = NOTABLE_OUT_LABEL[e.type];
+    if (label && !seenTypes.has(e.type)) {
+      seenTypes.add(e.type);
+      chips.push({ key: e.id, type: e.type, label });
+    }
+  }
+  if (!seenTypes.has('depends_on')) {
+    const incomingDep = (task.edges?.in ?? []).find((e) => e.type === 'depends_on');
+    if (incomingDep) chips.push({ key: incomingDep.id, type: 'depends_on', label: '被依赖' });
+  }
+  const visibleChips = chips.slice(0, MAX_EDGE_CHIPS);
+
+  const subtaskCount = task.subtaskCount ?? 0;
+  const hasSubtasks = subtaskCount > 0;
+  const doneSubtaskCount = task.doneSubtaskCount ?? 0;
+  const pct = hasSubtasks ? Math.round((doneSubtaskCount / subtaskCount) * 100) : 0;
+
   return (
     <div className={`card${blocked ? ' blocked' : ''}`} onClick={() => onOpen(task.id)}>
       <div className="card-top">
         <RoleChip role={task.currentRole} />
         {blocked && <EdgeChip type="clarifies" label="待决策" />}
+        {visibleChips.map((c) => <EdgeChip key={c.key} type={c.type} label={c.label} />)}
       </div>
       <p className="card-title">{task.title}</p>
+      {hasSubtasks && (
+        <div className="sub-mini">
+          <span className="bar"><i style={{ width: `${pct}%` }} /></span>
+          子任务 {doneSubtaskCount}/{subtaskCount}
+        </div>
+      )}
       <div className="card-foot">
         <ActorBadge actor={actor} />
-        <span className="card-id">{task.id}</span>
+        <span className="card-meta">
+          {task.priority && <span className={`prio ${task.priority}`} />}
+          <span className="card-id">{task.id}</span>
+        </span>
       </div>
     </div>
   );

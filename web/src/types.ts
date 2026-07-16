@@ -10,8 +10,13 @@ export interface Task {
   priority: 'hi' | 'mid' | 'lo' | null;
 }
 export interface Actor { id: string; name: string; type: ActorType; handle: string | null; }
-export interface BoardColumn { state: TaskState; tasks: Task[]; }
 export interface Edge { id: string; fromTask: string; toTask: string; type: EdgeType; }
+export interface BoardCard extends Task {
+  subtaskCount?: number;
+  doneSubtaskCount?: number;
+  edges?: { out: Edge[]; in: Edge[] };
+}
+export interface BoardColumn { state: TaskState; tasks: BoardCard[]; }
 export interface TaskEvent { id: string; taskId: string; actorId: string; kind: string; roleFrom: Role | null; roleTo: Role | null; body: string | null; createdAt: string; }
 export interface TaskNode extends Task { children: TaskNode[]; }
 export interface TaskPackage {
