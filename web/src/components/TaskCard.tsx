@@ -11,6 +11,8 @@ const NOTABLE_OUT_LABEL: Partial<Record<EdgeType, string>> = {
   depends_on: '依赖', spawns: '引出',
 };
 const MAX_EDGE_CHIPS = 2;
+// 优先级用文字(高/中/低)承载, 颜色只作强化 —— 不靠颜色单独传意, 灰度/色盲也能区分
+const PRIO_LABEL: Record<'hi' | 'mid' | 'lo', string> = { hi: '高', mid: '中', lo: '低' };
 
 export function TaskCard({ task, actor, onOpen, draggable, dragging, onDragStart, onDragOver, onDrop, onDragEnd }: {
   task: BoardCard; actor: Actor | null; onOpen: (id: string) => void;
@@ -43,6 +45,8 @@ export function TaskCard({ task, actor, onOpen, draggable, dragging, onDragStart
 
   return (
     <div className={`card${blocked ? ' blocked' : ''}${dragging ? ' dragging' : ''}`} onClick={() => onOpen(task.id)}
+      role="button" tabIndex={0} aria-label={`${task.title} · ${task.id}`}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(task.id); } }}
       draggable={draggable} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} onDragEnd={onDragEnd}>
       {task.parentTitle && <div className="card-project">{task.parentTitle}</div>}
       <div className="card-top">
@@ -61,7 +65,7 @@ export function TaskCard({ task, actor, onOpen, draggable, dragging, onDragStart
       <div className="card-foot">
         <ActorBadge actor={actor} />
         <span className="card-meta">
-          {task.priority && <span className={`prio ${task.priority}`} />}
+          {task.priority && <span className={`prio ${task.priority}`} title={`优先级 ${PRIO_LABEL[task.priority]}`}>{PRIO_LABEL[task.priority]}</span>}
           <span className="card-id">{task.id}</span>
         </span>
       </div>

@@ -34,6 +34,18 @@ describe('Board', () => {
     expect(onOpen).toHaveBeenCalledWith('R-1');
   });
 
+  it('卡片键盘可达: role=button + tabIndex, 回车/空格打开', () => {
+    const onOpen = vi.fn();
+    const { container } = render(<Board columns={columns} actorsById={actors} onOpen={onOpen} />);
+    const card = container.querySelector('.card') as HTMLElement; // R-1
+    expect(card.getAttribute('role')).toBe('button');
+    expect(card.getAttribute('tabindex')).toBe('0');
+    fireEvent.keyDown(card, { key: 'Enter' });
+    expect(onOpen).toHaveBeenCalledWith('R-1');
+    fireEvent.keyDown(card, { key: ' ' });
+    expect(onOpen).toHaveBeenCalledTimes(2);
+  });
+
   it('卡片渲染优先级标记 / 子任务进度 / 关系边 chip(BoardCard 富化字段)', () => {
     const richColumns: BoardColumn[] = [
       {
@@ -49,7 +61,8 @@ describe('Board', () => {
       { state: 'awaiting_confirm', tasks: [] }, { state: 'testing', tasks: [] }, { state: 'done', tasks: [] },
     ];
     const { container } = render(<Board columns={richColumns} actorsById={actors} onOpen={vi.fn()} />);
-    expect(container.querySelector('.prio.hi')).toBeTruthy(); // 优先级菱形标记
+    expect(container.querySelector('.prio.hi')).toBeTruthy(); // 优先级标记
+    expect(screen.getByText('高')).toBeInTheDocument(); // 用文字承载优先级, 不靠颜色单独传意
     expect(container.querySelector('.sub-mini')).toBeTruthy(); // 子任务进度条
     expect(screen.getByText('子任务 3/5')).toBeInTheDocument();
     expect(container.querySelector('.edge.dep')).toBeTruthy(); // 依赖关系边 chip
