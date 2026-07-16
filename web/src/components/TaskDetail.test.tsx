@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import { TaskDetail } from './TaskDetail';
+import { TaskDetail, fmtTime } from './TaskDetail';
 import type { TaskPackage } from '../types';
 
 const pkg: TaskPackage = {
@@ -14,6 +14,21 @@ const pkg: TaskPackage = {
   edges: { out: [{ id: 'x', fromTask: 'R-142', toTask: 'R-140', type: 'depends_on' }], in: [] },
 };
 const actors = { a: { id: 'a', name: '执行A', type: 'agent' as const, handle: null }, you: { id: 'you', name: '你', type: 'human' as const, handle: null } };
+
+describe('fmtTime', () => {
+  it('裸 UTC ISO → 「MM-DD HH:mm」本地时间, 不再显示机器味的 T/Z/毫秒', () => {
+    const out = fmtTime('2026-07-16T13:22:48.441Z');
+    expect(out).toMatch(/^\d{2}-\d{2} \d{2}:\d{2}$/); // MM-DD HH:mm(具体值随本地时区, 不硬编码)
+    expect(out).not.toContain('T');
+    expect(out).not.toContain('Z');
+  });
+  it('纯日期(无时间)原样返回, 不编造时:分', () => {
+    expect(fmtTime('2026-07-16')).toBe('2026-07-16');
+  });
+  it('无法解析的字符串原样返回', () => {
+    expect(fmtTime('刚刚')).toBe('刚刚');
+  });
+});
 
 describe('TaskDetail', () => {
   it('渲染四槽位并能答复待确认', () => {

@@ -119,6 +119,16 @@ function parseOptions(goal: string | null): { letter: string; text: string }[] {
   return opts;
 }
 
+// 交互记录时间人性化: 裸 UTC ISO(…T…Z)→ 本地时区「MM-DD HH:mm」; 纯日期或无法解析则原样返回
+// (存的是 UTC, 对使用者所在时区直接展示 UTC 会差几个小时, 故按本地时间显示)
+export function fmtTime(s: string): string {
+  if (!s.includes('T')) return s;
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s;
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 function clarQuestion(c: Task): string {
   const m = /^待确认:\s*/.exec(c.title);
   if (m) return c.title.slice(m[0].length);
@@ -349,7 +359,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
                   <div className="tline">
                     <span className={`who ${whoCls}`}>{who}</span> {verb}{ev.body ? `: ${ev.body}` : ''}
                   </div>
-                  <div className="twhen">{ev.createdAt}</div>
+                  <div className="twhen">{fmtTime(ev.createdAt)}</div>
                 </div>
               );
             })}
