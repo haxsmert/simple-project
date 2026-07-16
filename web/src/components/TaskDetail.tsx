@@ -39,7 +39,7 @@ function HandoffBox({ taskId, currentState, actors, onHandoff }: {
         {ALL_STATES.map((s) => <option key={s} value={s}>{STATE_NAME[s]}</option>)}
       </select>
       <input placeholder="备注(可选)" value={note} onChange={(e) => setNote(e.target.value)} style={{ flex: 1, minWidth: 80 }} />
-      <button className="btn primary" onClick={() => onHandoff({ taskId, toActor, toRole, toState, note })}>换手</button>
+      <button className="btn primary" onClick={() => { onHandoff({ taskId, toActor, toRole, toState, note }); setNote(''); }}>换手</button>
     </div>
   );
 }
@@ -49,7 +49,7 @@ function CommentBox({ taskId, onComment }: { taskId: string; onComment: (taskId:
   return (
     <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
       <input placeholder="写条评论…" value={v} onChange={(e) => setV(e.target.value)} style={{ flex: 1 }} />
-      <button className="btn" onClick={() => onComment(taskId, v)}>评论</button>
+      <button className="btn" onClick={() => { onComment(taskId, v); setV(''); }}>评论</button>
     </div>
   );
 }
