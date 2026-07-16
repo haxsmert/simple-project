@@ -1,17 +1,13 @@
 import type { DB } from '../db/connection';
-import type { Actor, ActorType, Task, TaskState, Role } from '../model/types';
-import { getTask, listChildren, listRoots } from '../repo/tasks';
-import { listActors } from '../repo/actors';
+import type { Actor, ActorType, Task, TaskState, Role, TaskEvent, Edge, EdgeType } from '../model/types';
+import { getTask, listChildren, listRoots, createTask, updateTask, type CreateTaskInput, type TaskPatch } from '../repo/tasks';
+import { listActors, createActor } from '../repo/actors';
 import { assemblePackage, type TaskPackage } from '../core/infoPackage';
 import { mirrorTask } from '../mirror/writer';
-import { createActor } from '../repo/actors';
-import { createTask, updateTask, type CreateTaskInput, type TaskPatch } from '../repo/tasks';
 import { appendEvent } from '../repo/events';
-import type { TaskEvent } from '../model/types';
 import { handoff, type HandoffInput } from '../core/handoff';
 import { raiseClarification, answerClarification, type RaiseInput, type AnswerInput } from '../core/clarification';
-import { createEdge } from '../repo/edges';
-import type { Edge, EdgeType } from '../model/types';
+import { createEdge, edgesTo } from '../repo/edges';
 
 export const STATE_ORDER: TaskState[] = [
   'planning', 'awaiting_confirm', 'executing', 'awaiting_decision', 'testing', 'done',
@@ -27,8 +23,25 @@ export class RelayService {
     private readonly mirrorDir: string,
   ) {}
 
+  protected mirrorOne(id: string): void {
+    try {
+      mirrorTask(this.db, this.mirrorDir, id);
+    } catch {
+      // 尽力而为: DB 是真相源, 镜像可随时重生成; 落盘失败不得让写操作失败(否则 agent 重试会重复追加事件)
+    }
+  }
+
+  // 受影响集合 = 任务本身 + 父任务(父的 .md 内嵌子任务状态) + 依赖本任务的任务(它们的 .md 内嵌本任务摘要)
   protected mirror(...ids: Array<string | null | undefined>): void {
-    for (const id of ids) if (id) mirrorTask(this.db, this.mirrorDir, id);
+    const affected = new Set<string>();
+    for (const id of ids) {
+      if (!id) continue;
+      affected.add(id);
+      const t = getTask(this.db, id);
+      if (t?.parentId) affected.add(t.parentId);
+      for (const e of edgesTo(this.db, id)) if (e.type === 'depends_on') affected.add(e.fromTask);
+    }
+    for (const id of affected) this.mirrorOne(id);
   }
 
   getPackage(id: string): TaskPackage {
@@ -67,7 +80,7 @@ export class RelayService {
 
   createTask(input: CreateTaskInput): Task {
     const t = createTask(this.db, input);
-    this.mirror(t.id, t.parentId);
+    this.mirror(t.id);
     return t;
   }
 
@@ -102,7 +115,7 @@ export class RelayService {
 
   handoff(input: HandoffInput): Task {
     const t = handoff(this.db, input);
-    this.mirror(input.taskId);
+    this.mirror(t.id);
     return t;
   }
 
