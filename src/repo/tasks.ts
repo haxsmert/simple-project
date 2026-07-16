@@ -6,13 +6,14 @@ interface TaskRow {
   id: string; title: string; parent_id: string | null; state: string;
   current_actor: string | null; current_role: string | null;
   goal: string | null; inputs_md: string | null; outputs_md: string | null;
-  summary: string | null; priority: string | null; created_at: string; updated_at: string;
+  summary: string | null; priority: string | null; rank: number | null;
+  created_at: string; updated_at: string;
 }
 const map = (r: TaskRow): Task => ({
   id: r.id, title: r.title, parentId: r.parent_id, state: r.state as TaskState,
   currentActor: r.current_actor, currentRole: r.current_role as Role | null,
   goal: r.goal, inputsMd: r.inputs_md, outputsMd: r.outputs_md, summary: r.summary,
-  priority: r.priority as Priority | null, createdAt: r.created_at, updatedAt: r.updated_at,
+  priority: r.priority as Priority | null, rank: r.rank, createdAt: r.created_at, updatedAt: r.updated_at,
 });
 
 export function nextTaskId(db: DB): string {
@@ -38,13 +39,13 @@ export function createTask(db: DB, input: CreateTaskInput): Task {
     id, title: input.title, parent_id: input.parentId ?? null, state: input.state ?? 'planning',
     current_actor: input.currentActor ?? null, current_role: input.currentRole ?? null,
     goal: input.goal ?? null, inputs_md: input.inputsMd ?? null, outputs_md: input.outputsMd ?? null,
-    summary: input.summary ?? null, priority: input.priority ?? null, created_at: ts, updated_at: ts,
+    summary: input.summary ?? null, priority: input.priority ?? null, rank: null, created_at: ts, updated_at: ts,
   };
   db.prepare(
     `INSERT INTO tasks
-       (id,title,parent_id,state,current_actor,current_role,goal,inputs_md,outputs_md,summary,priority,created_at,updated_at)
+       (id,title,parent_id,state,current_actor,current_role,goal,inputs_md,outputs_md,summary,priority,rank,created_at,updated_at)
      VALUES
-       (@id,@title,@parent_id,@state,@current_actor,@current_role,@goal,@inputs_md,@outputs_md,@summary,@priority,@created_at,@updated_at)`,
+       (@id,@title,@parent_id,@state,@current_actor,@current_role,@goal,@inputs_md,@outputs_md,@summary,@priority,@rank,@created_at,@updated_at)`,
   ).run(row);
   return map(row);
 }
@@ -75,6 +76,10 @@ export function updateTask(db: DB, id: string, patch: TaskPatch): Task {
   vals.push(id);
   db.prepare(`UPDATE tasks SET ${sets.join(', ')} WHERE id=?`).run(...vals);
   return getTask(db, id)!;
+}
+
+export function setRank(db: DB, id: string, rank: number): void {
+  db.prepare('UPDATE tasks SET rank=?, updated_at=? WHERE id=?').run(rank, now(), id);
 }
 
 export function listChildren(db: DB, parentId: string): Task[] {

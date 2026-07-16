@@ -129,4 +129,22 @@ describe('RelayService reads', () => {
     expect(card.doneSubtaskCount).toBe(0);
     expect(card.edges).toEqual({ out: [], in: [] });
   });
+
+  it('reorder 前列内按 id 排序(rank 为 null), reorder 后按给定顺序并回填 rank', () => {
+    const { db, service } = svc();
+    createTask(db, { id: 'R-60', title: '父' });
+    createTask(db, { id: 'R-61', title: '同胞1', parentId: 'R-60', state: 'executing' });
+    createTask(db, { id: 'R-62', title: '同胞2', parentId: 'R-60', state: 'executing' });
+    createTask(db, { id: 'R-63', title: '同胞3', parentId: 'R-60', state: 'executing' });
+
+    const before = service.taskBoard('R-60').find((c) => c.state === 'executing')!.tasks;
+    expect(before.map((t) => t.id)).toEqual(['R-61', 'R-62', 'R-63']);
+    expect(before.every((t) => t.rank === null)).toBe(true);
+
+    service.reorder(['R-63', 'R-61', 'R-62']);
+
+    const after = service.taskBoard('R-60').find((c) => c.state === 'executing')!.tasks;
+    expect(after.map((t) => t.id)).toEqual(['R-63', 'R-61', 'R-62']);
+    expect(after.map((t) => t.rank)).toEqual([0, 1, 2]);
+  });
 });

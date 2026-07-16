@@ -35,6 +35,10 @@ export function buildApp(service: RelayService): FastifyInstance {
   app.post('/api/clarifications/:id/answer', wrap((req) =>
     service.answerClarification({ clarTaskId: req.params.id, byActor: req.body.byActor, answer: req.body.answer })));
   app.post('/api/edges', wrap((req) => service.linkEdge(req.body)));
+  app.post('/api/reorder', wrap((req) => {
+    service.reorder(req.body.ids);
+    return { ok: true };
+  }));
 
   return app;
 }

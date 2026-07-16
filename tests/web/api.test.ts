@@ -89,6 +89,25 @@ describe('web api', () => {
     expect(allIds).not.toContain(projectB.id);
   });
 
+  it('POST /api/reorder 重排列内顺序, board 反映新顺序', async () => {
+    const { service, app } = mk();
+    const t1 = service.createTask({ title: 't1', state: 'executing' });
+    const t2 = service.createTask({ title: 't2', state: 'executing' });
+    const t3 = service.createTask({ title: 't3', state: 'executing' });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/reorder',
+      payload: { ids: [t3.id, t1.id, t2.id] },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
+
+    const board = await app.inject({ method: 'GET', url: '/api/board' });
+    const executing = board.json().find((c: any) => c.state === 'executing');
+    expect(executing.tasks.map((t: any) => t.id)).toEqual([t3.id, t1.id, t2.id]);
+  });
+
   it('非法操作 → 400 + error', async () => {
     const { app } = mk();
     const res = await app.inject({ method: 'GET', url: '/api/tasks/不存在' });

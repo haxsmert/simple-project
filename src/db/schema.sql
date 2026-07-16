@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   outputs_md    TEXT,
   summary       TEXT,
   priority      TEXT CHECK (priority IN ('hi','mid','lo')),
+  rank          REAL,
   created_at    TEXT NOT NULL,
   updated_at    TEXT NOT NULL
 );

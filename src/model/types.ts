@@ -27,6 +27,7 @@ export interface Task {
   outputsMd: string | null;
   summary: string | null;
   priority: Priority | null;
+  rank: number | null;
   createdAt: string;
   updatedAt: string;
 }

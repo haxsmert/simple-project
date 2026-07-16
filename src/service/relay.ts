@@ -1,6 +1,6 @@
 import type { DB } from '../db/connection';
 import type { Actor, ActorType, Task, TaskState, Role, TaskEvent, Edge, EdgeType } from '../model/types';
-import { getTask, listChildren, listRoots, createTask, updateTask, type CreateTaskInput, type TaskPatch } from '../repo/tasks';
+import { getTask, listChildren, listRoots, createTask, updateTask, setRank, type CreateTaskInput, type TaskPatch } from '../repo/tasks';
 import { listActors, createActor } from '../repo/actors';
 import { assemblePackage, type TaskPackage } from '../core/infoPackage';
 import { mirrorTask } from '../mirror/writer';
@@ -73,10 +73,16 @@ export class RelayService {
   }
 
   // 任务列表 → 按六态分组的富化看板列(board/projectBoard/taskBoard 共用分组逻辑)
+  // 同状态列内按 rank 升序排列, rank 为 null 的任务排最后(按数字 id 排序), 保持既有 id 顺序直到列被显式重排
   private groupByState(tasks: Task[]): Array<{ state: TaskState; tasks: BoardCard[] }> {
+    const byIdNum = (id: string) => parseInt(id.slice(2), 10);
     return STATE_ORDER.map((state) => ({
       state,
-      tasks: tasks.filter((t) => t.state === state).map((t) => this.enrich(t)),
+      tasks: tasks
+        .filter((t) => t.state === state)
+        .slice()
+        .sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity) || byIdNum(a.id) - byIdNum(b.id))
+        .map((t) => this.enrich(t)),
     }));
   }
 
@@ -179,5 +185,10 @@ export class RelayService {
     const e = createEdge(this.db, input);
     this.mirror(input.fromTask, input.toTask);
     return e;
+  }
+
+  // 列内拖拽重排: 按给定顺序把 rank 赋为 0,1,2,... (同一状态列内的顺序即持久化顺序)
+  reorder(ids: string[]): void {
+    ids.forEach((id, i) => setRank(this.db, id, i));
   }
 }
