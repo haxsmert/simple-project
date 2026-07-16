@@ -6,7 +6,8 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "seed": "tsx src/seed.ts"
+    "seed": "tsx src/seed.ts",
+    "mcp": "tsx src/mcp/bin.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
