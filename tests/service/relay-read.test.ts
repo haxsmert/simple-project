@@ -145,6 +145,34 @@ describe('RelayService reads', () => {
     expect(projectCard.parentTitle).toBeNull();
   });
 
+  it('projectBoard 的项目卡带 attention(子树里 awaiting_decision 的后代数), taskBoard/allTasksBoard 不带', () => {
+    const { db, service } = svc();
+    service.registerActor({ id: 'x', name: 'X', type: 'agent' });
+    service.registerActor({ id: 'you', name: '你', type: 'human' });
+
+    // 项目A: 一个任务被拉去待确认 → 任务本身 + 新生的 clarification 子任务都是 awaiting_decision
+    createTask(db, { id: 'R-80', title: '项目A', state: 'planning' });
+    createTask(db, { id: 'R-81', title: '任务1', parentId: 'R-80', state: 'executing', currentActor: 'x', currentRole: 'executor' });
+    service.raiseClarification({ parentId: 'R-81', byActor: 'x', question: '选哪个方案?', toDecider: 'you' });
+
+    // 项目B: 全程无待确认
+    createTask(db, { id: 'R-90', title: '项目B', state: 'planning' });
+    createTask(db, { id: 'R-91', title: '任务1', parentId: 'R-90', state: 'executing' });
+
+    const projectBoard = service.projectBoard();
+    const cardA = projectBoard.find((c) => c.state === 'planning')!.tasks.find((t) => t.id === 'R-80')!;
+    const cardB = projectBoard.find((c) => c.state === 'planning')!.tasks.find((t) => t.id === 'R-90')!;
+    expect(cardA.attention).toBe(2); // R-81(转为 awaiting_decision) + 其 clarification 子任务
+    expect(cardA.attention).toBeGreaterThanOrEqual(1);
+    expect(cardB.attention).toBe(0);
+
+    const taskCard = service.taskBoard('R-80').find((c) => c.state === 'awaiting_decision')!.tasks.find((t) => t.id === 'R-81')!;
+    expect(taskCard.attention).toBeUndefined();
+
+    const allCard = service.allTasksBoard().find((c) => c.state === 'awaiting_decision')!.tasks.find((t) => t.id === 'R-81')!;
+    expect(allCard.attention).toBeUndefined();
+  });
+
   it('reorder 前列内按 id 排序(rank 为 null), reorder 后按给定顺序并回填 rank', () => {
     const { db, service } = svc();
     createTask(db, { id: 'R-60', title: '父' });

@@ -22,6 +22,7 @@ export interface BoardCard extends Task {
   doneSubtaskCount: number;
   edges: { out: Edge[]; in: Edge[] };
   parentTitle: string | null;
+  attention?: number;
 }
 
 export class RelayService {
@@ -94,9 +95,25 @@ export class RelayService {
     return this.groupByState(all);
   }
 
-  // 项目 = 顶层任务(parentId null)
+  // 项目子树里待决策(state === 'awaiting_decision')的后代数量, 供项目卡的 attention 信号使用
+  // 不含 rootId 自身, 只数子孙; 小树规模, 简单递归足够
+  private pendingDecisions(rootId: string): number {
+    const children = listChildren(this.db, rootId);
+    let count = 0;
+    for (const child of children) {
+      if (child.state === 'awaiting_decision') count++;
+      count += this.pendingDecisions(child.id);
+    }
+    return count;
+  }
+
+  // 项目 = 顶层任务(parentId null); 项目卡额外带 attention(子树里等待人类决策的任务数, 人类最高价值信号)
   projectBoard(): Array<{ state: TaskState; tasks: BoardCard[] }> {
-    return this.groupByState(listRoots(this.db));
+    const grouped = this.groupByState(listRoots(this.db));
+    for (const col of grouped) {
+      for (const card of col.tasks) card.attention = this.pendingDecisions(card.id);
+    }
+    return grouped;
   }
 
   // 任务 = 项目的直接子任务
