@@ -6,6 +6,7 @@ import { Tree } from './components/Tree';
 import { TaskDetail } from './components/TaskDetail';
 import { ProjectPicker } from './components/ProjectPicker';
 import type { TaskAction, ActInput } from './actions';
+import { encodeNav, decodeNav } from './nav';
 
 type NavNode = { id: string; title: string };
 // "全部任务"作为伪节点占据路径第一格: 与真实项目同构, 面包屑/上溯/加载全走同一套机制, 不开特例分支
@@ -76,10 +77,46 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [detail, closeDetail]);
 
+
   // 加载某节点的子任务看板; 'all' = 跨项目的一层任务
   const loadBoard = useCallback(async (nodeId: string) => {
     setTaskCols(nodeId === 'all' ? await api.allTasks() : await api.taskBoard(nodeId));
   }, []);
+
+  // ── 导航 ↔ URL 双向同步(浏览器后退/前进/深链/刷新恢复; contest-v2 范式 #1 Jakob)──
+  // 状态 → URL: 导航状态一变就写 hash。防循环只靠"hash 相同不写"这一条(popstate 恢复后
+  // 状态编码出的 hash 恰等于当前 hash → 天然不写; 不用 flag —— flag 在恢复到相同状态时会
+  // 因 React bail-out 不被消费, 吃掉下一次真实导航)
+  const didInitNav = useRef(false);
+  useEffect(() => {
+    if (!loaded || !didInitNav.current) return;
+    const h = encodeNav({ view, ids: path.map((p) => p.id), taskId: detail?.task.id ?? null });
+    if (window.location.hash !== h) window.history.pushState(null, '', h);
+  }, [view, path, detail, loaded]);
+  // URL → 状态: 解析 hash, 重建路径栈(逐 id 取标题)与抽屉; 数据备齐后一批 set(避免中间态被写回 URL)
+  const restoreFromHash = useCallback(() => guard(async () => {
+    const nav = decodeNav(window.location.hash);
+    const nodes: NavNode[] = [];
+    for (const id of nav.ids) {
+      if (id === 'all') { nodes.push(ALL_NODE); continue; }
+      try { nodes.push({ id, title: (await api.task(id)).task.title }); } catch { /* 任务已删: 跳过该层 */ }
+    }
+    if (nav.view === 'board' && nodes.length) await loadBoard(nodes[nodes.length - 1].id);
+    const detailPkg = nav.taskId ? await api.task(nav.taskId).catch(() => null) : null;
+    setView(nav.view); setPath(nodes); setDetail(detailPkg);
+  }), [guard, loadBoard]);
+  useEffect(() => {
+    const onPop = () => { restoreFromHash(); };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [restoreFromHash]);
+  // 初载: 有 hash 就恢复位置(刷新不再丢位置), 没有则写入根(replace, 不占历史)
+  useEffect(() => {
+    if (!loaded || didInitNav.current) return;
+    didInitNav.current = true;
+    if (window.location.hash && window.location.hash !== '#/') restoreFromHash();
+    else window.history.replaceState(null, '', '#/');
+  }, [loaded, restoreFromHash]);
 
   // 项目总览点项目 → 钻进它的任务(路径栈 = [项目])
   const enterProject = useCallback((p: NavNode) => guard(async () => {

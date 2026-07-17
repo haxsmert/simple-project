@@ -25,6 +25,7 @@ const pkg = {
 };
 
 beforeEach(() => {
+  window.history.replaceState(null, '', '#/'); // jsdom 的 hash 在测试间残留 → 初载会误恢复上个测试的位置
   vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
     ok: true,
     json: async () =>
@@ -38,6 +39,18 @@ beforeEach(() => {
 });
 
 describe('App shell', () => {
+  it('导航同步到 URL: 钻入项目写 hash; 浏览器后退(popstate)恢复到项目总览 —— 后退/前进/深链因此可用', async () => {
+    window.history.replaceState(null, '', '#/');
+    render(<App />);
+    fireEvent.click(await screen.findByText('演示项目')); // 钻入
+    await waitFor(() => expect(window.location.hash).toBe('#/b/P-1'));
+    // 模拟浏览器后退: hash 回根 + popstate 事件
+    window.history.replaceState(null, '', '#/');
+    fireEvent.popState(window);
+    await waitFor(() => expect(screen.getByText('项目总览')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: '返回上一层' })).toBeDisabled(); // 真回到了总览
+  });
+
   it('打回请求把 toHold 真发到后端(传输层守护: 显式列举转发曾静默丢字段, 打回被误拦 —— 实锤)', async () => {
     const confirmPkg = {
       ...pkg,

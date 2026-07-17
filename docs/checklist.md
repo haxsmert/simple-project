@@ -18,6 +18,10 @@
 6. 位置即优先级:列内 rank→priority→id 落位,不用"高/中/低"文字。
 7. 名字位用真名(人类默认 admin),"你"只用于第二人称文案。
 
+### 浏览器导航合规(Jakob)
+- 导航状态必须同步 URL(hash): 后退/前进(按钮/鼠标侧键/手势/cmd+方向键)、刷新恢复位置、深链/书签全部可用。
+- 新增导航形态(新视图/新层级)时同步 nav.ts 编解码 + 往返测试。
+
 ## 三、移动端(≤640,范式来自 contest-v2 §八~十一)
 
 - **单屏零横滑是架构级保证**(html/body overflow-x hidden + CDP 实测 scrollWidth≤innerWidth)。
