@@ -159,6 +159,13 @@ ul.plan li.done span { color:var(--text-faint); text-decoration:line-through; te
 .clar-done svg { width:12px; height:12px; color:var(--done); flex:none; }
 .clar-done .clar-done-tag { margin-left:auto; font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint); }
 
+/* 计划确认块(待确认状态): 与待决策同为"轮到你"的动作面板, 用琥珀语言 */
+.confirm-box { border:1px solid color-mix(in srgb,var(--warn) 40%,var(--border)); border-radius:10px; background:var(--warn-soft); padding:12px; }
+.confirm-hint { margin:0 0 10px; font-size:13px; color:var(--text); }
+.confirm-note { width:100%; }
+.confirm-actions { display:flex; gap:8px; margin-top:10px; }
+.confirm-actions .btn { font-size:13px; padding:7px 14px; }
+
 /* 子任务 / 关系边(侧栏风格搬进单列) */
 .sub { display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--border); font-size:12.5px; }
 .sub:last-child { border-bottom:none; }

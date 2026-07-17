@@ -74,6 +74,26 @@ describe('TaskDetail', () => {
     expect(onAnswer).toHaveBeenCalledWith('R-148', 'A. 含全部');
   });
 
+  it('待确认状态: 顶部出现「待你确认」计划块, 批准→执行中/执行者, 打回→待规划/规划者, 意见随动作带上', () => {
+    const onHandoff = vi.fn();
+    const confirmPkg: TaskPackage = { ...pkg, task: { ...pkg.task, state: 'awaiting_confirm' }, clarifications: [] };
+    const { container } = render(<TaskDetail pkg={confirmPkg} actorsById={actors} onAnswer={() => {}} onHandoff={onHandoff} onComment={() => {}} onClose={() => {}} />);
+    const heads = Array.from(container.querySelectorAll('.slot-head h4')).map((h) => h.textContent);
+    expect(heads.indexOf('待你确认')).toBe(0); // 确认块在最顶
+    expect(heads.indexOf('待你确认')).toBeLessThan(heads.indexOf('输入'));
+    fireEvent.change(screen.getByPlaceholderText(/补充意见/), { target: { value: '注意并发' } });
+    fireEvent.click(screen.getByRole('button', { name: /批准开工/ }));
+    expect(onHandoff).toHaveBeenCalledWith(expect.objectContaining({ taskId: 'R-142', toState: 'executing', toRole: 'executor', toActor: 'a', note: '注意并发' }));
+    fireEvent.click(screen.getByRole('button', { name: /打回重规划/ }));
+    expect(onHandoff).toHaveBeenCalledWith(expect.objectContaining({ taskId: 'R-142', toState: 'planning', toRole: 'planner' }));
+  });
+
+  it('非待确认状态不出现确认块', () => {
+    render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={() => {}} onHandoff={() => {}} onComment={() => {}} onClose={() => {}} />);
+    expect(screen.queryByText('待你确认')).toBeNull();
+    expect(screen.queryByRole('button', { name: /批准开工/ })).toBeNull();
+  });
+
   it('换手控件调用 onHandoff', () => {
     const onHandoff = vi.fn();
     render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={() => {}} onHandoff={onHandoff} onComment={() => {}} onClose={() => {}} />);

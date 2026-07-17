@@ -145,29 +145,33 @@ describe('RelayService reads', () => {
     expect(projectCard.parentTitle).toBeNull();
   });
 
-  it('projectBoard 项目卡 attention = 直接任务里 awaiting_decision 数(与该项目任务看板待决策列一致), taskBoard/allTasksBoard 不带', () => {
+  it('projectBoard 项目卡 attention = 直接任务里"待你处理"(待确认+待决策)数, 与该项目看板两列之和一致; taskBoard/allTasksBoard 不带', () => {
     const { db, service } = svc();
     service.registerActor({ id: 'x', name: 'X', type: 'agent' });
     service.registerActor({ id: 'you', name: '你', type: 'human' });
 
-    // 项目A: 一个任务被拉去待确认 → 任务本身 + 新生的 clarification 子任务都是 awaiting_decision
+    // 项目A: 一个任务被拉去待确认 → 任务本身 + 新生的 clarification 子任务都是 awaiting_decision;
+    // 另一个任务的计划待你确认(awaiting_confirm) —— 两者都"轮到你处理"。
     createTask(db, { id: 'R-80', title: '项目A', state: 'planning' });
     createTask(db, { id: 'R-81', title: '任务1', parentId: 'R-80', state: 'executing', currentActor: 'x', currentRole: 'executor' });
-    service.raiseClarification({ parentId: 'R-81', byActor: 'x', question: '选哪个方案?', toDecider: 'you' });
+    service.raiseClarification({ parentId: 'R-81', byActor: 'x', question: '选哪个方案?', toDecider: 'you' }); // 自动生成 clar 任务 R-82
+    createTask(db, { id: 'R-85', title: '任务2(计划待确认)', parentId: 'R-80', state: 'awaiting_confirm', currentActor: 'you', currentRole: 'decider' });
 
-    // 项目B: 全程无待确认
+    // 项目B: 全程无待你处理项
     createTask(db, { id: 'R-90', title: '项目B', state: 'planning' });
     createTask(db, { id: 'R-91', title: '任务1', parentId: 'R-90', state: 'executing' });
 
     const projectBoard = service.projectBoard();
     const cardA = projectBoard.find((c) => c.state === 'planning')!.tasks.find((t) => t.id === 'R-80')!;
     const cardB = projectBoard.find((c) => c.state === 'planning')!.tasks.find((t) => t.id === 'R-90')!;
-    expect(cardA.attention).toBe(1); // 只数直接任务 R-81(待决策); 更深的 clarification 子任务不重复计数
+    expect(cardA.attention).toBe(2); // R-81(待决策) + R-82(待确认); 更深的 clarification 子任务不重复计数
     expect(cardB.attention).toBe(0);
 
-    // 诚实/可对账: attention 必须等于该项目任务看板「待决策」列的卡数(所见即所计)
-    const decisionCol = service.taskBoard('R-80').find((c) => c.state === 'awaiting_decision')!;
-    expect(cardA.attention).toBe(decisionCol.tasks.length);
+    // 诚实/可对账: attention 必须等于该项目任务看板「待确认」列 + 「待决策」列的卡数之和(所见即所计)
+    const taskBoardA = service.taskBoard('R-80');
+    const confirmCol = taskBoardA.find((c) => c.state === 'awaiting_confirm')!;
+    const decisionCol = taskBoardA.find((c) => c.state === 'awaiting_decision')!;
+    expect(cardA.attention).toBe(confirmCol.tasks.length + decisionCol.tasks.length);
 
     const taskCard = decisionCol.tasks.find((t) => t.id === 'R-81')!;
     expect(taskCard.attention).toBeUndefined();

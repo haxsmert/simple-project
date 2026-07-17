@@ -70,16 +70,16 @@ describe('App shell', () => {
     expect(await screen.findByText(/数据库炸了/)).toBeInTheDocument();
   });
 
-  it('项目卡展示待决策 attention chip, 顶栏展示可点击的全局 pill', async () => {
+  it('项目卡展示"待处理" attention chip(待确认+待决策), 顶栏展示可点击的全局 pill', async () => {
     render(<App />);
     await screen.findByText('演示项目');
-    expect(screen.getByText('2 待决策')).toBeInTheDocument();
-    expect(screen.getByText('🔔 待你决策 2')).toBeInTheDocument();
+    expect(screen.getByText('2 待处理')).toBeInTheDocument();
+    expect(screen.getByText('🔔 待你处理 2')).toBeInTheDocument();
   });
 
   it('顶栏 pill 点击后跳到任务 tab 并切到全部项目筛选', async () => {
     render(<App />);
-    fireEvent.click(await screen.findByText('🔔 待你决策 2'));
+    fireEvent.click(await screen.findByText('🔔 待你处理 2'));
     await waitFor(() => expect(screen.getByRole('button', { name: '任务' })).toHaveClass('active'));
   });
 

@@ -32,6 +32,12 @@ describe('Tree', () => {
     expect(screen.getByText('待你决策')).toBeInTheDocument();
   });
 
+  it('awaiting_confirm 节点带"待你确认"标记(确认关卡也在树里可见)', () => {
+    const cn: TaskNode[] = [mk({ id: 'R-3', title: '计划待确认', state: 'awaiting_confirm' })];
+    render(<Tree nodes={cn} onOpen={() => {}} actorsById={actors} />);
+    expect(screen.getByText('待你确认')).toBeInTheDocument();
+  });
+
   it('点节点行调用 onOpen(该节点 id)', () => {
     const onOpen = vi.fn();
     render(<Tree nodes={nodes} onOpen={onOpen} actorsById={actors} />);

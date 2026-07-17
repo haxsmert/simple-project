@@ -187,6 +187,30 @@ function HandoffBox({ taskId, currentState, actors, onHandoff }: {
   );
 }
 
+// 计划确认块: 决策者在开工前的关卡 —— 一键批准(→执行中)或打回(→待规划), 补充意见随动作记入交互记录。
+// 默认把任务交给第一个 agent 执行/重规划; 想指定具体行动者仍可用下方「换手」。
+function ConfirmBox({ taskId, actorsById, onHandoff }: {
+  taskId: string; actorsById: Record<string, Actor>;
+  onHandoff: (input: { taskId: string; toActor: string; toRole: Role; toState: TaskState; note: string }) => void;
+}) {
+  const [note, setNote] = useState('');
+  const agents = Object.values(actorsById).filter((a) => a.type === 'agent');
+  const target = agents[0]?.id ?? Object.keys(actorsById)[0] ?? '';
+  const approve = () => onHandoff({ taskId, toActor: target, toRole: 'executor', toState: 'executing', note: note.trim() });
+  const bounce = () => onHandoff({ taskId, toActor: target, toRole: 'planner', toState: 'planning', note: note.trim() });
+  return (
+    <div className="confirm-box">
+      <p className="confirm-hint">计划已就绪, 等你确认后开工。计划详情见下方「输入」。</p>
+      <input className="confirm-note" placeholder="补充意见(可选, 随批准/打回记入交互记录)…"
+        value={note} onChange={(e) => setNote(e.target.value)} />
+      <div className="confirm-actions">
+        <button className="btn primary" onClick={approve}>✓ 批准开工</button>
+        <button className="btn" onClick={bounce}>↩ 打回重规划</button>
+      </div>
+    </div>
+  );
+}
+
 function CommentBox({ taskId, onComment }: { taskId: string; onComment: (taskId: string, body: string) => void }) {
   const [v, setV] = useState('');
   const submit = () => { const b = v.trim(); if (b) { onComment(taskId, b); setV(''); } };
@@ -212,6 +236,16 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
   const openClar = pkg.clarifications.filter((c) => c.state !== 'done');
   const openClarCount = openClar.length;
   const firstOpenId = openClar[0]?.id ?? null; // 只给第一条待决策自动聚焦
+
+  // 待确认槽位: 计划就绪、开工前的人类关卡 —— 与待决策同为"轮到你"的最高价值动作, 提到最顶。
+  const confirmSlot = t.state === 'awaiting_confirm' && (
+    <div className="slot">
+      <SlotHead icon={<IconWarnTriangle />} tint="warn" title="待你确认" en="Confirm" tag="计划就绪 · 开工前的关卡" />
+      <div className="slot-body">
+        <ConfirmBox taskId={t.id} actorsById={actorsById} onHandoff={onHandoff} />
+      </div>
+    </div>
+  );
 
   // 待决策槽位: 决策者最高价值动作, 提到最顶(status 行正下方); 全部已决策则作为历史保留在原语义位置
   const clarSlot = pkg.clarifications.length > 0 && (
@@ -275,6 +309,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
         <RoleChip role={t.currentRole} />
       </div>
 
+      {confirmSlot}
       {openClarCount > 0 && clarSlot}
 
       <div className="slot">

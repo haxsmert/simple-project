@@ -21,7 +21,8 @@ export function TaskCard({ task, actor, onOpen, draggable, dragging, onDragStart
   onDragStart?: (e: DragEvent<HTMLDivElement>) => void; onDragOver?: (e: DragEvent<HTMLDivElement>) => void;
   onDrop?: (e: DragEvent<HTMLDivElement>) => void; onDragEnd?: (e: DragEvent<HTMLDivElement>) => void;
 }) {
-  const blocked = task.state === 'awaiting_decision';
+  const blocked = task.state === 'awaiting_decision'; // 执行中卡住、待你决策
+  const awaitConfirm = task.state === 'awaiting_confirm'; // 计划就绪、待你确认
 
   // 关系边 chip: 出边按类型去重, 再补一个"被依赖"的入边, 最后按上限截断避免拥挤
   const chips: { key: string; type: EdgeType; label: string }[] = [];
@@ -47,7 +48,7 @@ export function TaskCard({ task, actor, onOpen, draggable, dragging, onDragStart
   // 可及名把视觉上的关键信号(所属项目/状态/待你决策数/优先级)一并纳入, 否则屏幕阅读器只听到"标题·id"
   const a11yLabel = [
     task.parentTitle, task.title, STATE_NAME[task.state],
-    task.attention ? `${task.attention} 项待你决策` : '',
+    task.attention ? `${task.attention} 项待你处理` : '',
     task.priority ? `优先级${PRIO_LABEL[task.priority]}` : '',
     task.id,
   ].filter(Boolean).join(' · ');
@@ -61,8 +62,9 @@ export function TaskCard({ task, actor, onOpen, draggable, dragging, onDragStart
       <div className="card-top">
         <RoleChip role={task.currentRole} />
         {blocked && <EdgeChip type="clarifies" label="待决策" />}
+        {awaitConfirm && <span className="attn-chip">待你确认</span>}
         {visibleChips.map((c) => <EdgeChip key={c.key} type={c.type} label={c.label} />)}
-        {!!task.attention && task.attention > 0 && <span className="attn-chip">{task.attention} 待决策</span>}
+        {!!task.attention && task.attention > 0 && <span className="attn-chip">{task.attention} 待处理</span>}
       </div>
       <p className="card-title">{task.title}</p>
       {hasSubtasks && (

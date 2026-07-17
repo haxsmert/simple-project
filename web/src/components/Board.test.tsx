@@ -112,6 +112,17 @@ describe('Board', () => {
     expect(cards[1].querySelector('.card-project')).toBeFalsy();
   });
 
+  it('待确认卡片显示「待你确认」标记; 项目卡 attention 渲染「N 待处理」', () => {
+    const cols: BoardColumn[] = [
+      { state: 'awaiting_confirm', tasks: [{ id: 'R-3', title: '计划待确认', state: 'awaiting_confirm', currentActor: 'a', currentRole: 'decider', parentId: 'R-1', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null }] },
+      { state: 'planning', tasks: [{ id: 'R-1', title: '项目A', state: 'planning', currentActor: null, currentRole: null, parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null, attention: 2 }] },
+      { state: 'awaiting_decision', tasks: [] }, { state: 'executing', tasks: [] }, { state: 'testing', tasks: [] }, { state: 'done', tasks: [] },
+    ];
+    render(<Board columns={cols} actorsById={actors} onOpen={vi.fn()} />);
+    expect(screen.getByText('待你确认')).toBeInTheDocument();   // 待确认卡标记
+    expect(screen.getByText('2 待处理')).toBeInTheDocument();    // 项目卡统一为"待处理"(含待确认+待决策)
+  });
+
   it('全空看板渲染 board-empty 与提示文案', () => {
     const emptyColumns: BoardColumn[] = ALL_STATES_EMPTY();
     const { container } = render(

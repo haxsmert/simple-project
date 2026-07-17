@@ -117,7 +117,7 @@ export function App() {
         </div>
         {pendingTotal > 0 && (
           <button className="attn-pill" onClick={() => { setView('tasks'); changeFilter('all'); }}>
-            🔔 待你决策 {pendingTotal}
+            🔔 待你处理 {pendingTotal}
           </button>
         )}
         {view === 'projects' && (

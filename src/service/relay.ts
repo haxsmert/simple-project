@@ -95,18 +95,20 @@ export class RelayService {
     return this.groupByState(all);
   }
 
-  // 项目「直接任务(depth-1)」里 awaiting_decision 的数量 —— 刻意只数一层:
-  // 这正是该项目任务看板「待决策」列里能看到、人类会点开去决策的那些卡, 数字与看板一致、可对账。
-  // (更深的待确认子任务是 agent 领地, 由其父任务的挂起体现, 不重复计数。)
-  private pendingDecisions(rootId: string): number {
-    return listChildren(this.db, rootId).filter((t) => t.state === 'awaiting_decision').length;
+  // 项目「直接任务(depth-1)」里"轮到你处理"的数量 —— 两个人类关卡: 待确认(确认计划)+ 待决策(答复澄清)。
+  // 刻意只数一层: 正是该项目任务看板「待确认」「待决策」两列里你会点开去处理的卡, 数字与看板一致、可对账。
+  // (更深的执行子任务是 agent 领地, 由其父任务的状态体现, 不重复计数。)
+  private pendingAttention(rootId: string): number {
+    return listChildren(this.db, rootId).filter(
+      (t) => t.state === 'awaiting_confirm' || t.state === 'awaiting_decision',
+    ).length;
   }
 
-  // 项目 = 顶层任务(parentId null); 项目卡额外带 attention(子树里等待人类决策的任务数, 人类最高价值信号)
+  // 项目 = 顶层任务(parentId null); 项目卡额外带 attention(直接任务里"待你处理"的数量, 人类最高价值信号)
   projectBoard(): Array<{ state: TaskState; tasks: BoardCard[] }> {
     const grouped = this.groupByState(listRoots(this.db));
     for (const col of grouped) {
-      for (const card of col.tasks) card.attention = this.pendingDecisions(card.id);
+      for (const card of col.tasks) card.attention = this.pendingAttention(card.id);
     }
     return grouped;
   }
