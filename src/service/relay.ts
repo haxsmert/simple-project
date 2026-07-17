@@ -8,7 +8,7 @@ import { appendEvent } from '../repo/events';
 import { handoff, type HandoffInput } from '../core/handoff';
 import { raiseClarification, answerClarification, type RaiseInput, type AnswerInput } from '../core/clarification';
 import { createEdge, edgesFrom, edgesTo } from '../repo/edges';
-import { routingTable, suggestActorForRole } from '../core/routing';
+import { routingTable } from '../core/routing';
 
 export const STATE_ORDER: TaskState[] = [
   'planning', 'awaiting_confirm', 'executing', 'awaiting_decision', 'testing', 'done',
@@ -67,10 +67,6 @@ export class RelayService {
   // 默认路由表: 每个角色默认派给谁(最近扮演过该角色的人)。界面用它把"交给谁"预填好, 不必每次手选。
   routing(): Record<Role, string | null> {
     return routingTable(this.db);
-  }
-
-  suggestActor(role: Role): string | null {
-    return suggestActorForRole(this.db, role);
   }
 
   // 单任务 → BoardCard: 补子任务计数 + 关系边(board/projectBoard/taskBoard 共用富化逻辑)

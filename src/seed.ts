@@ -8,8 +8,13 @@ import { raiseClarification } from './core/clarification';
 import { mirrorTask } from './mirror/writer';
 
 export function seed(db: DB, dir: string): { taskCount: number; files: string[] } {
+  // 产品的核心叙事是"人 + 多个 agent 按角色接力"。只给一个 agent, 那条叙事(以及按角色的默认路由)
+  // 在随附数据上根本演示不出来 —— 会让"交去测试"默认派给执行者, 看着像规则失灵。
   const you = createActor(db, { id: 'you', name: '你', type: 'human' });
   const execA = createActor(db, { id: 'agent-exec-a', name: '执行·A', type: 'agent', handle: 'mcp:exec-a' });
+  const execB = createActor(db, { id: 'agent-exec-b', name: '执行·B', type: 'agent', handle: 'mcp:exec-b' });
+  const planP = createActor(db, { id: 'agent-plan-p', name: '规划·P', type: 'agent', handle: 'mcp:plan-p' });
+  const testT = createActor(db, { id: 'agent-test-t', name: '测试·T', type: 'agent', handle: 'mcp:test-t' });
 
   const project = createTask(db, {
     id: 'R-115', title: 'Relay MVP · 数据层', currentActor: you.id, currentRole: 'planner',
@@ -28,6 +33,24 @@ export function seed(db: DB, dir: string): { taskCount: number; files: string[] 
 
   const dep = createTask(db, { id: 'R-140', title: 'MCP 工具集接口设计', state: 'done', summary: '锁定 claim/handoff/raise 字段命名。' });
   createEdge(db, { fromTask: task.id, toTask: dep.id, type: 'depends_on' });
+
+  // 让"按角色分工"在数据里真实发生过 —— 默认路由是行为性推断的(最近谁扮演该角色就还派给谁),
+  // 没有这些历史, 规则只能落到兜底(=瞎猜第一个 agent), 等于没规则。
+  createTask(db, {
+    id: 'R-150', title: '镜像写入器验收', parentId: project.id,
+    state: 'testing', currentActor: testT.id, currentRole: 'tester',
+    goal: '验证 DB→Markdown 镜像在父/依赖变更时的受影响集合。', priority: 'mid',
+  });
+  createTask(db, {
+    id: 'R-152', title: '状态机边界用例补测', parentId: project.id,
+    state: 'executing', currentActor: execB.id, currentRole: 'executor',
+    goal: '非法流转、同态换手、多待确认并发。', priority: 'lo',
+  });
+  createTask(db, {
+    id: 'R-154', title: '信息包镜像格式草案', parentId: project.id,
+    state: 'planning', currentActor: planP.id, currentRole: 'planner',
+    goal: '定四槽位在 .md 里的排版与锚点。', priority: 'mid',
+  });
 
   // 执行者卡住 → 触发待确认(会新建一个 R-<n> 待决策任务)
   raiseClarification(db, {

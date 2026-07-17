@@ -10,7 +10,7 @@ import { NEXT_ACTIONS, type TaskAction } from '../actions';
 export function NextActions({ taskId, state, currentActor, actorsById, routing, onAct }: {
   taskId: string; state: TaskState; currentActor: string | null;
   actorsById: Record<string, Actor>;
-  routing: Record<string, string | null>;
+  routing: Record<string, { actorId: string | null; basis: 'history' | 'fallback' }>;
   onAct: (input: { taskId: string; toActor: string; toRole: Role; toState: TaskState; note: string }, action: TaskAction) => Promise<boolean>;
 }) {
   const actions = NEXT_ACTIONS[state];
@@ -21,6 +21,11 @@ export function NextActions({ taskId, state, currentActor, actorsById, routing, 
   const [busy, setBusy] = useState<string | null>(null);
   const [pickFor, setPickFor] = useState<string | null>(null); // 正在给哪个动作选人
   const [picked, setPicked] = useState('');
+  // 换人的候选: 排除当前行动者(换人不该换成他自己)
+  const candidates = Object.values(actorsById).filter((x) => x.id !== currentActor);
+  // 双保险: picked 必须真在候选里才作数 —— 否则 <select> 会回退显示第一项, 而 state 仍持旧值,
+  // 造成"你看到的人"和"提交的人"是两个人(静默的错误动作)。组件已按任务 key 重挂, 这里再兜一层。
+  const pickedValid = candidates.some((x) => x.id === picked) ? picked : (candidates[0]?.id ?? '');
 
   if (actions.length === 0) return null;
 
@@ -29,7 +34,9 @@ export function NextActions({ taskId, state, currentActor, actorsById, routing, 
   const targetOf = (a: TaskAction): string =>
     a.toHuman ? (human?.id ?? fallback)
       : a.keepActor ? (currentActor ?? fallback)
-        : (routing[a.toRole] ?? currentActor ?? fallback);
+        : (routing[a.toRole]?.actorId ?? currentActor ?? fallback);
+  // 这个默认是"按最近分工推出的"还是"没人干过, 随便挑的"? 后者要如实说, 别装成有规则
+  const isGuess = (a: TaskAction) => !a.toHuman && !a.keepActor && routing[a.toRole]?.basis === 'fallback';
 
   const run = async (a: TaskAction, actorOverride?: string) => {
     if (busy) return;
@@ -48,19 +55,19 @@ export function NextActions({ taskId, state, currentActor, actorsById, routing, 
           const target = targetOf(a);
           const who = actorsById[target]?.name;
           // 按钮第二行直接写明后果 + 交给谁 —— 默认可见, 才谈得上"默认规则"而不是黑箱
-          const sub = isPick ? a.hint : `${a.hint}${!a.keepActor && who ? ` · 交给 ${who}` : ''}`;
+          const sub = isPick ? a.hint
+            : `${a.hint}${!a.keepActor && who ? ` · 交给 ${who}${isGuess(a) ? '(还没人做过这个角色, 先随便派的)' : ''}` : ''}`;
           if (isPick && pickFor === a.key) {
             return (
               <div key={a.key} className="reassign-open">
+                {candidates.length === 0 && <span className="act-hint">没有别人可换 —— 先注册一个行动者</span>}
                 <label className="assign">
                   <span className="assign-label">交给</span>
-                  <select autoFocus value={picked} onChange={(e) => setPicked(e.target.value)}>
-                    {Object.values(actorsById).filter((x) => x.id !== currentActor).map((x) => (
-                      <option key={x.id} value={x.id}>{x.name}</option>
-                    ))}
+                  <select autoFocus value={pickedValid} onChange={(e) => setPicked(e.target.value)}>
+                    {candidates.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
                   </select>
                 </label>
-                <button type="button" className="btn primary" disabled={!!busy || !picked} onClick={() => run(a, picked)}>确定</button>
+                <button type="button" className="btn primary" disabled={!!busy || !pickedValid} onClick={() => run(a, pickedValid)}>确定</button>
                 <button type="button" className="btn" disabled={!!busy} onClick={() => setPickFor(null)}>取消</button>
               </div>
             );
@@ -70,10 +77,8 @@ export function NextActions({ taskId, state, currentActor, actorsById, routing, 
             <button key={a.key} type="button" aria-label={a.label}
               className={`btn act${a.primary ? ' primary' : ''}${a.danger ? ' danger' : ''}`}
               disabled={!!busy} onClick={() => {
-                if (isPick) { // 手动换人: 点开才出选择器, 默认给一个非当前行动者的候选
-                  setPicked(Object.values(actorsById).find((x) => x.id !== currentActor)?.id ?? '');
-                  setPickFor(a.key);
-                } else run(a);
+                if (isPick) { setPicked(candidates[0]?.id ?? ''); setPickFor(a.key); } // 手动换人: 点开才出选择器
+                else run(a);
               }}>
               <span className="act-label" aria-hidden="true">{busy === a.key ? '处理中…' : a.label}</span>
               <span className="act-hint" aria-hidden="true">{sub}</span>

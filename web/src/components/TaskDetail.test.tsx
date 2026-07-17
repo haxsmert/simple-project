@@ -15,7 +15,8 @@ const pkg: TaskPackage = {
 };
 const actors = { a: { id: 'a', name: '执行A', type: 'agent' as const, handle: null }, t: { id: 't', name: '测试T', type: 'agent' as const, handle: null }, you: { id: 'you', name: '你', type: 'human' as const, handle: null } };
 // 默认路由表(后端按"最近谁在扮演该角色"推出): 界面据此预填交给谁
-const routing = { planner: 'a', executor: 'a', tester: 't', questioner: 'a', decider: 'you' };
+const H = (id: string) => ({ actorId: id, basis: 'history' as const });
+const routing = { planner: H('a'), executor: H('a'), tester: H('t'), questioner: H('a'), decider: H('you') };
 
 describe('fmtTime', () => {
   it('裸 UTC ISO → 「MM-DD HH:mm」本地时间, 不再显示机器味的 T/Z/毫秒', () => {
@@ -161,6 +162,13 @@ describe('TaskDetail', () => {
     await waitFor(() => expect(onAct).toHaveBeenCalledWith(
       expect.objectContaining({ toState: 'testing', toRole: 'tester', toActor: 't' }), // 按路由派给测试者, 不是瞎给第一个 agent
       expect.objectContaining({ key: 'toTest' })));
+  });
+
+  it('默认是"猜的"时如实说出来(没人扮演过该角色 → 别装成有规则)', () => {
+    const guessRouting = { ...routing, tester: { actorId: 'a', basis: 'fallback' as const } };
+    const execPkg: TaskPackage = { ...pkg, task: { ...pkg.task, state: 'executing' }, clarifications: [] };
+    render(<TaskDetail pkg={execPkg} actorsById={actors} routing={guessRouting} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    expect(screen.getByText(/还没人做过这个角色, 先随便派的/)).toBeInTheDocument();
   });
 
   it('「换个人做」才是手动改人的入口: 点开出选择器, 且不含当前行动者', async () => {

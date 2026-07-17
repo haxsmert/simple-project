@@ -182,7 +182,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
   onAct: (input: { taskId: string; toActor: string; toRole: Role; toState: TaskState; note: string }, action: TaskAction) => Promise<boolean>;
   onComment: (taskId: string, body: string) => void;
   onOpenTask: (id: string) => void; // 任务引用(面包屑/子任务/关系边/依赖)跳到那个任务的详情
-  routing: Record<string, string | null>; // 角色→默认派给谁
+  routing: Record<string, { actorId: string | null; basis: 'history' | 'fallback' }>; // 角色→{默认派给谁, 依据}
   onClose: () => void;
 }) {
   const t = pkg.task;
@@ -210,7 +210,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
   // 「下一步」面板 —— 同一个机制(状态机允许的去向翻成大白话动作), 只是摆放位置随"轮不轮到你"变:
   // 待确认(计划等你拍板)时提到最顶当主角; 其余状态放在底部当收尾动作。
   const nextActions = (
-    <NextActions taskId={t.id} state={t.state} currentActor={t.currentActor} actorsById={actorsById} routing={routing} onAct={onAct} />
+    <NextActions key={t.id} taskId={t.id} state={t.state} currentActor={t.currentActor} actorsById={actorsById} routing={routing} onAct={onAct} />
   );
   const confirmSlot = t.state === 'awaiting_confirm' && (
     <div className="slot">

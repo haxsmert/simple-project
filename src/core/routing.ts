@@ -11,24 +11,31 @@ export const ALL_ROLES: Role[] = ['planner', 'executor', 'tester', 'questioner',
 // 这样系统"学"的是实际发生过的分工, 而不是谁去填了一张表。
 //
 // 兜底顺序: 最近扮演过该角色的人 → 任意 agent(人类通常是决策者, 不该被默认派去干活) → 任意 actor → null。
-export function suggestActorForRole(db: DB, role: Role): string | null {
+// 返回值带 basis: 'history' = 真按最近分工推出的; 'fallback' = 没人扮演过这个角色, 这是猜的。
+// 冷启动是行为性推断的固有短板(spec §2 禁止给 actor 打静态角色标签, 所以无从"配置"),
+// 与其用兜底掩盖成"看起来有规则", 不如把"这是猜的"如实说出来, 让界面能提示、让人顺手改。
+export type ActorSuggestion = { actorId: string | null; basis: 'history' | 'fallback' };
+
+export function suggestWithBasis(db: DB, role: Role): ActorSuggestion {
   const recent = db.prepare(
     `SELECT current_actor FROM tasks
       WHERE current_role = ? AND current_actor IS NOT NULL
-      ORDER BY updated_at DESC LIMIT 1`,
+      ORDER BY updated_at DESC, rowid DESC LIMIT 1`,
   ).get(role) as { current_actor: string } | undefined;
-  if (recent) return recent.current_actor;
+  if (recent) return { actorId: recent.current_actor, basis: 'history' };
 
-  // 决策是人的活: 没历史时优先给人, 其余角色优先给 agent
   const type = role === 'decider' ? 'human' : 'agent';
   const byType = db.prepare(`SELECT id FROM actors WHERE type = ? ORDER BY created_at LIMIT 1`).get(type) as { id: string } | undefined;
-  if (byType) return byType.id;
-
-  const any = db.prepare(`SELECT id FROM actors ORDER BY created_at LIMIT 1`).get() as { id: string } | undefined;
-  return any?.id ?? null;
+  const any = byType ?? (db.prepare(`SELECT id FROM actors ORDER BY created_at LIMIT 1`).get() as { id: string } | undefined);
+  return { actorId: any?.id ?? null, basis: 'fallback' };
 }
 
-// 全部角色的默认人选 —— 界面据此把"交给谁"预先填好(你仍可手动改), MCP 那边的 agent 也共用同一套规则
-export function routingTable(db: DB): Record<Role, string | null> {
-  return Object.fromEntries(ALL_ROLES.map((r) => [r, suggestActorForRole(db, r)])) as Record<Role, string | null>;
+export function suggestActorForRole(db: DB, role: Role): string | null {
+  return suggestWithBasis(db, role).actorId;
+}
+
+// 全部角色的默认人选 + 依据 —— 界面据此把"交给谁"预填好, 并在 basis='fallback' 时提示"这是猜的"。
+// 注: 目前只有 Web UI 用它预填; MCP 的 handoff 工具仍要求 agent 自己指定 to_actor, 并未共用这套路由。
+export function routingTable(db: DB): Record<Role, ActorSuggestion> {
+  return Object.fromEntries(ALL_ROLES.map((r) => [r, suggestWithBasis(db, r)])) as Record<Role, ActorSuggestion>;
 }

@@ -20,7 +20,8 @@ export function App() {
   const [taskCols, setTaskCols] = useState<BoardColumn[]>([]);
   const [tree, setTree] = useState<TaskNode[]>([]);
   const [actors, setActors] = useState<Actor[]>([]);
-  const [routing, setRouting] = useState<Record<string, string | null>>({}); // 角色→默认派给谁(后端按最近实际分工推出)
+  // 角色→{默认派给谁, 依据}。basis='fallback' 表示没人扮演过该角色, 这是猜的 —— 界面要如实说
+  const [routing, setRouting] = useState<Record<string, { actorId: string | null; basis: 'history' | 'fallback' }>>({});
   const [detail, setDetail] = useState<TaskPackage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false); // 首屏数据是否已到 —— 未到前不渲染空态, 避免误报"还没有项目"
