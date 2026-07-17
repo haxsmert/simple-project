@@ -260,7 +260,9 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
   const headingRef = useRef<HTMLHeadingElement>(null);
   const prevTaskId = useRef<string | null>(null);
   useEffect(() => {
-    if (prevTaskId.current && prevTaskId.current !== t.id && !firstOpenId) headingRef.current?.focus();
+    // 初次打开与抽屉内跳转都把焦点送进抽屉(否则焦点留在被遮罩盖住的卡上, Tab 要穿过整排背景卡才进来);
+    // 有待决策时让答复框的 autoFocus 接管, 不抢
+    if (prevTaskId.current !== t.id && !firstOpenId) headingRef.current?.focus();
     prevTaskId.current = t.id;
   }, [t.id, firstOpenId]);
 
@@ -344,7 +346,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
   );
 
   return (
-    <div className="drawer">
+    <div className="drawer" role="dialog" aria-modal="true" aria-label={`任务详情: ${t.title}`}>
       <button className="btn" onClick={onClose} style={{ float: 'right' }}>关闭</button>
       {/* 面包屑是真链接: 点祖先即跳到它的详情 —— 也是抽屉内层层钻进后的返回路径 */}
       <nav className="crumb" aria-label="所属层级">
@@ -358,7 +360,9 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
       {/* key=任务id: 换任务时整块重挂 → 触发交叉淡入, 不是硬切(同容器内替换内容的连续性) */}
       <div className="drawer-body" key={t.id}>
       {editing ? (
-        <div className="edit-panel" role="group" aria-label="编辑任务">
+        <div className="edit-panel" role="group" aria-label="编辑任务"
+          onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); } }}>
+          {/* Esc 只退编辑不关抽屉: 写到一半按 Esc 把抽屉连改动一起关掉 = 数据丢失(审计实锤) */}
           <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} aria-label="标题" placeholder="任务标题" autoFocus />
           <textarea rows={2} value={editGoal} onChange={(e) => setEditGoal(e.target.value)} aria-label="目标" placeholder="目标(一句话说清做成什么样)" />
           <div className="act-form-btns">
@@ -504,7 +508,9 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
       {/* 等确认时「下一步」已在顶部当主角, 此处不重复 */}
       {t.hold !== 'confirm' && actionsFor(t.state, t.hold).length > 0 && (
         <div className="slot">
-          <SlotHead icon={<IconHandoff />} tint="human" title="下一步" tag="推进它, 或交给别人" />
+          {/* 任务在 agent 手里时, 这些动作是"替它推进"(人类是总管有此权限), 但要如实说, 不能和"轮到你"长一样 */}
+          <SlotHead icon={<IconHandoff />} tint="human" title="下一步"
+            tag={!confirmMine && t.currentActor && actorsById[t.currentActor]?.type === 'agent' ? `在 ${holder} 手里 —— 你是替它推进` : '推进它, 或交给别人'} />
           <div className="slot-body">{nextActions}</div>
         </div>
       )}
@@ -519,11 +525,12 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
       {/* 删除收在最底且要二次确认: 不可恢复(连同历史与关系边); 有子任务后端会拒并说明 */}
       <div className="danger-zone">
         {confirmDelete ? (
-          <div className="act-form" role="group" aria-label="确认删除">
+          <div className="act-form" role="group" aria-label="确认删除"
+            onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setConfirmDelete(false); } }}>
             <div className="act-form-title">删除后不可恢复(连同它的历史与关系)。{pkg.subtasks.length > 0 ? '它还有子任务, 需先移走或删除。' : ''}</div>
             <div className="act-form-btns">
               <button type="button" className="btn danger-solid" onClick={async () => { if (await onDelete(t.id)) setConfirmDelete(false); }}>确认删除</button>
-              <button type="button" className="btn" onClick={() => setConfirmDelete(false)}>取消</button>
+              <button type="button" autoFocus className="btn" onClick={() => setConfirmDelete(false)}>取消</button>
             </div>
           </div>
         ) : (

@@ -20,7 +20,7 @@ export function buildApp(service: RelayService): FastifyInstance {
   app.get('/api/projects/:id/board', wrap((req) => service.taskBoard(req.params.id)));
   app.get('/api/tasks-board', wrap(() => service.allTasksBoard()));
   app.get('/api/tree', wrap(() => service.tree()));
-  app.get('/api/actors', wrap(() => service.listActors()));
+  app.get('/api/actors', wrap((req) => service.listActors(req.query.type)));
   // 默认路由表: 角色 → 默认派给谁(界面据此预填"交给谁", 不必每次手选)
   app.get('/api/routing', wrap(() => service.routing()));
   // 全局任务过滤(发现面): ?state= &hold=confirm|decision|none|any &unassigned=1
@@ -33,7 +33,12 @@ export function buildApp(service: RelayService): FastifyInstance {
   app.get('/api/tasks/:id', wrap((req) => service.getPackage(req.params.id)));
 
   app.post('/api/actors', wrap((req) => service.registerActor(req.body)));
-  app.post('/api/tasks', wrap((req) => service.createTask(req.body)));
+  // 字段别名兼容: MCP 词汇(actor/role)打到 HTTP 曾被静默吞掉 —— 静默丢字段是给集成方埋雷
+  app.post('/api/tasks', wrap((req) => service.createTask({
+    ...req.body,
+    currentActor: req.body.currentActor ?? req.body.actor,
+    currentRole: req.body.currentRole ?? req.body.role,
+  })));
   // 信息更新(标题/目标/优先级, 记「经过」)与硬删(级联边/事件/镜像; 有子任务拒; 未决问题卡被删=撤回提问)
   app.patch('/api/tasks/:id', wrap((req) => service.updateTaskInfo(req.params.id, req.body.byActor, req.body)));
   app.delete('/api/tasks/:id', wrap((req) => service.deleteTask(req.params.id, (req.query.byActor as string) ?? 'admin')));
@@ -42,7 +47,11 @@ export function buildApp(service: RelayService): FastifyInstance {
   app.post('/api/tasks/:id/output', wrap((req) =>
     service.submitOutput(req.params.id, req.body.byActor, { outputsMd: req.body.outputsMd, summary: req.body.summary })));
   app.post('/api/tasks/:id/comment', wrap((req) => service.comment(req.params.id, req.body.actor, req.body.body)));
-  app.post('/api/handoff', wrap((req) => service.handoff(req.body)));
+  // toHold 取值与 MCP 对齐: 'none' 也表示解除挂起(此前 HTTP 只认 null 字面量, 跨通道词汇打架)
+  app.post('/api/handoff', wrap((req) => service.handoff({
+    ...req.body,
+    toHold: req.body.toHold === 'none' ? null : req.body.toHold,
+  })));
   app.post('/api/clarifications', wrap((req) => service.raiseClarification(req.body)));
   app.post('/api/clarifications/:id/answer', wrap((req) =>
     service.answerClarification({ clarTaskId: req.params.id, byActor: req.body.byActor, answer: req.body.answer })));

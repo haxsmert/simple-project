@@ -3,7 +3,7 @@ import { mkdtempSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openDb } from '../../src/db/connection';
-import { getTask } from '../../src/repo/tasks';
+import { getTask, createTask } from '../../src/repo/tasks';
 import { listEvents } from '../../src/repo/events';
 import { RelayService } from '../../src/service/relay';
 
@@ -24,8 +24,11 @@ describe('RelayService writes (part A)', () => {
   it('claim 拒绝挂起中的任务(等确认/等决策不是"可领取的活", 自助领取会把锁连人抢走)', () => {
     const { db, service } = svc();
     service.registerActor({ id: 'a', name: 'A', type: 'agent' });
-    const held = service.createTask({ id: 'R-70', title: '等确认', state: 'planning', hold: 'confirm', currentRole: 'decider' });
+    // 挂起位用 repo 层直造(service.createTask 已禁直造挂起 —— 挂起要走流程)
+    const held = createTask(db, { id: 'R-70', title: '等确认', state: 'planning', hold: 'confirm', currentRole: 'decider' });
     expect(() => service.claim(held.id, 'a', 'executor')).toThrow(/挂起中.*不可领取/);
+    // 对外通道直造挂起本身也被拦(对抗审计: 直造 confirm 探测不到提交人, 自批闸失明)
+    expect(() => service.createTask({ title: 'x', hold: 'confirm' })).toThrow(/不能直接建出挂起/);
   });
 
   it('claim 设负责人+角色并留 claim 事件', () => {
@@ -112,6 +115,17 @@ describe('RelayService writes (part A)', () => {
     expect(() => service.comment(t.id, 'ghost', 'hi')).toThrow(/行动者不存在/);
     expect(() => service.handoff({ taskId: t.id, byActor: 'a', toActor: 'ghost', toRole: 'planner' })).toThrow(/行动者不存在/);
     expect(() => service.updateTaskInfo(t.id, 'a', { title: ' ' })).toThrow(/标题不能为空/);
+  });
+
+  it('终态守卫(对抗审计): done 父下建开放子拒; done 任务的计划/产出改写拒', () => {
+    const { service } = svc();
+    service.registerActor({ id: 'a', name: 'A', type: 'agent' });
+    const doneTask = service.createTask({ title: '已完成', state: 'done' });
+    expect(() => service.createTask({ title: '完成后长出来', parentId: doneTask.id })).toThrow(/已完成.*不能再/);
+    expect(() => service.submitPlan(doneTask.id, 'a', '- [ ] 偷改')).toThrow(/已完成/);
+    expect(() => service.submitOutput(doneTask.id, 'a', { outputsMd: '偷改' })).toThrow(/已完成/);
+    // 建"已完成的子"归档场景仍允许(state:'done' 的子不破不变量)
+    expect(service.createTask({ title: '补录完成件', parentId: doneTask.id, state: 'done' }).state).toBe('done');
   });
 
   it('linkEdge: 自环拒; 重复建边幂等返回已有(agent 重试不堆重复边)', () => {

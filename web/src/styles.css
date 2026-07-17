@@ -308,7 +308,8 @@ select { cursor:pointer; }
 .picker-pop { position:absolute; top:calc(100% + 4px); left:0; z-index:30; width:250px; background:var(--surface); border:1px solid var(--border-2); border-radius:10px; box-shadow:0 8px 28px rgba(0,0,0,.28); padding:7px; }
 .picker-pop input { width:100%; margin-bottom:7px; }
 .picker-opt { padding:6px 9px; border-radius:6px; font-size:13px; cursor:pointer; color:var(--text); }
-.picker-opt:hover { background:var(--surface-2); }
+.picker-opt { display:block; width:100%; text-align:left; background:none; border:none; font:inherit; color:inherit; cursor:pointer; }
+.picker-opt:hover, .picker-opt:focus-visible { background:var(--surface-2); }
 .picker-opt.sel { color:var(--human); font-weight:600; }
 .picker-empty { padding:6px 9px; font-size:12px; color:var(--text-faint); }
 

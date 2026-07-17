@@ -33,9 +33,10 @@ export function ProjectPicker({ projects, value, onChange }: {
       {open && (
         <div className="picker-pop">
           <input autoFocus placeholder="搜索项目…" value={query} onChange={(e) => setQuery(e.target.value)} />
-          <div className={`picker-opt${value === 'all' ? ' sel' : ''}`} onClick={() => pick('all')}>全部任务</div>
+          {/* 选项是真按钮: div+onClick 对键盘/读屏是死路(能搜到却选不了) */}
+          <button type="button" className={`picker-opt${value === 'all' ? ' sel' : ''}`} onClick={() => pick('all')}>全部任务</button>
           {filtered.map((p) => (
-            <div key={p.id} className={`picker-opt${value === p.id ? ' sel' : ''}`} onClick={() => pick(p.id)}>{p.title}</div>
+            <button type="button" key={p.id} className={`picker-opt${value === p.id ? ' sel' : ''}`} onClick={() => pick(p.id)}>{p.title}</button>
           ))}
           {filtered.length === 0 && <div className="picker-empty">无匹配项目</div>}
         </div>

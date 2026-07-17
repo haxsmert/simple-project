@@ -24,6 +24,19 @@ export function openDb(path: string = ':memory:'): DB {
   // 关系边收敛为两种: blocks 与 depends_on 互为反向(翻转保留信息), spawns 是 clarifies 的反向冗余(直接删)
   db.exec("UPDATE edges SET type='depends_on', from_task=to_task, to_task=from_task WHERE type='blocks'"); // SET 右侧取旧值, swap 安全
   db.exec("DELETE FROM edges WHERE type='spawns'");
+  // edges 表 CHECK 漂移(对抗审计实锤): blocks/spawns 从白名单删了但旧表从未重建 → 旧库还能插进已删类型。
+  // 数据已在上面翻好, 这里重建套新 CHECK(edges 不被别表 FK 引用, 普通 rename 安全)
+  // guard 判"没有新白名单"而非"有旧类型": 更老的库 edges 可能根本没 CHECK, 同样要重建收紧
+  if (!(db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='edges'").get() as { sql: string }).sql.includes("'clarifies'")) {
+    db.transaction(() => {
+      db.exec('ALTER TABLE edges RENAME TO edges_legacy');
+      db.exec(schema);
+      db.exec("INSERT INTO edges SELECT id, from_task, to_task, type, created_at FROM edges_legacy WHERE type IN ('depends_on','clarifies')");
+      db.exec('DROP TABLE edges_legacy');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_edges_from ON edges(from_task)');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_edges_to ON edges(to_task)');
+    })();
+  }
   const ev = db.prepare('PRAGMA table_info(events)').all() as { name: string }[];
   if (!ev.some((c) => c.name === 'to_actor')) db.exec('ALTER TABLE events ADD COLUMN to_actor TEXT REFERENCES actors(id)');
   if (!ev.some((c) => c.name === 'state_from')) db.exec('ALTER TABLE events ADD COLUMN state_from TEXT');

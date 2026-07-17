@@ -93,7 +93,8 @@ export function NextActions({ taskId, state, hold, currentActor, actorsById, rou
               : `${a.hint}${!a.keepActor && who ? ` · 交给 ${who}${isGuess(a) ? '(还没人做过这个角色, 先随便派的)' : ''}` : ''}${a.toState === 'testing' && openSubtasks > 0 ? ` · 还有 ${openSubtasks} 个子任务未完成` : ''}`;
           if (isPick && openFor === a.key) {
             return (
-              <div key={a.key} className="reassign-open">
+              <div key={a.key} className="reassign-open"
+                onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setOpenFor(null); } }}>
                 {candidates.length === 0 && <span className="act-hint">没有别人可换 —— 先注册一个行动者</span>}
                 <label className="assign">
                   <span className="assign-label">交给</span>
@@ -109,7 +110,8 @@ export function NextActions({ taskId, state, hold, currentActor, actorsById, rou
           if (a.form && openFor === a.key) {
             const f = a.form;
             return (
-              <div key={a.key} className="act-form" role="group" aria-label={f.title}>
+              <div key={a.key} className="act-form" role="group" aria-label={f.title}
+                onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setOpenFor(null); } }}>
                 <div className="act-form-title">{f.title}</div>
                 {f.kind === 'plan' && (
                   <textarea autoFocus rows={5} value={planV} onChange={(e) => setPlanV(e.target.value)}

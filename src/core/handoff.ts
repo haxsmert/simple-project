@@ -18,8 +18,16 @@ export interface HandoffInput {
 export function handoff(db: DB, input: HandoffInput): Task {
   const task = getTask(db, input.taskId);
   if (!task) throw new Error(`任务不存在: ${input.taskId}`);
+  let byActor = null as ReturnType<typeof getActor>;
   for (const a of [input.byActor, input.toActor]) {
-    if (!getActor(db, a)) throw new Error(`行动者不存在: ${a}(先注册: register_actor / POST /api/actors)`);
+    const actor = getActor(db, a);
+    if (!actor) throw new Error(`行动者不存在: ${a}(先注册: register_actor / POST /api/actors)`);
+    if (a === input.byActor) byActor = actor;
+  }
+  // 归属校验(2026-07-18 对抗审计 P0): 此前 handoff 从不校验发起人身份, 任何 agent 能冒名
+  // 驱动别人手里的任务。规则: **人类是总管可驱动任何任务; agent 只能动自己持有的**。
+  if (byActor!.type === 'agent' && task.currentActor !== input.byActor) {
+    throw new Error(`任务在 ${task.currentActor ?? '无人'} 手里: agent 只能转交/推进自己持有的任务(人类可代为操作)`);
   }
   const toState = input.toState ?? task.state;
   const toHold = input.toHold === undefined ? task.hold : input.toHold;
@@ -39,13 +47,21 @@ export function handoff(db: DB, input: HandoffInput): Task {
     throw new Error(`原地改派不改变角色(当前 ${task.currentRole ?? '无'}): 要换角色请随流程推进(批准/打回/提交等确认)`);
   }
   // 自批闸(机制层, MCP 也拦): 确认的批准人不能是提交这份确认的人 —— 界面的 toHuman 只是呈现层,
-  // 这里才是真闸。提交时不许交给自己; 确认挂起中改派也不许转回提交人。
+  // 这里才是真闸。三个方向都守(2026-07-18 对抗审计 P0: 此前只守提交/改派, **批准方向整段失效**,
+  // 提交人能以 byActor 身份自批自己的计划一路推到完成):
+  const findSubmitter = () =>
+    [...listEvents(db, input.taskId)].reverse().find((e) => e.holdTo === 'confirm' && e.holdFrom !== 'confirm')?.actorId ?? null;
   if (toHold === 'confirm') {
-    const submitter = task.hold === 'confirm'
-      ? [...listEvents(db, input.taskId)].reverse().find((e) => e.holdTo === 'confirm' && e.holdFrom !== 'confirm')?.actorId ?? null
-      : input.byActor; // 本次就是提交动作
+    const submitter = task.hold === 'confirm' ? findSubmitter() : input.byActor; // 后者: 本次就是提交动作
     if (submitter && input.toActor === submitter) {
       throw new Error('提交确认的人不能当自己这份计划/产出的批准人: 交给别的决策者');
+    }
+  }
+  if (task.hold === 'confirm' && toHold === null && toState !== task.state) {
+    // 批准(前进一步)——打回(原地解除)不拦: 决策者打回是常规操作
+    const submitter = findSubmitter();
+    if (submitter && input.byActor === submitter) {
+      throw new Error('提交确认的人不能自己批准通过: 等决策者拍板, 或请对方打回');
     }
   }
   // 父子最小不变量(2026-07-17 用户拍板方案 B): 完成的任务不能有没完成的子 ——
@@ -56,19 +72,26 @@ export function handoff(db: DB, input: HandoffInput): Task {
       throw new Error(`还有 ${open.length} 个子任务未完成(${open.slice(0, 3).map((c) => c.id).join(', ')}${open.length > 3 ? '…' : ''}): 子任务全部完成才能标记完成`);
     }
   }
+  // 全等空转(位置/持有人/角色都没变)幂等返回, 不追加事件 —— agent 重试同一调用不该把「经过」堆满空转记录
+  if (toState === task.state && toHold === task.hold && input.toActor === task.currentActor && input.toRole === task.currentRole) {
+    return task;
+  }
   const fromRole = task.currentRole;
   const fromState = task.state;
   const fromHold = task.hold;
-  const updated = updateTask(db, input.taskId, {
-    currentActor: input.toActor, currentRole: input.toRole, state: toState, hold: toHold,
-  });
-  // 记全"谁交给了谁 / 阶段与挂起怎么变的" —— 少了这些, 历史只能说"交给了下一个人"这种废话
-  appendEvent(db, {
-    taskId: input.taskId, actorId: input.byActor, kind: 'handoff',
-    roleFrom: fromRole, roleTo: input.toRole,
-    toActor: input.toActor, stateFrom: fromState, stateTo: toState,
-    holdFrom: fromHold, holdTo: toHold,
-    body: input.note ?? null,
-  });
+  let updated!: Task;
+  db.transaction(() => { // 改行+记事件同事务(撕裂窗口审计)
+    updated = updateTask(db, input.taskId, {
+      currentActor: input.toActor, currentRole: input.toRole, state: toState, hold: toHold,
+    });
+    // 记全"谁交给了谁 / 阶段与挂起怎么变的" —— 少了这些, 历史只能说"交给了下一个人"这种废话
+    appendEvent(db, {
+      taskId: input.taskId, actorId: input.byActor, kind: 'handoff',
+      roleFrom: fromRole, roleTo: input.toRole,
+      toActor: input.toActor, stateFrom: fromState, stateTo: toState,
+      holdFrom: fromHold, holdTo: toHold,
+      body: input.note ?? null,
+    });
+  })();
   return updated;
 }

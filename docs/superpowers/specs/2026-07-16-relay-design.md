@@ -67,7 +67,7 @@ tasks(
   state         TEXT NOT NULL,       -- 主干阶段: planning|executing|testing|done
   hold          TEXT,                -- 挂起(平行字段): confirm|decision|NULL
   current_actor TEXT REFERENCES actors(id),  -- 接力棒此刻在谁手上
-  current_role  TEXT,                -- planner|executor|tester|questioner|decider
+  current_role  TEXT,                -- planner|executor|tester|decider
   goal          TEXT,                -- 目标意图(输入槽)
   plan_md       TEXT,                -- 计划(规划的交付物, 执行的输入; 原名 inputs_md, 名实相符化)
   outputs_md    TEXT,                -- 产物清单 + 链接(产出槽, markdown)
@@ -82,7 +82,7 @@ edges(
   id          TEXT PRIMARY KEY,
   from_task   TEXT NOT NULL REFERENCES tasks(id),
   to_task     TEXT NOT NULL REFERENCES tasks(id),
-  type        TEXT NOT NULL,         -- blocks|depends_on|clarifies|spawns
+  type        TEXT NOT NULL,         -- depends_on|clarifies
   created_at  TEXT NOT NULL
 )
 
@@ -91,7 +91,7 @@ events(
   id          TEXT PRIMARY KEY,
   task_id     TEXT NOT NULL REFERENCES tasks(id),
   actor_id    TEXT NOT NULL REFERENCES actors(id),
-  kind        TEXT NOT NULL,         -- handoff|comment|output|clarify|decide|claim|plan
+  kind        TEXT NOT NULL,         -- handoff|comment|output|clarify|decide|claim|plan|update
   to_actor    TEXT,                  -- 交给了谁; state_from/to + hold_from/to 记录位置变化(实现层已加)
   role_from   TEXT,                  -- 换手起始角色
   role_to     TEXT,                  -- 换手目标角色
@@ -116,7 +116,7 @@ events(
 执行者干到一半遇到不清楚的:
 
 1. `raise_clarification(question, options?, blocking=true)`
-2. 系统**新建一个子任务**(goal = 问题), 并连一条 `clarifies` 边指回父任务(同时可加 `spawns` 边表示"这个问题引出了它")。
+2. 系统**新建一个子任务**(goal = 问题), 并连一条 `clarifies` 边指回父任务(反向不冗余存边, 查询取入边)。
 3. 父任务自动挂起(`hold=decision`, **阶段原地不动**——挂起是举手, 不是搬站)。
 4. 决策者答复 → 答案写入该澄清任务的 `outputs_md`/`summary` → 全部答复后父任务解除挂起、**在原阶段续跑**。
 
@@ -147,10 +147,11 @@ agent 不猜文件格式, 走干净的 MCP 工具集:
 | `list_tasks(state?, hold?, unassigned?)` | 发现面: 找没人认领的 / 某阶段 / 挂起中的任务(找活入口) |
 | `list_pending(actor)` | "轮到某人处理"的结构化清单(等拍板附计划 / 等答复附问题+选项), 供 IM 机器人推卡片 |
 | `get_task(id)` | 取完整信息包(输入/产出/待确认/记录/子任务/边) |
-| `claim(task_id)` | 领取任务 |
-| `handoff(task_id, to_role, to_actor?, note)` | 换手 |
-| `submit_output(task_id, artifacts[], summary)` | 交产出 |
-| `raise_clarification(task_id, question, options?, blocking)` | 触发待确认 |
+| `claim(task_id, actor, role?)` | 领取无主任务 |
+| `handoff(task_id, by_actor, to_actor, to_role, to_state?, to_hold?, note?)` | 换手/提交确认/批准/打回/改派 |
+| `submit_plan(task_id, by_actor, plan_md)` | 写计划 |
+| `submit_output(task_id, by_actor, outputs_md?, summary?)` | 交产出 |
+| `raise_clarification(parent_id, by_actor, question, options?, to_decider?)` | 提问挂起(恒阻塞) |
 | `answer_clarification(clar_task_id, answer)` | 答复澄清、解冻父任务 |
 | `comment(task_id, body)` | 追加评论 |
 | `create_task / update_task / delete_task` | 建任务(可指定父/负责人) / 改标题·目标·优先级(记「经过」) / 硬删(有子拒; 删未决问题卡=撤回提问自动解冻父) |

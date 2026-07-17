@@ -35,6 +35,16 @@ export function App() {
   const nonce = useRef(0);
 
   const closeDetail = useCallback(() => { setDetail(null); triggerRef.current?.focus?.(); }, []);
+  // 抽屉写回校验: 异步动作的 re-fetch 落地时, 用户可能已切到别的任务 —— 不是当前那条就不写回(不吞导航)
+  const detailRef = useRef<TaskPackage | null>(null);
+  useEffect(() => { detailRef.current = detail; }, [detail]);
+  const refreshDetailIfStill = useCallback(async (taskId: string) => {
+    if (detailRef.current?.task.id !== taskId) return;
+    const pkg = await api.task(taskId);
+    if (detailRef.current?.task.id === taskId) setDetail(pkg);
+  }, []);
+  // 导航令牌: 快速连点两个导航时, 旧请求后到会把看板覆盖成与面包屑不符的内容 —— 过期响应丢弃
+  const navToken = useRef(0);
 
   const actorsById = Object.fromEntries(actors.map((a) => [a.id, a]));
   const projects = projectCols.flatMap((c) => c.tasks).map((t) => ({ id: t.id, title: t.title }));
@@ -80,7 +90,9 @@ export function App() {
 
   // 加载某节点的子任务看板; 'all' = 跨项目的一层任务
   const loadBoard = useCallback(async (nodeId: string) => {
-    setTaskCols(nodeId === 'all' ? await api.allTasks() : await api.taskBoard(nodeId));
+    const token = ++navToken.current;
+    const cols = nodeId === 'all' ? await api.allTasks() : await api.taskBoard(nodeId);
+    if (token === navToken.current) setTaskCols(cols); // 过期响应丢弃(后发导航已接管)
   }, []);
 
   // ── 导航 ↔ URL 双向同步(浏览器后退/前进/深链/刷新恢复; contest-v2 范式 #1 Jakob)──
@@ -171,7 +183,7 @@ export function App() {
     const you = actors.find((a) => a.type === 'human')?.id ?? 'admin';
     await api.answer(clarId, { byActor: you, answer });
     await reloadCurrent();
-    if (detail) setDetail(await api.task(detail.task.id));
+    if (detail) await refreshDetailIfStill(detail.task.id);
   }), [actors, detail, reloadCurrent, guard]);
   // 执行一个「下一步」动作: 做完给出成功反馈(toast) + 让被影响的卡在看板上亮一下
   // 执行一个「下一步」动作。返回是否成功 —— 失败时 NextActions 不该抹掉人家写的说明。
@@ -204,7 +216,7 @@ export function App() {
       const you = actors.find((a) => a.type === 'human')?.id ?? 'admin';
       await api.updateTask(taskId, { byActor: you, ...patch });
       await reloadCurrent();
-      if (detail) setDetail(await api.task(taskId));
+      await refreshDetailIfStill(taskId);
       ok = true;
     });
     return ok;
@@ -226,7 +238,7 @@ export function App() {
     const you = actors.find((a) => a.type === 'human')?.id ?? 'admin';
     await api.comment(taskId, { actor: you, body });
     await reloadCurrent();
-    if (detail) setDetail(await api.task(detail.task.id));
+    await refreshDetailIfStill(taskId);
   }), [actors, detail, reloadCurrent, guard]);
   const onReorder = useCallback((ids: string[]) => guard(async () => {
     await api.reorder(ids);

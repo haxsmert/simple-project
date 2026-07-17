@@ -74,7 +74,45 @@ describe('handoff', () => {
     expect(handoff(db, { taskId: t.id, byActor: 'admin', toActor: 'admin2', toRole: 'decider' }).currentActor).toBe('admin2');
   });
 
-  // 父子最小不变量(2026-07-17 用户拍板方案 B): 完成的任务不能有没完成的子
+  // 对抗审计 P0(2026-07-18): 自批闸此前只守提交/改派方向, **批准方向整段失效**
+  it('自批闸守住批准方向: 提交人不能自己批准通过; 决策者批准/打回正常; agent 不能冒名驱动别人的任务', () => {
+    const db = openDb(':memory:');
+    createActor(db, { id: 'p', name: 'P', type: 'agent' });
+    createActor(db, { id: 'e', name: 'E', type: 'agent' });
+    createActor(db, { id: 'admin', name: 'admin', type: 'human' });
+    const t = createTask(db, { title: 't', state: 'planning', currentActor: 'p', currentRole: 'planner', planMd: '- [ ] x' });
+    handoff(db, { taskId: t.id, byActor: 'p', toActor: 'admin', toRole: 'decider', toHold: 'confirm' });
+    // 提交人 p 以 byActor 身份"批准"自己的计划 → 归属闸先拦(任务已在 admin 手里)
+    expect(() => handoff(db, { taskId: t.id, byActor: 'p', toActor: 'p', toRole: 'executor', toState: 'executing', toHold: null }))
+      .toThrow(/agent 只能转交\/推进自己持有的任务/);
+    // 无关 agent 冒名驱动 → 拦
+    expect(() => handoff(db, { taskId: t.id, byActor: 'e', toActor: 'e', toRole: 'executor', toState: 'executing', toHold: null }))
+      .toThrow(/agent 只能转交\/推进自己持有的任务/);
+    // 决策者批准 → 过(人类总管也能代操作任何任务)
+    expect(handoff(db, { taskId: t.id, byActor: 'admin', toActor: 'p', toRole: 'executor', toState: 'executing', toHold: null }).state)
+      .toBe('executing');
+    // 假想"提交人恰好也持有"(挂起中改派给了别的 human 决策者后…)的纯自批场景: 批准方向闸兜底
+    const t2 = createTask(db, { title: 't2', state: 'planning', currentActor: 'e', currentRole: 'planner', planMd: '- [ ] y' });
+    createActor(db, { id: 'admin2', name: 'admin2', type: 'human' });
+    handoff(db, { taskId: t2.id, byActor: 'e', toActor: 'admin', toRole: 'decider', toHold: 'confirm' });
+    handoff(db, { taskId: t2.id, byActor: 'admin', toActor: 'admin2', toRole: 'decider' }); // 换决策者
+    // admin2 打回 → 过(打回不受自批闸限制)
+    expect(handoff(db, { taskId: t2.id, byActor: 'admin2', toActor: 'e', toRole: 'planner', toState: 'planning', toHold: null }).hold)
+      .toBeNull();
+  });
+
+  it('终态与建子守卫(对抗审计 P1/P2): done 父不得添开放子; done 任务拒收计划/产出改写; 全等空转幂等不堆事件', () => {
+    const db = openDb(':memory:');
+    createActor(db, { id: 'admin', name: 'admin', type: 'human' });
+    createActor(db, { id: 'x', name: 'X', type: 'agent' });
+    const t = createTask(db, { title: '在做', state: 'executing', currentActor: 'x', currentRole: 'executor' });
+    // 全等空转: human 重复同一改派, 第二次不追加事件
+    createActor(db, { id: 'y', name: 'Y', type: 'agent' });
+    handoff(db, { taskId: t.id, byActor: 'admin', toActor: 'y', toRole: 'executor' });
+    const n = listEvents(db, t.id).length;
+    handoff(db, { taskId: t.id, byActor: 'admin', toActor: 'y', toRole: 'executor' }); // 重试
+    expect(listEvents(db, t.id).length).toBe(n); // 幂等, 「经过」不堆空转
+  });
   it('有未完成子任务不得标记完成(硬闸); 子全完成后放行; 进测试不拦', () => {
     const db = openDb(':memory:');
     createActor(db, { id: 't', name: 'T', type: 'agent' });

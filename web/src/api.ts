@@ -23,7 +23,6 @@ export const api = {
   handoff: (body: { taskId: string; byActor: string; toActor: string; toRole: string; toState?: string; toHold?: string | null; note?: string }) => post<Task>('/api/handoff', body),
   plan: (id: string, body: { byActor: string; planMd: string }) => post<Task>(`/api/tasks/${id}/plan`, body),
   output: (id: string, body: { byActor: string; outputsMd?: string; summary?: string }) => post<Task>(`/api/tasks/${id}/output`, body),
-  raise: (body: { parentId: string; byActor: string; question: string; options?: string[]; toDecider?: string }) => post('/api/clarifications', body),
   answer: (id: string, body: { byActor: string; answer: string }) => post(`/api/clarifications/${id}/answer`, body),
   comment: (id: string, body: { actor: string; body: string }) => post(`/api/tasks/${id}/comment`, body),
   updateTask: (id: string, body: { byActor: string; title?: string; goal?: string }) =>

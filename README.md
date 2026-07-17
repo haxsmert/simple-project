@@ -41,7 +41,7 @@ hold:  confirm 等确认 —— 本阶段产出已提交，等决策者批准前
 
 ```bash
 npm install
-npm run seed          # 重置并灌 demo 数据（data/relay.db + data/tasks/）
+npm run seed          # 重置并灌 demo 数据（会删库重建——先停掉正在跑的服务）
 PORT=3200 npm run web # Web + HTTP API 单端口
 npm run mcp           # MCP server（stdio）
 npm test              # 后端测试
@@ -65,8 +65,8 @@ Claude Code 侧接入 MCP（`.mcp.json`）：
 | `GET /api/tasks/:id` | 任务完整信息包（内容/产出/问题/历史/子任务/关系） |
 | `GET /api/pending/:actorId` | **“轮到某人处理”结构化清单**（IM 推卡片数据源：等拍板附计划全文；等答复附问题文本＋结构化选项＋所属任务） |
 | `GET /api/actors` · `GET /api/routing` | 行动者列表 · 默认路由表（角色→最近扮演者） |
-| `POST /api/tasks` · `PATCH /api/tasks/:id` · `DELETE /api/tasks/:id` | 建任务 · 改标题/目标/优先级（记「经过」） · 硬删（有子任务拒；删未决问题卡＝撤回提问） |
-| `POST /api/handoff` | 换手（`toState` 阶段、`toHold` 挂起变化：提交确认/批准/打回/改派都走它） |
+| `POST /api/tasks` · `PATCH /api/tasks/:id` · `DELETE /api/tasks/:id` | 建任务（`title` 必填；`parentId`/`goal`/`priority`/`actor`/`role`；不可直建挂起位） · 改标题/目标/优先级（记「经过」） · 硬删（有子任务拒；删未决问题卡＝撤回提问） |
+| `POST /api/handoff` | 换手（`toState` 阶段；`toHold` 挂起变化：`"confirm"`＝提交把关，`null` 或 `"none"`＝解除。提交确认/批准/打回/改派都走它） |
 | `POST /api/tasks/:id/plan` · `/output` · `/comment` | 写计划 · 交产出＋摘要 · 留言 |
 | `POST /api/tasks/:id/claim` | 领取**无主**任务（已有人做的走 handoff 改派；挂起中不可领） |
 | `POST /api/clarifications` · `POST /api/clarifications/:id/answer` | 提问挂起 · 答复（全部答复后原地解冻） |

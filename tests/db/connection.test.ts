@@ -74,5 +74,9 @@ describe('openDb', () => {
     expect(idx?.tbl_name).toBe('events');
     // 临时表不残留
     expect(db.prepare("SELECT name FROM sqlite_master WHERE name='events_legacy'").get()).toBeUndefined();
+    // edges 表 CHECK 也换了新白名单: 已删类型插不进(旧库此前存在 CHECK 漂移)
+    expect(() => db.prepare(
+      "INSERT INTO edges VALUES ('e-x','R-2','R-3','blocks','2026-01-02')",
+    ).run()).toThrow(/CHECK/);
   });
 });

@@ -50,6 +50,7 @@ export class RelayService {
         const t = getTask(this.db, id);
         if (t?.parentId) affected.add(t.parentId);
         for (const e of edgesTo(this.db, id)) if (e.type === 'depends_on') affected.add(e.fromTask);
+        for (const e of edgesFrom(this.db, id)) if (e.type === 'depends_on') affected.add(e.toTask); // 对端 .md 的"谁依赖我"行
       }
     } catch {
       // 扩展失败则退回到只镜像直接传入的任务
@@ -204,8 +205,17 @@ export class RelayService {
   }
 
   createTask(input: CreateTaskInput): Task {
-    if (input.parentId) this.mustTask(input.parentId);
+    if (input.parentId) {
+      this.mustTask(input.parentId);
+      // 父子不变量前移到建子时刻(对抗审计 P1): 只在 handoff 进「完成」时拦, 事后给 done 父建开放子任务就绕过了
+      if (getTask(this.db, input.parentId)!.state === 'done' && input.state !== 'done') {
+        throw new Error(`父任务 ${input.parentId} 已完成: 不能再往完成的任务下添未完成的子任务`);
+      }
+    }
     if (input.currentActor) this.mustActor(input.currentActor);
+    // 挂起要走流程造(提交确认=handoff, 提问=raise), 对外通道不许直接建出挂起位 ——
+    // 直造的 confirm 探测不到提交人(自批闸失明), done+挂起是语义矛盾(对抗审计实锤)
+    if (input.hold) throw new Error('不能直接建出挂起中的任务: 等确认走 handoff(toHold=confirm), 等决策走 raise_clarification');
     const t = createTask(this.db, input);
     this.mirror(t.id);
     return t;
@@ -231,8 +241,11 @@ export class RelayService {
     }
     const patch: TaskPatch = { currentActor: actorId };
     if (role) patch.currentRole = role;
-    const t = updateTask(this.db, taskId, patch);
-    appendEvent(this.db, { taskId, actorId, kind: 'claim', roleTo: role ?? null });
+    let t!: Task;
+    this.db.transaction(() => { // 改行+记事件同事务(对抗审计: 多语句写无事务 = 撕裂窗口)
+      t = updateTask(this.db, taskId, patch);
+      appendEvent(this.db, { taskId, actorId, kind: 'claim', roleTo: role ?? null });
+    })();
     this.mirror(taskId);
     return t;
   }
@@ -250,8 +263,11 @@ export class RelayService {
     if (patch.goal !== undefined && patch.goal !== before.goal) { p.goal = patch.goal; changed.push('目标'); }
     if (patch.priority !== undefined && patch.priority !== before.priority) { p.priority = patch.priority; changed.push('优先级'); }
     if (changed.length === 0) return before;
-    const t = updateTask(this.db, taskId, p);
-    appendEvent(this.db, { taskId, actorId: byActor, kind: 'update', body: `更新了 ${changed.join('; ')}` });
+    let t!: Task;
+    this.db.transaction(() => {
+      t = updateTask(this.db, taskId, p);
+      appendEvent(this.db, { taskId, actorId: byActor, kind: 'update', body: `更新了 ${changed.join('; ')}` });
+    })();
     this.mirror(taskId);
     return t;
   }
@@ -267,6 +283,11 @@ export class RelayService {
     if (children.length > 0) throw new Error(`还有 ${children.length} 个子任务, 先移走或删除它们再删本任务`);
     const clarEdge = edgesFrom(this.db, taskId).find((e) => e.type === 'clarifies');
     const parentId = clarEdge?.toTask ?? null;
+    // 删除前收集依赖对端: 边删掉后就找不回它们了, 而它们的 .md 里嵌着本任务(不重生成会悬挂)
+    const depPeers = [
+      ...edgesTo(this.db, taskId).map((e) => e.fromTask),
+      ...edgesFrom(this.db, taskId).filter((e) => e.type === 'depends_on').map((e) => e.toTask),
+    ];
     let unfrozeParent: string | null = null;
     this.db.transaction(() => {
       this.db.prepare('DELETE FROM events WHERE task_id=?').run(taskId);
@@ -291,15 +312,22 @@ export class RelayService {
       }
     })();
     try { rmSync(join(this.mirrorDir, `${taskId}.md`), { force: true }); } catch { /* 镜像尽力而为 */ }
-    this.mirror(t.parentId, parentId); // 父的 .md 里嵌着子任务清单, 重生成
+    this.mirror(t.parentId, parentId, ...depPeers); // 父与依赖对端的 .md 里都嵌着本任务, 重生成
     return { ok: true, unfrozeParent };
   }
 
   // 计划是规划者的交付物, 落在 planMd(它是下一棒执行的输入)。
   // 没有这个通道, "提交计划"就是一句空话 —— 界面和 agent 都无处把计划写进来。
   submitPlan(taskId: string, byActor: string, planMd: string): Task {
-    const t = updateTask(this.db, taskId, { planMd: planMd });
-    appendEvent(this.db, { taskId, actorId: byActor, kind: 'plan' });
+    this.mustTask(taskId);
+    this.mustActor(byActor);
+    // 终态守卫(对抗审计 P2): 完成的任务不再接受计划改写 —— "完成"要有终态性
+    if (getTask(this.db, taskId)!.state === 'done') throw new Error('任务已完成, 不再接受计划改写');
+    let t!: Task;
+    this.db.transaction(() => { // 改写+记事件同事务: 此前 appendEvent 抛错时计划已落库(部分写入)
+      t = updateTask(this.db, taskId, { planMd });
+      appendEvent(this.db, { taskId, actorId: byActor, kind: 'plan' });
+    })();
     this.mirror(taskId);
     return t;
   }
@@ -309,12 +337,17 @@ export class RelayService {
     byActor: string,
     out: { outputsMd?: string | null; summary?: string | null },
   ): Task {
+    this.mustTask(taskId);
     this.mustActor(byActor);
+    if (getTask(this.db, taskId)!.state === 'done') throw new Error('任务已完成, 不再接受产出改写');
     const patch: TaskPatch = {};
     if (out.outputsMd !== undefined) patch.outputsMd = out.outputsMd;
     if (out.summary !== undefined) patch.summary = out.summary;
-    const t = updateTask(this.db, taskId, patch);
-    appendEvent(this.db, { taskId, actorId: byActor, kind: 'output', body: out.summary ?? null });
+    let t!: Task;
+    this.db.transaction(() => {
+      t = updateTask(this.db, taskId, patch);
+      appendEvent(this.db, { taskId, actorId: byActor, kind: 'output', body: out.summary ?? null });
+    })();
     this.mirror(taskId);
     return t;
   }
