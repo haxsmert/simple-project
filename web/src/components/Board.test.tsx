@@ -48,7 +48,7 @@ describe('Board', () => {
     expect(onOpen).toHaveBeenCalledWith('R-1');
   });
 
-  it('卡面降噪: 优先级「高」保留红徽标, 子任务进度保留, 关系边/角色/状态 chip 一律不上卡面(归详情与列头)', () => {
+  it('卡面降噪: 子任务进度保留; 优先级不用文字标签(位置即优先级), 关系边/角色/状态 chip 一律不上卡面', () => {
     const richColumns = fourCols([{
       id: 'R-20', title: '带富化信息的卡片', state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor',
       parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi',
@@ -56,8 +56,9 @@ describe('Board', () => {
       edges: { out: [{ id: 'e1', fromTask: 'R-20', toTask: 'R-30', type: 'depends_on' }], in: [] },
     }]);
     const { container } = render(<Board columns={richColumns} actorsById={actors} onOpen={vi.fn()} />);
-    expect(container.querySelector('.prio.hi')).toBeTruthy(); // 优先级标记
-    expect(screen.getByText('高')).toBeInTheDocument(); // 用文字承载优先级, 不靠颜色单独传意
+    // 列是队列, 越靠前越优先(排序由后端按 rank→priority→id 落位)——"高/中/低"文字没人读得懂, 不上卡面
+    expect(container.querySelector('.prio')).toBeNull();
+    expect(screen.queryByText('高')).toBeNull();
     expect(container.querySelector('.sub-mini')).toBeTruthy(); // 子任务进度条
     expect(screen.getByText('子任务 3/5')).toBeInTheDocument();
     expect(container.querySelector('.edge')).toBeNull(); // 关系边不再上卡面(详情抽屉仍有)

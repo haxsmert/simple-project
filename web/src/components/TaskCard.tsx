@@ -5,8 +5,9 @@ import { STATE_NAME, HOLD_FLAG } from '../states';
 
 // 卡面刻意克制(2026-07-17 去杂乱约定): 状态由所在列 + 琥珀底色承载, 不再挂状态 chip;
 // 角色/关系边归详情抽屉; 项目名只在跨项目的"全部任务"视图显示(单项目视图里每张卡重复同一项目名=纯噪声)。
-// 读屏不受降噪影响: aria-label 完整携带 项目/状态/待处理数/优先级。
-const PRIO_LABEL: Record<'hi' | 'mid' | 'lo', string> = { hi: '高', mid: '中', lo: '低' };
+// 优先级不用文字标签(用户: "高中低不知道什么意思"): 列是队列, **位置即优先级** —— 排序由后端按
+// rank→优先级→id 落位, 越靠前越优先, 拖拽调序就是调优先级。
+// 读屏不受降噪影响: aria-label 完整携带 项目/状态/挂起/待处理数。
 
 export function TaskCard({ task, actor, onOpen, onDescend, showProject, flash, draggable, dragging, onDragStart, onDragOver, onDrop, onDragEnd }: {
   task: BoardCard; actor: Actor | null; onOpen: (id: string) => void;
@@ -36,7 +37,6 @@ export function TaskCard({ task, actor, onOpen, onDescend, showProject, flash, d
     showProject ? task.parentTitle : null, task.title, STATE_NAME[task.state],
     task.hold ? HOLD_FLAG[task.hold] : '',
     task.attention ? `${task.attention} 项待你处理` : '',
-    task.priority ? `优先级${PRIO_LABEL[task.priority]}` : '',
     task.id,
   ].filter(Boolean).join(' · ');
 
@@ -68,7 +68,6 @@ export function TaskCard({ task, actor, onOpen, onDescend, showProject, flash, d
       <div className="card-foot">
         <ActorBadge actor={actor} />
         <span className="card-meta">
-          {task.priority && <span className={`prio ${task.priority}`} title={`优先级 ${PRIO_LABEL[task.priority]}`}>{PRIO_LABEL[task.priority]}</span>}
           <span className="card-id">{task.id}</span>
         </span>
       </div>

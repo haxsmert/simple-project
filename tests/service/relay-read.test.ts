@@ -179,6 +179,20 @@ describe('RelayService reads', () => {
     expect(allCard.attention).toBeUndefined();
   });
 
+  it('列是队列, 位置即优先级: 未手动排序(rank null)时按 priority 落位(hi>mid>lo>无), 手动排过的服从人的排列', () => {
+    const { db, service } = svc();
+    createTask(db, { id: 'R-100', title: '父' });
+    createTask(db, { id: 'R-101', title: '低', parentId: 'R-100', state: 'executing', priority: 'lo' });
+    createTask(db, { id: 'R-102', title: '高', parentId: 'R-100', state: 'executing', priority: 'hi' });
+    createTask(db, { id: 'R-103', title: '中', parentId: 'R-100', state: 'executing', priority: 'mid' });
+    const col = service.taskBoard('R-100').find((c) => c.state === 'executing')!;
+    expect(col.tasks.map((t) => t.id)).toEqual(['R-102', 'R-103', 'R-101']); // 默认顺序就讲得通: 越靠前越优先
+    // 人拖过之后 rank 说了算(拖拽调序 = 调优先级)
+    service.reorder(['R-101', 'R-102', 'R-103']);
+    const after = service.taskBoard('R-100').find((c) => c.state === 'executing')!;
+    expect(after.tasks.map((t) => t.id)).toEqual(['R-101', 'R-102', 'R-103']);
+  });
+
   it('reorder 前列内按 id 排序(rank 为 null), reorder 后按给定顺序并回填 rank', () => {
     const { db, service } = svc();
     createTask(db, { id: 'R-60', title: '父' });

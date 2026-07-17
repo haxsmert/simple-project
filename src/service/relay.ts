@@ -80,15 +80,20 @@ export class RelayService {
     };
   }
 
-  // 任务列表 → 按六态分组的富化看板列(board/projectBoard/taskBoard 共用分组逻辑)
-  // 同状态列内按 rank 升序排列, rank 为 null 的任务排最后(按数字 id 排序), 保持既有 id 顺序直到列被显式重排
+  // 任务列表 → 按主干四阶段分组的富化看板列(board/projectBoard/taskBoard 共用分组逻辑)
+  // 列是队列, **位置即优先级**(越靠前越优先, 用户约定 2026-07-17): 手动排过的(rank)最优先服从人的排列;
+  // 没排过的按 priority 权重落位(hi>mid>lo), 同权重按 id —— 默认顺序从第一天就讲得通, 不需要"高/中/低"文字标签
   private groupByState(tasks: Task[]): Array<{ state: TaskState; tasks: BoardCard[] }> {
     const byIdNum = (id: string) => parseInt(id.slice(2), 10);
+    const prioW = (p: Task['priority']) => (p === 'hi' ? 0 : p === 'mid' ? 1 : p === 'lo' ? 2 : 3);
     return STATE_ORDER.map((state) => ({
       state,
       tasks: tasks
         .filter((t) => t.state === state)
-        .sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity) || byIdNum(a.id) - byIdNum(b.id))
+        .sort((a, b) =>
+          (a.rank ?? Infinity) - (b.rank ?? Infinity)
+          || prioW(a.priority) - prioW(b.priority)
+          || byIdNum(a.id) - byIdNum(b.id))
         .map((t) => this.enrich(t)),
     }));
   }
