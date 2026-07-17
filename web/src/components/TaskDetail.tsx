@@ -265,17 +265,22 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
       openSubtasks={pkg.subtasks.filter((s) => s.state !== 'done').length} onAct={onAct} />
   );
   // 拍板槽自带拍板依据: 目标 + 计划正文就在批准/打回按钮上方 —— 依据和动作分居两个槽位,
-  // 人就得"往下翻找计划再翻回来点批准", 这正是"计划罗列不直观"的病根
+  // 人就得"往下翻找计划再翻回来点批准", 这正是"计划罗列不直观"的病根。
+  // 批准/打回只呈现给**任务真正在其手里的人类**: 关卡在别人手里时亮着按钮, 是把不属于你的动作递给你(2026-07-17 实洞)
+  const humanActor = Object.values(actorsById).find((a) => a.type === 'human');
+  const confirmMine = !!humanActor && t.currentActor === humanActor.id;
+  const holder = t.currentActor ? actorsById[t.currentActor]?.name ?? t.currentActor : '无人';
   const hasPlanText = inputPlan.plain.length > 0 || inputPlan.items.length > 0;
   const confirmSlot = t.hold === 'confirm' && (
     <div className="slot">
-      <SlotHead icon={<IconWarnTriangle />} tint="warn" title="等你拍板" tag="计划已就绪, 开工前过你这关" />
+      <SlotHead icon={<IconWarnTriangle />} tint="warn" title={confirmMine ? '等你拍板' : '等确认中'}
+        tag={confirmMine ? '计划已就绪, 开工前过你这关' : `在 ${holder} 手里`} />
       <div className="slot-body">
         {pkg.inputs.goal && <div className="goal"><b>目标:</b> {pkg.inputs.goal}</div>}
         {hasPlanText
           ? <PlanBlock plan={inputPlan} />
           : <p className="confirm-hint">上一步没留下计划详情 —— 可以打回要一份, 也可以直接拍板。</p>}
-        {nextActions}
+        {confirmMine ? nextActions : <p className="confirm-hint">这一关在 {holder} 手里, 等对方批准或打回。</p>}
       </div>
     </div>
   );

@@ -203,6 +203,13 @@ export class RelayService {
   }
 
   claim(taskId: string, actorId: string, role?: Role): Task {
+    const before = getTask(this.db, taskId);
+    if (!before) throw new Error(`任务不存在: ${taskId}`);
+    // 挂起中的任务不是"可领取的活"(它在等确认/等决策): 自助领取会把锁连人抢走, 造出矛盾位。
+    // 换人要走 handoff 改派(有角色守卫), 解锁要走 批准/打回/答复。
+    if (before.hold !== null) {
+      throw new Error(`任务挂起中(${before.hold === 'confirm' ? '等确认' : '等决策'}), 不可领取: 等它解除, 或走 handoff 改派`);
+    }
     const patch: TaskPatch = { currentActor: actorId };
     if (role) patch.currentRole = role;
     const t = updateTask(this.db, taskId, patch);

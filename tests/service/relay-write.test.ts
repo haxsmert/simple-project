@@ -21,6 +21,13 @@ describe('RelayService writes (part A)', () => {
     expect(existsSync(join(dir, 'R-1.md'))).toBe(true);
   });
 
+  it('claim 拒绝挂起中的任务(等确认/等决策不是"可领取的活", 自助领取会把锁连人抢走)', () => {
+    const { db, service } = svc();
+    service.registerActor({ id: 'a', name: 'A', type: 'agent' });
+    const held = service.createTask({ id: 'R-70', title: '等确认', state: 'planning', hold: 'confirm', currentRole: 'decider' });
+    expect(() => service.claim(held.id, 'a', 'executor')).toThrow(/挂起中.*不可领取/);
+  });
+
   it('claim 设负责人+角色并留 claim 事件', () => {
     const { db, service } = svc();
     service.registerActor({ id: 'a', name: 'A', type: 'agent' });

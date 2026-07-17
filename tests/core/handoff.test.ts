@@ -40,6 +40,40 @@ describe('handoff', () => {
     })).toThrow(/非法流转/);
   });
 
+  // 实洞复盘(2026-07-17): 挂着等确认的任务被原地改派回规划者本人 → "在规划者手里却还等确认"的矛盾位
+  it('原地改派不改变角色: 把等确认的任务转给 planner 角色被拒(矛盾位之源); 换决策者(同角色)放行', () => {
+    const db = openDb(':memory:');
+    createActor(db, { id: 'p', name: 'P', type: 'agent' });
+    createActor(db, { id: 'admin', name: 'admin', type: 'human' });
+    createActor(db, { id: 'admin2', name: 'admin2', type: 'human' });
+    const t = createTask(db, { title: 't', state: 'planning', hold: 'confirm', currentActor: 'admin', currentRole: 'decider', inputsMd: '- [ ] x' });
+    expect(() => handoff(db, { taskId: t.id, byActor: 'admin', toActor: 'p', toRole: 'planner' }))
+      .toThrow(/原地改派不改变角色/);
+    expect(handoff(db, { taskId: t.id, byActor: 'admin', toActor: 'admin2', toRole: 'decider' }).currentActor).toBe('admin2');
+    // 未挂起的普通改派同样保角色
+    const e = createTask(db, { title: 'e', state: 'executing', currentActor: 'p', currentRole: 'executor' });
+    expect(() => handoff(db, { taskId: e.id, byActor: 'p', toActor: 'admin', toRole: 'tester' }))
+      .toThrow(/原地改派不改变角色/);
+  });
+
+  it('自批闸在机制层: 提交确认不能交给自己; 确认挂起中改派也不能转回提交人(MCP 绕不过)', () => {
+    const db = openDb(':memory:');
+    createActor(db, { id: 'p', name: 'P', type: 'agent' });
+    createActor(db, { id: 'admin', name: 'admin', type: 'human' });
+    createActor(db, { id: 'admin2', name: 'admin2', type: 'human' });
+    const t = createTask(db, { title: 't', state: 'planning', currentActor: 'p', currentRole: 'planner', inputsMd: '- [ ] x' });
+    // 提交给自己批 → 拒
+    expect(() => handoff(db, { taskId: t.id, byActor: 'p', toActor: 'p', toRole: 'decider', toHold: 'confirm' }))
+      .toThrow(/不能当自己/);
+    // 正常提交给 admin
+    handoff(db, { taskId: t.id, byActor: 'p', toActor: 'admin', toRole: 'decider', toHold: 'confirm' });
+    // 挂起中把确认改派回提交人 p → 拒(即使角色给对 decider)
+    expect(() => handoff(db, { taskId: t.id, byActor: 'admin', toActor: 'p', toRole: 'decider' }))
+      .toThrow(/不能当自己/);
+    // 转给另一个决策者 → 放行
+    expect(handoff(db, { taskId: t.id, byActor: 'admin', toActor: 'admin2', toRole: 'decider' }).currentActor).toBe('admin2');
+  });
+
   // 父子最小不变量(2026-07-17 用户拍板方案 B): 完成的任务不能有没完成的子
   it('有未完成子任务不得标记完成(硬闸); 子全完成后放行; 进测试不拦', () => {
     const db = openDb(':memory:');

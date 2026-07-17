@@ -81,7 +81,7 @@ describe('TaskDetail', () => {
 
   it('待确认: 顶部出现「等你拍板」, 批准→执行中/执行者; 打回先要一句理由, 理由随动作记进「经过」', async () => {
     const onAct = vi.fn().mockResolvedValue(true);
-    const confirmPkg: TaskPackage = { ...pkg, task: { ...pkg.task, state: 'planning', hold: 'confirm' }, clarifications: [] };
+    const confirmPkg: TaskPackage = { ...pkg, task: { ...pkg.task, state: 'planning', hold: 'confirm', currentActor: 'admin' }, clarifications: [] };
     const { container } = render(<TaskDetail pkg={confirmPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={onAct} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     const heads = Array.from(container.querySelectorAll('.slot-head h4')).map((h) => h.textContent);
     expect(heads.indexOf('等你拍板')).toBe(0); // 轮到你时提到最顶
@@ -102,7 +102,7 @@ describe('TaskDetail', () => {
   it('拍板依据就在拍板处: 目标+计划渲染在「等你拍板」槽内(和批准按钮同址), 「任务内容」不再重复一份', () => {
     const confirmPkg: TaskPackage = {
       ...pkg,
-      task: { ...pkg.task, state: 'planning', hold: 'confirm' }, clarifications: [],
+      task: { ...pkg.task, state: 'planning', hold: 'confirm', currentActor: 'admin' }, clarifications: [],
       inputs: { ...pkg.inputs, inputsMd: '- [ ] 建表\n- [ ] 加索引' },
     };
     const { container } = render(<TaskDetail pkg={confirmPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
@@ -142,6 +142,17 @@ describe('TaskDetail', () => {
     await waitFor(() => expect(onAct2).toHaveBeenCalledWith(
       expect.objectContaining({ toState: 'executing' }), expect.objectContaining({ key: 'start' })));
     expect((onAct2.mock.calls[0][0] as { planMd?: string }).planMd).toBeUndefined(); // 计划已在库里, 不重写
+  });
+
+  it('等确认在别人手里时不给批准/打回按钮(那不是你的关卡), 如实显示在谁手里', () => {
+    const othersPkg: TaskPackage = {
+      ...pkg,
+      task: { ...pkg.task, state: 'planning', hold: 'confirm', currentActor: 'a' }, clarifications: [],
+    };
+    render(<TaskDetail pkg={othersPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    expect(screen.queryByRole('button', { name: /批准开工/ })).toBeNull(); // 不递不属于你的动作
+    expect(screen.getByText('等确认中')).toBeInTheDocument();
+    expect(screen.getAllByText(/在 执行A 手里/).length).toBeGreaterThan(0); // 如实说在谁手里
   });
 
   it('父子最小不变量: 子未完时「验收通过」禁用并说明原因; 「交去测试」不拦但如实提示', () => {
