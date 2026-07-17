@@ -12,7 +12,7 @@ const HOLD_PILL = { confirm: 'confirm', decision: 'decide' } as const;
 // 「经过」要回答"谁在什么时候做了什么", 就必须说出**宾语和变化**。
 // 之前只有一张动词表, 于是四次换手长得一模一样: "你 交给了下一个人" ×4 —— 等于没说。
 const KIND_VERB: Record<string, string> = {
-  handoff: '转交', comment: '留言', output: '交了产出', clarify: '提了个问题等人决定', decide: '拍了板', claim: '接手', plan: '写了计划',
+  handoff: '转交', comment: '留言', output: '交了产出', clarify: '提了个问题等人决定', decide: '拍了板', claim: '接手', plan: '写了计划', update: '改了任务信息',
 };
 
 // 把一条事件说成一句人话: 谁 + 做了什么 + 给谁 + 阶段/挂起怎么变

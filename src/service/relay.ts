@@ -1,9 +1,11 @@
 import type { DB } from '../db/connection';
-import type { Actor, ActorType, Task, TaskState, Role, TaskEvent, Edge, EdgeType } from '../model/types';
-import { getTask, listChildren, listRoots, createTask, updateTask, setRank, type CreateTaskInput, type TaskPatch } from '../repo/tasks';
+import type { Actor, ActorType, Task, TaskState, Role, TaskEvent, Edge, EdgeType, Priority } from '../model/types';
+import { getTask, listChildren, listRoots, createTask, updateTask, removeTask, setRank, type CreateTaskInput, type TaskPatch } from '../repo/tasks';
 import { listActors, createActor } from '../repo/actors';
 import { assemblePackage, type TaskPackage } from '../core/infoPackage';
 import { mirrorTask } from '../mirror/writer';
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { appendEvent } from '../repo/events';
 import { handoff, type HandoffInput } from '../core/handoff';
 import { raiseClarification, answerClarification, type RaiseInput, type AnswerInput } from '../core/clarification';
@@ -207,6 +209,61 @@ export class RelayService {
     appendEvent(this.db, { taskId, actorId, kind: 'claim', roleTo: role ?? null });
     this.mirror(taskId);
     return t;
+  }
+
+  // 任务信息更新(标题/目标/优先级): 建错了要能改 —— 且改动记进「经过」(实质变更不许静默)
+  updateTaskInfo(taskId: string, byActor: string, patch: { title?: string; goal?: string | null; priority?: Priority | null }): Task {
+    const before = getTask(this.db, taskId);
+    if (!before) throw new Error(`任务不存在: ${taskId}`);
+    const changed: string[] = [];
+    const p: TaskPatch = {};
+    if (patch.title !== undefined && patch.title !== before.title) { p.title = patch.title; changed.push(`标题: ${before.title} → ${patch.title}`); }
+    if (patch.goal !== undefined && patch.goal !== before.goal) { p.goal = patch.goal; changed.push('目标'); }
+    if (patch.priority !== undefined && patch.priority !== before.priority) { p.priority = patch.priority; changed.push('优先级'); }
+    if (changed.length === 0) return before;
+    const t = updateTask(this.db, taskId, p);
+    appendEvent(this.db, { taskId, actorId: byActor, kind: 'update', body: `更新了 ${changed.join('; ')}` });
+    this.mirror(taskId);
+    return t;
+  }
+
+  // 硬删任务(个人工具的取舍: 不做"取消态", 建错/提错就删)。级联语义:
+  // · 有子任务不许删(先移走或删子) —— 防一把删掉整棵树
+  // · 边与事件级联清理; 镜像 .md 一并移除(尽力而为)
+  // · 未决的问题卡被删 = 撤回提问: 重算父任务挂起(否则父永远卡在"等一个不存在的答复"上)
+  deleteTask(taskId: string, byActor: string): { ok: true; unfrozeParent: string | null } {
+    const t = getTask(this.db, taskId);
+    if (!t) throw new Error(`任务不存在: ${taskId}`);
+    const children = listChildren(this.db, taskId);
+    if (children.length > 0) throw new Error(`还有 ${children.length} 个子任务, 先移走或删除它们再删本任务`);
+    const clarEdge = edgesFrom(this.db, taskId).find((e) => e.type === 'clarifies');
+    const parentId = clarEdge?.toTask ?? null;
+    let unfrozeParent: string | null = null;
+    this.db.transaction(() => {
+      this.db.prepare('DELETE FROM events WHERE task_id=?').run(taskId);
+      this.db.prepare('DELETE FROM edges WHERE from_task=? OR to_task=?').run(taskId, taskId);
+      removeTask(this.db, taskId);
+      if (parentId && t.state !== 'done') {
+        // 撤回提问: 若父没有其余未决问题卡, 解除挂起(原地继续)
+        const stillOpen = edgesTo(this.db, parentId)
+          .filter((e) => e.type === 'clarifies')
+          .map((e) => getTask(this.db, e.fromTask))
+          .filter((q): q is Task => q !== null && q.state !== 'done');
+        const parent = getTask(this.db, parentId);
+        if (parent && parent.hold === 'decision' && stillOpen.length === 0) {
+          updateTask(this.db, parentId, { hold: null });
+          appendEvent(this.db, {
+            taskId: parentId, actorId: byActor, kind: 'comment',
+            stateFrom: parent.state, stateTo: parent.state, holdFrom: 'decision', holdTo: null,
+            body: `撤回了提问「${t.title.replace(/^待确认:\s*/, '')}」, 解除挂起`,
+          });
+          unfrozeParent = parentId;
+        }
+      }
+    })();
+    try { rmSync(join(this.mirrorDir, `${taskId}.md`), { force: true }); } catch { /* 镜像尽力而为 */ }
+    this.mirror(t.parentId, parentId); // 父的 .md 里嵌着子任务清单, 重生成
+    return { ok: true, unfrozeParent };
   }
 
   // 计划是规划者的交付物, 落在 inputsMd(它是下一棒执行的输入)。

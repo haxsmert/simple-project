@@ -35,6 +35,9 @@ export function buildApp(service: RelayService): FastifyInstance {
 
   app.post('/api/actors', wrap((req) => service.registerActor(req.body)));
   app.post('/api/tasks', wrap((req) => service.createTask(req.body)));
+  // 信息更新(标题/目标/优先级, 记「经过」)与硬删(级联边/事件/镜像; 有子任务拒; 未决问题卡被删=撤回提问)
+  app.patch('/api/tasks/:id', wrap((req) => service.updateTaskInfo(req.params.id, req.body.byActor, req.body)));
+  app.delete('/api/tasks/:id', wrap((req) => service.deleteTask(req.params.id, (req.query.byActor as string) ?? 'admin')));
   app.post('/api/tasks/:id/claim', wrap((req) => service.claim(req.params.id, req.body.actor, req.body.role)));
   app.post('/api/tasks/:id/plan', wrap((req) => service.submitPlan(req.params.id, req.body.byActor, req.body.planMd)));
   app.post('/api/tasks/:id/output', wrap((req) =>

@@ -78,6 +78,11 @@ export function updateTask(db: DB, id: string, patch: TaskPatch): Task {
   return getTask(db, id)!;
 }
 
+// 硬删任务行(级联清理由 service 层编排: 边/事件/镜像/问题卡解冻)
+export function removeTask(db: DB, id: string): void {
+  db.prepare('DELETE FROM tasks WHERE id=?').run(id);
+}
+
 export function setRank(db: DB, id: string, rank: number): void {
   db.prepare('UPDATE tasks SET rank=?, updated_at=? WHERE id=?').run(rank, now(), id);
 }

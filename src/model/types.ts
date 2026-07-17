@@ -3,7 +3,7 @@ export type Role = 'planner' | 'executor' | 'tester' | 'questioner' | 'decider';
 // 主干四阶段: 计划 → 执行 → 测试 → 完成。挂起(待确认/待决策)不是阶段, 是平行的 Hold 字段。
 export type TaskState = 'planning' | 'executing' | 'testing' | 'done';
 export type EdgeType = 'blocks' | 'depends_on' | 'clarifies' | 'spawns';
-export type EventKind = 'handoff' | 'comment' | 'output' | 'clarify' | 'decide' | 'claim' | 'plan';
+export type EventKind = 'handoff' | 'comment' | 'output' | 'clarify' | 'decide' | 'claim' | 'plan' | 'update';
 
 // 挂起(2026-07-17 用户定的模型): 与主干阶段**平行**的另一个字段, 类似"锁定/中断"。
 // 任务永远处在主干某一站(state), 挂起是原地举手, 不是搬到另一站; 除「完成」外任何阶段

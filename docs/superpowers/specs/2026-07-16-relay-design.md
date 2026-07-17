@@ -154,6 +154,9 @@ agent 不猜文件格式, 走干净的 MCP 工具集:
 | `raise_clarification(task_id, question, options?, blocking)` | 触发待确认 |
 | `answer_clarification(clar_task_id, answer)` | 答复澄清、解冻父任务 |
 | `comment(task_id, body)` | 追加评论 |
+| `create_task / update_task / delete_task` | 建任务(可指定父/负责人) / 改标题·目标·优先级(记「经过」) / 硬删(有子拒; 删未决问题卡=撤回提问自动解冻父) |
+| `link_edge(from, to, type)` | 建关系边 |
+| `register_actor / list_actors` | 注册行动者 / 列出行动者(to_actor 从这里选) |
 
 **设计要点**: agent 之所以能可靠接力, 靠的是"领任务时拿到定义良好的输入包、交任务时写定义良好的产出包"——把信息流入流出变成机制, 而不是靠每个 agent 自由发挥。服务"杠杆必须可信、反黑箱"。
 

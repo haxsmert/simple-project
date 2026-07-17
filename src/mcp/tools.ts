@@ -20,6 +20,70 @@ export const listMyTasksTool = {
   },
 };
 
+const prioEnum = z.enum(['hi', 'mid', 'lo']);
+
+export const createTaskTool = {
+  name: 'create_task',
+  description: '创建任务(默认生在计划阶段)。parent_id 指定父任务即建子任务; actor/role 指定初始负责人。',
+  schema: {
+    title: z.string(), parent_id: z.string().optional(), goal: z.string().optional(),
+    priority: prioEnum.optional(), actor: z.string().optional(), role: roleEnum.optional(),
+  },
+  handler(service: RelayService, args: { title: string; parent_id?: string; goal?: string; priority?: 'hi' | 'mid' | 'lo'; actor?: string; role?: z.infer<typeof roleEnum> }): ToolResult {
+    return ok(service.createTask({
+      title: args.title, parentId: args.parent_id, goal: args.goal,
+      priority: args.priority, currentActor: args.actor, currentRole: args.role,
+    }));
+  },
+};
+
+export const updateTaskTool = {
+  name: 'update_task',
+  description: '更新任务信息(标题/目标/优先级 —— 建错了要能改)。改动会记进任务的「经过」。状态/挂起/负责人不走这里(用 handoff/claim)。',
+  schema: { task_id: z.string(), by_actor: z.string(), title: z.string().optional(), goal: z.string().optional(), priority: prioEnum.optional() },
+  handler(service: RelayService, args: { task_id: string; by_actor: string; title?: string; goal?: string; priority?: 'hi' | 'mid' | 'lo' }): ToolResult {
+    return ok(service.updateTaskInfo(args.task_id, args.by_actor, { title: args.title, goal: args.goal, priority: args.priority }));
+  },
+};
+
+export const deleteTaskTool = {
+  name: 'delete_task',
+  description:
+    '删除任务(硬删, 连同它的关系边/历史/镜像文件)。有子任务的不许删(先移走或删子)。' +
+    '删除未答复的问题卡 = 撤回提问: 父任务若无其余未决问题会自动解除挂起。',
+  schema: { task_id: z.string(), by_actor: z.string() },
+  handler(service: RelayService, args: { task_id: string; by_actor: string }): ToolResult {
+    return ok(service.deleteTask(args.task_id, args.by_actor));
+  },
+};
+
+export const linkEdgeTool = {
+  name: 'link_edge',
+  description: '建任务间的有向关系边: blocks(阻塞)/depends_on(依赖)/clarifies(待确认)/spawns(引出)。',
+  schema: { from_task: z.string(), to_task: z.string(), type: z.enum(['blocks', 'depends_on', 'clarifies', 'spawns']) },
+  handler(service: RelayService, args: { from_task: string; to_task: string; type: 'blocks' | 'depends_on' | 'clarifies' | 'spawns' }): ToolResult {
+    return ok(service.linkEdge({ fromTask: args.from_task, toTask: args.to_task, type: args.type }));
+  },
+};
+
+export const registerActorTool = {
+  name: 'register_actor',
+  description: '注册行动者(人或 agent)。新 agent 接入时先自报家门, 之后才能领任务/被指派。',
+  schema: { id: z.string(), name: z.string(), type: z.enum(['human', 'agent']), handle: z.string().optional() },
+  handler(service: RelayService, args: { id: string; name: string; type: 'human' | 'agent'; handle?: string }): ToolResult {
+    return ok(service.registerActor(args));
+  },
+};
+
+export const listActorsTool = {
+  name: 'list_actors',
+  description: '列出全部行动者(handoff/claim 的 to_actor 从这里选, 不用靠外部告知)。可按 type=human|agent 过滤。',
+  schema: { type: z.enum(['human', 'agent']).optional() },
+  handler(service: RelayService, args: { type?: 'human' | 'agent' }): ToolResult {
+    return ok(service.listActors(args.type));
+  },
+};
+
 export const listTasksTool = {
   name: 'list_tasks',
   description:
@@ -146,6 +210,9 @@ export const commentTool = {
 };
 
 export const ALL_TOOLS = [
-  listMyTasksTool, listTasksTool, listPendingTool, getTaskTool, claimTool, handoffTool,
-  submitPlanTool, submitOutputTool, raiseClarificationTool, answerClarificationTool, commentTool,
+  listMyTasksTool, listTasksTool, listPendingTool, getTaskTool,
+  createTaskTool, updateTaskTool, deleteTaskTool, linkEdgeTool,
+  registerActorTool, listActorsTool,
+  claimTool, handoffTool, submitPlanTool, submitOutputTool,
+  raiseClarificationTool, answerClarificationTool, commentTool,
 ];

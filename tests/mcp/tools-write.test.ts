@@ -52,9 +52,11 @@ describe('MCP write tools', () => {
     expect(getTask(db, t.id)!.inputsMd).toBe('- [ ] 先建表');
   });
 
-  it('ALL_TOOLS 含全部 11 个工具(含发现面 list_tasks 与 IM 清单 list_pending)', () => {
+  it('ALL_TOOLS 含全部 17 个工具(增删改查全量释放: 流程之外 agent 还能建/改/删/连边/注册/认人)', () => {
     expect(ALL_TOOLS.map((t) => t.name).sort()).toEqual(
-      ['answer_clarification', 'claim', 'comment', 'get_task', 'handoff', 'list_my_tasks', 'list_pending', 'list_tasks', 'raise_clarification', 'submit_output', 'submit_plan'],
+      ['answer_clarification', 'claim', 'comment', 'create_task', 'delete_task', 'get_task', 'handoff',
+       'link_edge', 'list_actors', 'list_my_tasks', 'list_pending', 'list_tasks',
+       'raise_clarification', 'register_actor', 'submit_output', 'submit_plan', 'update_task'],
     );
   });
 });

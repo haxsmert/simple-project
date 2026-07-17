@@ -26,8 +26,8 @@ export function openDb(path: string = ':memory:'): DB {
   const tableSql = (name: string): string =>
     (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(name) as { sql: string }).sql;
 
-  // kind 白名单扩了 'plan'(写了计划): SQLite 改不了 CHECK, 旧库只能重建 events 表
-  if (!tableSql('events').includes("'plan'")) {
+  // kind 白名单扩过 'plan'(写了计划)与 'update'(更新任务信息): SQLite 改不了 CHECK, 旧库只能重建 events 表
+  if (!tableSql('events').includes("'update'")) {
     db.transaction(() => {
       db.exec('ALTER TABLE events RENAME TO events_legacy'); // 索引跟旧表走, 重建完要补
       db.exec(schema);
