@@ -179,6 +179,16 @@ ul.plan li.done .ptext { color:var(--text-faint); text-decoration:line-through; 
 .next-actions { display:flex; flex-direction:column; gap:9px; }
 .assign { display:inline-flex; align-items:center; gap:7px; font-size:12px; color:var(--text-dim); }
 .reassign-open { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:6px 8px; border:1px solid var(--border); border-radius:8px; background:var(--surface-2); }
+/* 编辑任务(标题/目标)与删除 */
+.title-row { display:flex; align-items:flex-start; gap:8px; }
+.title-row h2 { flex:1; min-width:0; }
+.ghost-edit { border:none; background:none; color:var(--text-faint); padding:4px; margin-top:4px; }
+.ghost-edit:hover { color:var(--human); background:var(--human-soft); }
+.edit-panel { display:flex; flex-direction:column; gap:8px; margin:4px 0 10px; }
+.danger-zone { margin-top:26px; padding-top:12px; border-top:1px dashed var(--border); }
+.btn.danger-ghost { border:none; background:none; color:var(--text-faint); font-size:12px; padding:4px 6px; }
+.btn.danger-ghost:hover { color:var(--danger); background:var(--danger-soft); }
+
 /* 动作的内容面板(计划/产出/理由): 点开动作原位展开, 内容和动作同址 */
 .act-form { display:flex; flex-direction:column; gap:7px; width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--surface-2); }
 .act-form-title { font-size:12px; font-weight:600; }

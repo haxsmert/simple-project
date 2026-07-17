@@ -159,6 +159,31 @@ export function App() {
     });
     return ok;
   }, [actors, actorsById, reloadCurrent, guard]);
+  // 页面侧的改/删(能力对齐 agent 侧): 改动记「经过」; 删除成功关抽屉回看板
+  const onUpdateTask = useCallback(async (taskId: string, patch: { title?: string; goal?: string }) => {
+    let ok = false;
+    await guard(async () => {
+      const you = actors.find((a) => a.type === 'human')?.id ?? 'admin';
+      await api.updateTask(taskId, { byActor: you, ...patch });
+      await reloadCurrent();
+      if (detail) setDetail(await api.task(taskId));
+      ok = true;
+    });
+    return ok;
+  }, [actors, detail, reloadCurrent, guard]);
+  const onDeleteTask = useCallback(async (taskId: string) => {
+    let ok = false;
+    await guard(async () => {
+      const you = actors.find((a) => a.type === 'human')?.id ?? 'admin';
+      await api.deleteTask(taskId, you);
+      setDetail(null);
+      const n = ++nonce.current;
+      setToast({ text: `已删除 ${taskId}`, n });
+      await reloadCurrent();
+      ok = true;
+    });
+    return ok;
+  }, [actors, reloadCurrent, guard]);
   const onComment = useCallback((taskId: string, body: string) => guard(async () => {
     const you = actors.find((a) => a.type === 'human')?.id ?? 'admin';
     await api.comment(taskId, { actor: you, body });
@@ -261,7 +286,7 @@ export function App() {
       {detail && (
         <>
           <div className="drawer-backdrop" onClick={closeDetail} aria-hidden="true" />
-          <TaskDetail pkg={detail} actorsById={actorsById} onAnswer={onAnswer} onAct={onAct} onComment={onComment} onOpenTask={openTask} routing={routing} onClose={closeDetail} />
+          <TaskDetail pkg={detail} actorsById={actorsById} onAnswer={onAnswer} onAct={onAct} onComment={onComment} onOpenTask={openTask} onUpdate={onUpdateTask} onDelete={onDeleteTask} routing={routing} onClose={closeDetail} />
         </>
       )}
     </div>

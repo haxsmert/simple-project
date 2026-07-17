@@ -226,16 +226,23 @@ function CommentBox({ taskId, onComment }: { taskId: string; onComment: (taskId:
   );
 }
 
-export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpenTask, routing, onClose }: {
+export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpenTask, onUpdate, onDelete, routing, onClose }: {
   pkg: TaskPackage; actorsById: Record<string, Actor>;
   onAnswer: (clarId: string, answer: string) => void;
   onAct: (input: ActInput, action: TaskAction) => Promise<boolean>;
   onComment: (taskId: string, body: string) => void;
   onOpenTask: (id: string) => void; // 任务引用(面包屑/子任务/关系边/依赖)跳到那个任务的详情
+  onUpdate: (taskId: string, patch: { title?: string; goal?: string }) => Promise<boolean>; // 改标题/目标(agent 侧早有, 页面补齐)
+  onDelete: (taskId: string) => Promise<boolean>; // 删除任务(不可恢复, 有子任务后端会拒)
   routing: Record<string, { actorId: string | null; basis: 'history' | 'fallback' }>; // 角色→{默认派给谁, 依据}
   onClose: () => void;
 }) {
   const t = pkg.task;
+  // 编辑态: 标题/目标就地改(改动会记进「经过」); 删除要二次确认(不可恢复)
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(t.title);
+  const [editGoal, setEditGoal] = useState(t.goal ?? '');
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const inputPlan = parsePlan(pkg.inputs.planMd);
   const outputArtifacts = parseArtifacts(pkg.outputs.outputsMd);
   const openClar = pkg.clarifications.filter((c) => c.state !== 'done');
@@ -350,7 +357,24 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
       </nav>
       {/* key=任务id: 换任务时整块重挂 → 触发交叉淡入, 不是硬切(同容器内替换内容的连续性) */}
       <div className="drawer-body" key={t.id}>
-      <h2 ref={headingRef} tabIndex={-1}>{t.title}</h2>
+      {editing ? (
+        <div className="edit-panel" role="group" aria-label="编辑任务">
+          <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} aria-label="标题" placeholder="任务标题" autoFocus />
+          <textarea rows={2} value={editGoal} onChange={(e) => setEditGoal(e.target.value)} aria-label="目标" placeholder="目标(一句话说清做成什么样)" />
+          <div className="act-form-btns">
+            <button type="button" className="btn primary" disabled={!editTitle.trim()}
+              onClick={async () => { if (await onUpdate(t.id, { title: editTitle.trim(), goal: editGoal.trim() || undefined })) setEditing(false); }}>保存</button>
+            <button type="button" className="btn" onClick={() => setEditing(false)}>取消</button>
+          </div>
+        </div>
+      ) : (
+        <div className="title-row">
+          <h2 ref={headingRef} tabIndex={-1}>{t.title}</h2>
+          {/* 编辑入口给个真按钮: 建错了要能改(改动记进「经过」), 不能只有 agent 侧改得动 */}
+          <button type="button" className="btn ghost-edit" aria-label="编辑标题与目标"
+            onClick={() => { setEditTitle(t.title); setEditGoal(t.goal ?? ''); setEditing(true); }}><IconPencil /></button>
+        </div>
+      )}
       <div className="status-row">
         <span className={`pill ${STATE_PILL[t.state]}`}><span className="d" />{STATE_NAME[t.state]}</span>
         {t.hold && <span className={`pill ${HOLD_PILL[t.hold]}`}><span className="d" />{HOLD_NAME[t.hold]}</span>}
@@ -490,6 +514,21 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
         <div className="slot-body">
           <CommentBox taskId={t.id} onComment={onComment} />
         </div>
+      </div>
+
+      {/* 删除收在最底且要二次确认: 不可恢复(连同历史与关系边); 有子任务后端会拒并说明 */}
+      <div className="danger-zone">
+        {confirmDelete ? (
+          <div className="act-form" role="group" aria-label="确认删除">
+            <div className="act-form-title">删除后不可恢复(连同它的历史与关系)。{pkg.subtasks.length > 0 ? '它还有子任务, 需先移走或删除。' : ''}</div>
+            <div className="act-form-btns">
+              <button type="button" className="btn danger-solid" onClick={async () => { if (await onDelete(t.id)) setConfirmDelete(false); }}>确认删除</button>
+              <button type="button" className="btn" onClick={() => setConfirmDelete(false)}>取消</button>
+            </div>
+          </div>
+        ) : (
+          <button type="button" className="btn danger-ghost" onClick={() => setConfirmDelete(true)}>删除这个任务…</button>
+        )}
       </div>
       </div>
     </div>
