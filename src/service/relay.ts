@@ -108,13 +108,6 @@ export class RelayService {
     }));
   }
 
-  board(): Array<{ state: TaskState; tasks: BoardCard[] }> {
-    const all = (this.db.prepare('SELECT id FROM tasks').all() as { id: string }[])
-      .map((r) => getTask(this.db, r.id))
-      .filter((t): t is Task => t !== null);
-    return this.groupByState(all);
-  }
-
   // 项目「直接任务(depth-1)」里"轮到你处理"的数量 = 挂起中的任务数(等确认 + 等决策)。
   // 刻意只数一层: 正是该项目任务看板上亮着挂起标、你会点开去处理的卡, 数字与看板一致、可对账。
   // (更深的执行子任务是 agent 领地, 由其父任务的挂起体现, 不重复计数。)
@@ -227,6 +220,15 @@ export class RelayService {
       throw new Error(`任务挂起中(${before.hold === 'confirm' ? '等确认' : '等决策'}), 不可领取: 等它解除, 或走 handoff 改派`);
     }
     this.mustActor(actorId);
+    // claim = 领取无主任务。已有人在做的不能一句 claim 就抢走(换人走 handoff 改派, 有守卫);
+    // 自己重复领取幂等返回, 但不许借机换角色(那会绕开"原地改派保角色"闸)
+    if (before.currentActor === actorId) {
+      if (role && role !== before.currentRole) throw new Error(`已在你手里(${before.currentRole ?? '无角色'}): 原地不改角色, 要换角色请随流程推进`);
+      return before;
+    }
+    if (before.currentActor) {
+      throw new Error(`已在 ${before.currentActor} 手里, 不可直接领取: 要转给你请走 handoff 改派`);
+    }
     const patch: TaskPatch = { currentActor: actorId };
     if (role) patch.currentRole = role;
     const t = updateTask(this.db, taskId, patch);

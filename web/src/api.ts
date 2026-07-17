@@ -12,7 +12,6 @@ async function j<T>(url: string, opts?: RequestInit): Promise<T> {
 const post = <T>(url: string, body: unknown) => j<T>(url, { method: 'POST', body: JSON.stringify(body) });
 
 export const api = {
-  board: () => j<BoardColumn[]>('/api/board'),
   projects: () => j<BoardColumn[]>('/api/projects'),
   taskBoard: (id: string) => j<BoardColumn[]>(`/api/projects/${id}/board`),
   allTasks: () => j<BoardColumn[]>('/api/tasks-board'),

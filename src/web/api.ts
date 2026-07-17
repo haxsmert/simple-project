@@ -16,7 +16,6 @@ export function buildApp(service: RelayService): FastifyInstance {
       }
     };
 
-  app.get('/api/board', wrap(() => service.board()));
   app.get('/api/projects', wrap(() => service.projectBoard()));
   app.get('/api/projects/:id/board', wrap((req) => service.taskBoard(req.params.id)));
   app.get('/api/tasks-board', wrap(() => service.allTasksBoard()));

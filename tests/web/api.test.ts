@@ -13,16 +13,6 @@ function mk() {
 }
 
 describe('web api', () => {
-  it('GET /api/board 返回主干四阶段分组', async () => {
-    const { service, app } = mk();
-    service.createTask({ title: 't', state: 'executing' });
-    const res = await app.inject({ method: 'GET', url: '/api/board' });
-    expect(res.statusCode).toBe(200);
-    const board = res.json();
-    expect(board).toHaveLength(4);
-    expect(board.find((c: any) => c.state === 'executing').tasks[0].title).toBe('t');
-  });
-
   it('POST /api/tasks 建任务, GET /api/tasks/:id 取信息包', async () => {
     const { app } = mk();
     const created = await app.inject({ method: 'POST', url: '/api/tasks', payload: { title: '新', goal: '目标' } });
@@ -111,11 +101,12 @@ describe('web api', () => {
     expect(allIds).not.toContain(projectB.id);
   });
 
-  it('POST /api/reorder 重排列内顺序, board 反映新顺序', async () => {
+  it('POST /api/reorder 重排列内顺序, 看板反映新顺序', async () => {
     const { service, app } = mk();
-    const t1 = service.createTask({ title: 't1', state: 'executing' });
-    const t2 = service.createTask({ title: 't2', state: 'executing' });
-    const t3 = service.createTask({ title: 't3', state: 'executing' });
+    const p = service.createTask({ title: '项目', state: 'executing' });
+    const t1 = service.createTask({ title: 't1', parentId: p.id, state: 'executing' });
+    const t2 = service.createTask({ title: 't2', parentId: p.id, state: 'executing' });
+    const t3 = service.createTask({ title: 't3', parentId: p.id, state: 'executing' });
 
     const res = await app.inject({
       method: 'POST',
@@ -125,7 +116,7 @@ describe('web api', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ ok: true });
 
-    const board = await app.inject({ method: 'GET', url: '/api/board' });
+    const board = await app.inject({ method: 'GET', url: `/api/projects/${p.id}/board` });
     const executing = board.json().find((c: any) => c.state === 'executing');
     expect(executing.tasks.map((t: any) => t.id)).toEqual([t3.id, t1.id, t2.id]);
   });

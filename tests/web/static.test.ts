@@ -22,8 +22,8 @@ describe('static app', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Relay');
   });
-  it('/api/board 仍返回 JSON', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/board' });
+  it('/api/projects 仍返回 JSON(静态托管不吞 API 路由)', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/projects' });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toHaveLength(4);
   });

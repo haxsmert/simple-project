@@ -14,16 +14,6 @@ function svc() {
 }
 
 describe('RelayService reads', () => {
-  it('board 按六态顺序分组全部任务', () => {
-    const { db, service } = svc();
-    createTask(db, { id: 'R-1', title: '根', state: 'executing' });
-    createTask(db, { id: 'R-2', title: '子', parentId: 'R-1', state: 'done' });
-    const board = service.board();
-    expect(board.map((c) => c.state)).toEqual(STATE_ORDER);
-    expect(board.find((c) => c.state === 'executing')!.tasks.map((t) => t.id)).toEqual(['R-1']);
-    expect(board.find((c) => c.state === 'done')!.tasks.map((t) => t.id)).toEqual(['R-2']);
-  });
-
   it('tree 递归嵌套子任务', () => {
     const { db, service } = svc();
     createTask(db, { id: 'R-1', title: '根' });
@@ -44,7 +34,7 @@ describe('RelayService reads', () => {
     expect(service.listByActor('a', 'tester').map((t) => t.id)).toEqual(['R-2']);
   });
 
-  it('board 把每个任务富化成 BoardCard: 子任务计数 + 关系边', () => {
+  it('看板把每个任务富化成 BoardCard: 子任务计数 + 关系边', () => {
     const { db, service } = svc();
     createTask(db, { id: 'R-10', title: '有子任务与依赖的任务', state: 'executing' });
     createTask(db, { id: 'R-11', title: '子任务1', parentId: 'R-10', state: 'done' });
@@ -52,7 +42,7 @@ describe('RelayService reads', () => {
     createTask(db, { id: 'R-13', title: '被依赖任务', state: 'done' });
     service.linkEdge({ fromTask: 'R-10', toTask: 'R-13', type: 'depends_on' });
 
-    const board = service.board();
+    const board = service.projectBoard();
     const card = board.find((c) => c.state === 'executing')!.tasks.find((t) => t.id === 'R-10')!;
     expect(card.subtaskCount).toBe(2);
     expect(card.doneSubtaskCount).toBe(1);

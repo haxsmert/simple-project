@@ -212,8 +212,7 @@ export function App() {
   return (
     <div className="app">
       {error && (
-        <div role="alert" onClick={() => setError(null)}
-          style={{ background: 'var(--danger-soft)', color: 'var(--danger)', border: '1px solid var(--danger)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, cursor: 'pointer', fontSize: 13 }}>
+        <div role="alert" className="error-banner" onClick={() => setError(null)}>
           ⚠ {error}(点击关闭)
         </div>
       )}
