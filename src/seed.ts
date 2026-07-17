@@ -4,60 +4,126 @@ import { openDb, type DB } from './db/connection';
 import { createActor } from './repo/actors';
 import { createTask } from './repo/tasks';
 import { createEdge } from './repo/edges';
+import { appendEvent } from './repo/events';
 import { raiseClarification } from './core/clarification';
 import { mirrorTask } from './mirror/writer';
 
+// Demo 数据 —— 目标是把产品讲清楚, 不是随便塞几条:
+//  · 六态每列都有内容(看板不出现整列空白)
+//  · 两个"轮到你"的关卡: 计划等你拍板(awaiting_confirm) + agent 卡住提问(awaiting_decision) → 待你处理 = 2
+//  · 多 agent 且**真实扮演过各自角色**(默认路由是行为性推断: 没有这些历史就只能兜底瞎猜, 规则等于没有)
+//  · 子任务(可钻入)、依赖边(可跳转)、优先级、产出与摘要
+//  · 「经过」有故事: 换手事件记全"谁交给了谁 / 状态怎么变的"
 export function seed(db: DB, dir: string): { taskCount: number; files: string[] } {
-  // 产品的核心叙事是"人 + 多个 agent 按角色接力"。只给一个 agent, 那条叙事(以及按角色的默认路由)
-  // 在随附数据上根本演示不出来 —— 会让"交去测试"默认派给执行者, 看着像规则失灵。
   const you = createActor(db, { id: 'you', name: '你', type: 'human' });
   const execA = createActor(db, { id: 'agent-exec-a', name: '执行·A', type: 'agent', handle: 'mcp:exec-a' });
   const execB = createActor(db, { id: 'agent-exec-b', name: '执行·B', type: 'agent', handle: 'mcp:exec-b' });
   const planP = createActor(db, { id: 'agent-plan-p', name: '规划·P', type: 'agent', handle: 'mcp:plan-p' });
   const testT = createActor(db, { id: 'agent-test-t', name: '测试·T', type: 'agent', handle: 'mcp:test-t' });
 
-  const project = createTask(db, {
-    id: 'R-115', title: 'Relay MVP · 数据层', currentActor: you.id, currentRole: 'planner',
-  });
-  const task = createTask(db, {
-    id: 'R-142', title: '搭建 SQLite 数据层与任务模型', parentId: project.id,
-    state: 'executing', currentActor: execA.id, currentRole: 'executor',
-    goal: '为 Relay 建立单一真相源:任务/行动者/关系边三张表, 覆盖递归与六态状态机。',
-    inputsMd: '确认后的计划:\n- [x] 三张表 + 触发器\n- [x] 依赖 R-140 字段命名',
-    outputsMd: '- schema/001_init.sql (已提交)\n- src/model/task.ts (已提交)',
-    summary: '三张表已落地, 递归用 parent_id 自引用; 卡在信息包存储格式。', priority: 'hi',
-  });
-  createTask(db, { id: 'R-143', title: 'tasks 表 + 自引用递归', parentId: task.id, state: 'done' });
-  createTask(db, { id: 'R-145', title: 'actors 表 + 类型枚举', parentId: task.id, state: 'done' });
-  createTask(db, { id: 'R-147', title: '信息包四槽位存储', parentId: task.id, state: 'planning' });
-
-  const dep = createTask(db, { id: 'R-140', title: 'MCP 工具集接口设计', state: 'done', summary: '锁定 claim/handoff/raise 字段命名。' });
-  createEdge(db, { fromTask: task.id, toTask: dep.id, type: 'depends_on' });
-
-  // 让"按角色分工"在数据里真实发生过 —— 默认路由是行为性推断的(最近谁扮演该角色就还派给谁),
-  // 没有这些历史, 规则只能落到兜底(=瞎猜第一个 agent), 等于没规则。
-  createTask(db, {
-    id: 'R-150', title: '镜像写入器验收', parentId: project.id,
-    state: 'testing', currentActor: testT.id, currentRole: 'tester',
-    goal: '验证 DB→Markdown 镜像在父/依赖变更时的受影响集合。', priority: 'mid',
-  });
-  createTask(db, {
-    id: 'R-152', title: '状态机边界用例补测', parentId: project.id,
-    state: 'executing', currentActor: execB.id, currentRole: 'executor',
-    goal: '非法流转、同态换手、多待确认并发。', priority: 'lo',
-  });
-  createTask(db, {
-    id: 'R-154', title: '信息包镜像格式草案', parentId: project.id,
-    state: 'planning', currentActor: planP.id, currentRole: 'planner',
-    goal: '定四槽位在 .md 里的排版与锚点。', priority: 'mid',
+  // 换手事件: 记全"谁交给了谁 / 状态怎么变" —— 少了这些,「经过」只能吐"交给了下一个人"这种废话
+  const handoffEvent = (
+    taskId: string, by: string, to: string, roleTo: 'planner' | 'executor' | 'tester' | 'decider',
+    stateFrom: 'planning' | 'awaiting_confirm' | 'executing' | 'testing',
+    stateTo: 'awaiting_confirm' | 'executing' | 'testing' | 'done', note?: string,
+  ) => appendEvent(db, {
+    taskId, actorId: by, kind: 'handoff', roleTo, toActor: to, stateFrom, stateTo, body: note ?? null,
   });
 
-  // 执行者卡住 → 触发待确认(会新建一个 R-<n> 待决策任务)
+  // ── 项目 1: Relay 平台化(主线) ──────────────────────────────────
+  const p1 = createTask(db, {
+    id: 'R-1', title: 'Relay 平台化', state: 'executing', currentActor: you.id, currentRole: 'planner',
+    priority: 'hi', goal: '把 Relay 从单机原型推到能给团队用。',
+  });
+
+  const t2 = createTask(db, {
+    id: 'R-2', title: 'MCP 工具限流与并发控制', parentId: p1.id,
+    state: 'executing', currentActor: execA.id, currentRole: 'executor', priority: 'hi',
+    goal: '给 8 个 MCP 工具加限流与并发保护',
+    inputsMd: '确认后的计划:\n- [x] 令牌桶\n- [ ] 每 actor 配额',
+    outputsMd: '- src/mcp/limiter.ts (草稿)',
+    summary: '令牌桶已通, 配额进行中',
+  });
+  createTask(db, { id: 'R-3', title: '令牌桶实现', parentId: t2.id, state: 'done', currentActor: execA.id, currentRole: 'executor' });
+  createTask(db, { id: 'R-4', title: '每 actor 配额', parentId: t2.id, state: 'executing', currentActor: execA.id, currentRole: 'executor' });
+  handoffEvent(t2.id, you.id, execA.id, 'executor', 'awaiting_confirm', 'executing', '先按 actor 维度限流, 工具维度以后再说');
+  appendEvent(db, { taskId: t2.id, actorId: you.id, kind: 'comment', body: '配额按 actor 还是按工具? 先按 actor。' });
+
+  createTask(db, {
+    id: 'R-5', title: '看板拖拽换手交互', parentId: p1.id,
+    state: 'testing', currentActor: testT.id, currentRole: 'tester', priority: 'mid',
+    goal: '列内拖拽排序; 跨列不给拖 —— 状态归状态机管。',
+    outputsMd: '- web/src/components/Board.tsx', summary: '排序算法已单测, 等人工验收',
+  });
+  handoffEvent('R-5', you.id, testT.id, 'tester', 'executing', 'testing');
+
+  createTask(db, {
+    id: 'R-6', title: 'Web 端实时刷新', parentId: p1.id,
+    state: 'planning', currentActor: planP.id, currentRole: 'planner', priority: 'lo',
+    goal: 'agent 改了数据, 页面自己动, 不用手刷。',
+  });
+
+  // 轮到你 ①: agent 干活时卡住, 提问等你拍板 → 该任务自动挂起为待决策
+  const t7 = createTask(db, {
+    id: 'R-7', title: '导出任务为 Markdown 报告', parentId: p1.id,
+    state: 'executing', currentActor: execB.id, currentRole: 'executor', priority: 'mid',
+    goal: '一键导出某项目的所有任务',
+  });
   raiseClarification(db, {
-    parentId: task.id, byActor: execA.id,
-    question: '四槽位信息包是否允许富文本/附件?',
-    options: ['纯 Markdown + 外链, 附件走镜像目录', '结构化 JSON 富内容, DB 存 blob'],
+    parentId: t7.id, byActor: execB.id,
+    question: '导出范围含已完成子任务吗?',
+    options: ['含全部', '仅未完成'],
     toDecider: you.id,
+  });
+
+  // ── 项目 2: MCP 生态接入 ───────────────────────────────────────
+  const p2 = createTask(db, {
+    id: 'R-9', title: 'MCP 生态接入', state: 'planning', currentActor: you.id, currentRole: 'planner',
+    priority: 'mid', goal: '让第三方 agent 也能接进来干活。',
+  });
+
+  // 轮到你 ②: 规划 agent 写完计划交回给你, 你说行才开工
+  createTask(db, {
+    id: 'R-10', title: '第三方 agent 注册流程', parentId: p2.id,
+    state: 'awaiting_confirm', currentActor: you.id, currentRole: 'decider', priority: 'mid',
+    goal: '注册与鉴权草案',
+    inputsMd: '打算这么做:\n- [ ] handle 唯一性校验\n- [ ] 能力声明(能担任哪些角色)\n- [ ] 最小权限的工具白名单',
+  });
+  handoffEvent('R-10', planP.id, you.id, 'decider', 'planning', 'awaiting_confirm', '计划写完了, 你看下能不能开工');
+
+  // ── 项目 3: 看板体验打磨 ───────────────────────────────────────
+  const p3 = createTask(db, {
+    id: 'R-12', title: '看板体验打磨', state: 'testing', currentActor: testT.id, currentRole: 'tester', priority: 'mid',
+  });
+  createTask(db, { id: 'R-13', title: '详情抽屉点外关闭', parentId: p3.id, state: 'done', currentActor: testT.id, currentRole: 'tester' });
+  createTask(db, {
+    id: 'R-14', title: '项目/任务分层看板', parentId: p3.id,
+    state: 'executing', currentActor: execB.id, currentRole: 'executor', priority: 'hi',
+    goal: '项目总览 → 钻进任务 → 再钻子任务, 上箭头逐层弹回。',
+    outputsMd: '- web/src/App.tsx (路径栈)', summary: '递归导航已通, 面包屑还在打磨',
+  });
+  createTask(db, { id: 'R-15', title: '列内拖拽排序', parentId: p3.id, state: 'planning', currentActor: you.id, currentRole: 'planner', priority: 'lo' });
+
+  // ── 项目 4: 已完成的地基(演示"完成"态) ────────────────────────
+  const p4 = createTask(db, {
+    id: 'R-16', title: '核心地基 MVP', state: 'done', currentActor: testT.id, currentRole: 'tester',
+    priority: 'hi', summary: '四张表 + 六态状态机 + Markdown 镜像, 全部验收通过。',
+  });
+  const dep = createTask(db, {
+    id: 'R-20', title: 'MCP 工具集接口设计', parentId: p4.id, state: 'done',
+    currentActor: execA.id, currentRole: 'executor', summary: '锁定 claim/handoff/raise 的字段命名。',
+  });
+  handoffEvent('R-16', you.id, testT.id, 'tester', 'testing', 'done', '验收通过');
+
+  // 关系边: R-2 依赖 R-20 的接口定义(抽屉「相关任务」里点得进去)
+  createEdge(db, { fromTask: t2.id, toTask: dep.id, type: 'depends_on' });
+
+  // 放在最后建: 让"规划·P"成为最近的规划者 —— 默认路由按 updated_at 取最近, 若被"你"盖过,
+  // demo 上就演示不出"交给规划 agent"这条(规则没错, 但数据讲不出故事)。
+  createTask(db, {
+    id: 'R-11', title: '工具权限模型草案', parentId: p2.id,
+    state: 'planning', currentActor: planP.id, currentRole: 'planner', priority: 'lo',
+    goal: '每个工具能被哪些角色调用, 最小权限。',
   });
 
   const ids = (db.prepare('SELECT id FROM tasks ORDER BY id').all() as { id: string }[]).map((r) => r.id);
@@ -71,6 +137,7 @@ export function runSeedCli(dbPath: string, dir: string): { taskCount: number; fi
   for (const f of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
     rmSync(f, { force: true });
   }
+  rmSync(dir, { recursive: true, force: true }); // 镜像目录一并重置, 免得留下上一套数据的 .md
   const db = openDb(dbPath);
   return seed(db, dir);
 }
