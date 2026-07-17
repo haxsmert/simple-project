@@ -25,9 +25,9 @@ export function reorderIds(currentIds: string[], dragId: string, dropId: string 
   return ids;
 }
 
-export function Board({ columns, actorsById, onOpen, onDescend, onReorder, emptyHint }: {
+export function Board({ columns, actorsById, onOpen, onDescend, onReorder, showProject, emptyHint }: {
   columns: BoardColumn[]; actorsById: Record<string, Actor>; onOpen: (id: string) => void;
-  onDescend?: (id: string) => void; onReorder?: (ids: string[]) => void; emptyHint?: ReactNode;
+  onDescend?: (id: string) => void; onReorder?: (ids: string[]) => void; showProject?: boolean; emptyHint?: ReactNode;
 }) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragState, setDragState] = useState<string | null>(null);
@@ -39,7 +39,7 @@ export function Board({ columns, actorsById, onOpen, onDescend, onReorder, empty
   return (
     <div className="board">
       {columns.map((col) => (
-        <div key={col.state} className={`col${col.state === 'awaiting_decision' ? ' attn' : ''}`}>
+        <div key={col.state} className={`col${col.state === 'awaiting_decision' || col.state === 'awaiting_confirm' ? ' attn' : ''}`}>
           <div className="col-head">
             <span className="stripe" style={{ background: STRIPE[col.state] }} />
             <span className="name">{NAME[col.state]}</span>
@@ -55,7 +55,7 @@ export function Board({ columns, actorsById, onOpen, onDescend, onReorder, empty
             {col.tasks.length === 0
               ? <div className="col-empty">暂无</div>
               : col.tasks.map((t) => (
-                <TaskCard key={t.id} task={t} actor={t.currentActor ? actorsById[t.currentActor] ?? null : null} onOpen={onOpen} onDescend={onDescend}
+                <TaskCard key={t.id} task={t} actor={t.currentActor ? actorsById[t.currentActor] ?? null : null} onOpen={onOpen} onDescend={onDescend} showProject={showProject}
                   draggable={!!onReorder} dragging={dragId === t.id}
                   onDragStart={() => { setDragId(t.id); setDragState(col.state); }}
                   onDragEnd={() => { setDragId(null); setDragState(null); }}

@@ -38,12 +38,12 @@ beforeEach(() => {
 });
 
 describe('App shell', () => {
-  it('项目看板点项目跳到任务tab并带筛选', async () => {
+  it('项目总览点项目 → 钻进任务看板, 面包屑第一格(picker)显示该项目', async () => {
     render(<App />);
     fireEvent.click(await screen.findByText('演示项目'));
     await waitFor(() => expect(screen.getByText('演示任务')).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: '任务' })).toHaveClass('active');
-    expect(screen.getByText('演示项目')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '项目总览' })).toBeInTheDocument(); // 根变成可点链接
+    expect(screen.getByText('演示项目')).toBeInTheDocument(); // picker 显示当前项目(唯一一处, 卡面不再重复)
   });
 
   it('上一层按钮: 项目总览时禁用; 钻进项目后可用, 点它上溯回项目总览', async () => {
@@ -55,7 +55,8 @@ describe('App shell', () => {
     const up = screen.getByRole('button', { name: '返回上一层' });
     expect(up).not.toBeDisabled();
     fireEvent.click(up); // 上一层 → 回项目总览
-    await waitFor(() => expect(screen.getByRole('button', { name: '项目' })).toHaveClass('active'));
+    await waitFor(() => expect(up).toBeDisabled()); // 回到顶层, 无处可上
+    expect(screen.getByText('项目总览')).toBeInTheDocument(); // 根回到"当前"态
   });
 
   it('点任务打开详情', async () => {
@@ -89,10 +90,11 @@ describe('App shell', () => {
     expect(screen.getByText('🔔 待你处理 2')).toBeInTheDocument();
   });
 
-  it('顶栏 pill 点击后跳到任务 tab 并切到全部项目筛选', async () => {
+  it('顶栏 pill 点击后跳到「全部任务」扁平看板', async () => {
     render(<App />);
     fireEvent.click(await screen.findByText('🔔 待你处理 2'));
-    await waitFor(() => expect(screen.getByRole('button', { name: '任务' })).toHaveClass('active'));
+    await waitFor(() => expect(screen.getByText('演示任务')).toBeInTheDocument());
+    expect(screen.getByText('全部任务')).toBeInTheDocument(); // picker 显示"全部任务"伪节点
   });
 
   it('新建项目改为内联输入, 不再弹 window.prompt', async () => {

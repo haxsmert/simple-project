@@ -45,7 +45,7 @@ describe('Board', () => {
     expect(onOpen).toHaveBeenCalledWith('R-1');
   });
 
-  it('卡片渲染优先级标记 / 子任务进度 / 关系边 chip(BoardCard 富化字段)', () => {
+  it('卡面降噪: 优先级「高」保留红徽标, 子任务进度保留, 关系边/角色/状态 chip 一律不上卡面(归详情与列头)', () => {
     const richColumns: BoardColumn[] = [
       {
         state: 'executing',
@@ -64,51 +64,53 @@ describe('Board', () => {
     expect(screen.getByText('高')).toBeInTheDocument(); // 用文字承载优先级, 不靠颜色单独传意
     expect(container.querySelector('.sub-mini')).toBeTruthy(); // 子任务进度条
     expect(screen.getByText('子任务 3/5')).toBeInTheDocument();
-    expect(container.querySelector('.edge.dep')).toBeTruthy(); // 依赖关系边 chip
+    expect(container.querySelector('.edge')).toBeNull(); // 关系边不再上卡面(详情抽屉仍有)
+    expect(container.querySelector('.role')).toBeNull(); // 角色 chip 不再上卡面
   });
 
-  it('待确认子任务卡片(clarifies 出边)只显示"待决策"阻塞 chip, 不重复渲染"待确认"边 chip', () => {
+  it('"轮到你"的卡(待决策/待确认)整卡琥珀底色, 状态由列头承载, 卡面无状态 chip; 读屏 aria-label 保留状态', () => {
     const clarColumns: BoardColumn[] = [
       {
         state: 'awaiting_decision',
         tasks: [{
-          id: 'R-148', title: '待确认: 要不要富文本?', state: 'awaiting_decision', currentActor: 'you', currentRole: 'decider',
+          id: 'R-148', title: '要不要富文本?', state: 'awaiting_decision', currentActor: 'you', currentRole: 'decider',
           parentId: 'R-142', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi',
-          edges: { out: [{ id: 'e2', fromTask: 'R-148', toTask: 'R-142', type: 'clarifies' }], in: [] },
+        }],
+      },
+      {
+        state: 'awaiting_confirm',
+        tasks: [{
+          id: 'R-149', title: '计划待确认的任务', state: 'awaiting_confirm', currentActor: 'you', currentRole: 'decider',
+          parentId: 'R-142', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null,
         }],
       },
     ];
     const { container } = render(<Board columns={clarColumns} actorsById={actors} onOpen={vi.fn()} />);
-    const card = container.querySelector('.card') as HTMLElement;
-    expect(within(card).getByText('待决策')).toBeInTheDocument();
-    expect(within(card).queryAllByText('待确认').length).toBe(0);
-    expect(card.querySelectorAll('.edge').length).toBe(1); // 仅阻塞 chip 本身, 无重复的 clarifies 边 chip
+    const cards = container.querySelectorAll('.card');
+    expect(cards[0].className).toContain('blocked'); // 待决策卡琥珀
+    expect(cards[1].className).toContain('blocked'); // 待确认卡也琥珀("轮到你"同语言)
+    expect(container.querySelectorAll('.col.attn').length).toBe(2); // 两列列头都亮琥珀
+    expect(within(cards[0] as HTMLElement).queryByText('待决策')).toBeNull(); // 卡面不重复列头状态
+    expect(within(cards[0] as HTMLElement).getByRole('button', { name: /待决策/ })).toBeInTheDocument(); // 读屏可及名保留状态
   });
 
-  it('卡片带 parentTitle 时渲染 .card-project 项目名; 不带 parentTitle 时不渲染', () => {
+  it('项目名只在跨项目视图(showProject)显示; 单项目视图里不重复渲染同一项目名', () => {
     const projTitleColumns: BoardColumn[] = [
       {
         state: 'executing',
-        tasks: [
-          {
-            id: 'R-80', title: '带项目名的任务', state: 'executing', currentActor: 'a', currentRole: 'executor',
-            parentId: 'R-79', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi',
-            parentTitle: '演示项目',
-          },
-          {
-            id: 'R-81', title: '无项目名的任务', state: 'executing', currentActor: 'a', currentRole: 'executor',
-            parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi',
-          },
-        ],
+        tasks: [{
+          id: 'R-80', title: '带项目名的任务', state: 'executing', currentActor: 'a', currentRole: 'executor',
+          parentId: 'R-79', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi',
+          parentTitle: '演示项目',
+        }],
       },
       { state: 'awaiting_decision', tasks: [] }, { state: 'planning', tasks: [] },
       { state: 'awaiting_confirm', tasks: [] }, { state: 'testing', tasks: [] }, { state: 'done', tasks: [] },
     ];
-    const { container } = render(<Board columns={projTitleColumns} actorsById={actors} onOpen={vi.fn()} />);
-    const cards = container.querySelectorAll('.card');
-    expect(within(cards[0] as HTMLElement).getByText('演示项目')).toBeInTheDocument();
-    expect(cards[0].querySelector('.card-project')).toBeTruthy();
-    expect(cards[1].querySelector('.card-project')).toBeFalsy();
+    const { container: withProj } = render(<Board columns={projTitleColumns} actorsById={actors} onOpen={vi.fn()} showProject />);
+    expect(withProj.querySelector('.card-project')?.textContent).toBe('演示项目'); // 全部任务视图: 显示
+    const { container: withoutProj } = render(<Board columns={projTitleColumns} actorsById={actors} onOpen={vi.fn()} />);
+    expect(withoutProj.querySelector('.card-project')).toBeFalsy(); // 单项目视图: 不重复
   });
 
   it('提供 onDescend 时「子任务 N/M」变成"钻入"入口, 点击调用 onDescend 且不触发 onOpen(详情)', () => {
@@ -133,15 +135,13 @@ describe('Board', () => {
     expect(screen.getByText(/子任务 1\/3/)).toBeInTheDocument();
   });
 
-  it('待确认卡片显示「待你确认」标记; 项目卡 attention 渲染「N 待处理」', () => {
+  it('项目卡 attention 渲染「N 待处理」聚合角标(唯一上卡面的 chip)', () => {
     const cols: BoardColumn[] = [
-      { state: 'awaiting_confirm', tasks: [{ id: 'R-3', title: '计划待确认', state: 'awaiting_confirm', currentActor: 'a', currentRole: 'decider', parentId: 'R-1', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null }] },
       { state: 'planning', tasks: [{ id: 'R-1', title: '项目A', state: 'planning', currentActor: null, currentRole: null, parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null, attention: 2 }] },
-      { state: 'awaiting_decision', tasks: [] }, { state: 'executing', tasks: [] }, { state: 'testing', tasks: [] }, { state: 'done', tasks: [] },
+      { state: 'awaiting_confirm', tasks: [] }, { state: 'awaiting_decision', tasks: [] }, { state: 'executing', tasks: [] }, { state: 'testing', tasks: [] }, { state: 'done', tasks: [] },
     ];
     render(<Board columns={cols} actorsById={actors} onOpen={vi.fn()} />);
-    expect(screen.getByText('待你确认')).toBeInTheDocument();   // 待确认卡标记
-    expect(screen.getByText('2 待处理')).toBeInTheDocument();    // 项目卡统一为"待处理"(含待确认+待决策)
+    expect(screen.getByText('2 待处理')).toBeInTheDocument(); // 聚合信号非重复信息, 保留
   });
 
   it('全空看板渲染 board-empty 与提示文案', () => {

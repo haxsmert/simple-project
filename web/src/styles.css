@@ -3,21 +3,12 @@
   --border:#dde3ea; --border-2:#cdd6e0; --text:#1b2433; --text-dim:#596576; --text-faint:#8593a4;
   --human:#2f6fe0; --human-soft:#e7eefc; --agent:#0c9683; --agent-soft:#daf3ee;
   --warn:#b9741a; --warn-soft:#fbeed6; --done:#2c8f5b; --done-soft:#e0f2e7; --danger:#cc4a3a; --danger-soft:#fbe6e2;
-  /* 状态色令牌 · 全站单一来源(看板条纹/树点/状态 pill/角色点都引它); 亮色取深值, 作文字对比 ≥5:1(WCAG AA) */
+  /* 状态色令牌 · 全站单一来源(看板条纹/树点/状态 pill/角色点都引它); 深值保证作文字对比 ≥5:1(WCAG AA) */
   --confirm:#634fb0; --testing:#1e6a75;
   --font-ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI","PingFang SC",system-ui,sans-serif;
   --font-mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg:#090c11; --panel:#0e131b; --surface:#141b26; --surface-2:#0f151e;
-    --border:#232e3b; --border-2:#33414f; --text:#e5ecf3; --text-dim:#93a2b4; --text-faint:#5f6f86;
-    --human:#5b9cff; --human-soft:rgba(91,156,255,.15); --agent:#2dd4b3; --agent-soft:rgba(45,212,179,.15);
-    --warn:#e7a63f; --warn-soft:rgba(231,166,63,.15); --done:#4fc582; --done-soft:rgba(79,197,130,.15);
-    --danger:#f0705c; --danger-soft:rgba(240,112,92,.15);
-    --confirm:#8b7bd8; --testing:#37a6b3; /* 暗色取亮值, 作点/文字均达标 */
-  }
-}
+/* 主题定死浅色(用户约定 2026-07-17): 不再跟随系统深浅色 */
 * { box-sizing:border-box; }
 body { margin:0; background:var(--bg); color:var(--text); font-family:var(--font-ui); font-size:14px; -webkit-font-smoothing:antialiased; }
 
@@ -47,6 +38,7 @@ body { margin:0; background:var(--bg); color:var(--text); font-family:var(--font
 /* board */
 .app { max-width:1760px; margin:0 auto; padding:16px clamp(20px,2.5vw,40px) 60px; }
 .topbar { display:flex; align-items:center; gap:14px; margin-bottom:16px; flex-wrap:wrap; }
+.topbar-right { margin-left:auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .brand { display:flex; align-items:center; gap:8px; font-weight:640; }
 /* 左上角图标 = "上一层"按钮(不是装饰 logo): 渐变方块 + 真·向上箭头; 顶层无处可上时禁用 */
 .up-btn { width:24px; height:24px; border-radius:7px; flex:none; border:none; padding:0; display:grid; place-items:center;
@@ -84,10 +76,11 @@ body { margin:0; background:var(--bg); color:var(--text); font-family:var(--font
 .card-project { font-size:10.5px; color:var(--text-faint); margin-bottom:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
 /* 优先级标记: 旋转 45° 的小方块(菱形), 高/中/低三档 */
+/* 优先级: 只有「高」值得抢眼(红徽标), 中/低降为素文字 —— 信息保留, 噪声退场 */
 .prio { font-family:var(--font-mono); font-size:10px; font-weight:700; line-height:1; padding:1px 4px; border-radius:4px; flex:none; }
 .prio.hi { color:var(--danger); background:var(--danger-soft); }
-.prio.mid { color:var(--warn); background:var(--warn-soft); }
-.prio.lo { color:var(--text-faint); background:var(--surface-2); }
+.prio.mid { color:var(--text-dim); }
+.prio.lo { color:var(--text-faint); }
 
 /* 子任务迷你进度条 */
 .sub-mini { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-faint); font-family:var(--font-mono); margin-top:8px; }
@@ -233,7 +226,7 @@ select { cursor:pointer; }
 
 /* project picker · 可搜索项目选择器 */
 .picker { position:relative; display:inline-block; }
-.picker-btn { display:inline-flex; align-items:center; gap:8px; font-size:14px; font-weight:600; color:var(--text); background:var(--surface-2); border:1px solid var(--border); border-radius:9px; padding:6px 12px; cursor:pointer; }
+.picker-btn { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; color:var(--text); background:var(--surface); border:1px solid var(--border); border-radius:7px; padding:4px 10px; cursor:pointer; }
 .picker-btn:hover { border-color:var(--border-2); }
 .picker-btn .caret { color:var(--text-faint); font-size:10px; }
 .picker-pop { position:absolute; top:calc(100% + 4px); left:0; z-index:30; width:250px; background:var(--surface); border:1px solid var(--border-2); border-radius:10px; box-shadow:0 8px 28px rgba(0,0,0,.28); padding:7px; }
