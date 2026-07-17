@@ -56,8 +56,6 @@ export function TaskCard({ task, actor, onOpen, onDescend, draggable, dragging, 
 
   return (
     <div className={`card${blocked ? ' blocked' : ''}${dragging ? ' dragging' : ''}`} onClick={() => onOpen(task.id)}
-      role="button" tabIndex={0} aria-label={a11yLabel}
-      onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onOpen(task.id); } }}
       draggable={draggable} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} onDragEnd={onDragEnd}>
       {task.parentTitle && <div className="card-project">{task.parentTitle}</div>}
       <div className="card-top">
@@ -67,7 +65,8 @@ export function TaskCard({ task, actor, onOpen, onDescend, draggable, dragging, 
         {visibleChips.map((c) => <EdgeChip key={c.key} type={c.type} label={c.label} />)}
         {!!task.attention && task.attention > 0 && <span className="attn-chip">{task.attention} 待处理</span>}
       </div>
-      <p className="card-title">{task.title}</p>
+      {/* 标题即"打开详情"按钮: 卡片本体是普通容器(鼠标点任意处也打开), 键盘/读屏走这个真按钮, 不再嵌套交互 */}
+      <button type="button" className="card-title" aria-label={a11yLabel} onClick={(e) => { e.stopPropagation(); onOpen(task.id); }}>{task.title}</button>
       {hasSubtasks && (onDescend ? (
         <button type="button" className="sub-mini sub-drill" title="钻入子任务"
           onClick={(e) => { e.stopPropagation(); onDescend(task.id); }}>

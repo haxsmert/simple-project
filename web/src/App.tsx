@@ -209,7 +209,8 @@ export function App() {
       )}
       {loaded && view === 'tasks' && (
         <Board columns={taskCols} actorsById={actorsById} onOpen={openTask} onReorder={onReorder}
-          onDescend={(id) => { const t = taskCols.flatMap((c) => c.tasks).find((x) => x.id === id); if (t) descend({ id: t.id, title: t.title }); }}
+          // 只有已在某项目内(currentId 非空)才允许继续下钻 —— 否则从"全部任务"钻入会让 path[0] 成为非项目, 面包屑/上溯都乱套
+          onDescend={currentId ? (id) => { const t = taskCols.flatMap((c) => c.tasks).find((x) => x.id === id); if (t) descend({ id: t.id, title: t.title }); } : undefined}
           emptyHint={<><b>还没有任务</b><div>{currentId ? '点「+ 追加任务」添加' : '去某个项目里追加任务'}</div></>} />
       )}
       {loaded && view === 'tree' && (tree.length > 0

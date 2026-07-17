@@ -34,16 +34,15 @@ describe('Board', () => {
     expect(onOpen).toHaveBeenCalledWith('R-1');
   });
 
-  it('卡片键盘可达: role=button + tabIndex, 回车/空格打开', () => {
+  it('卡片键盘可达: 标题是原生按钮(可 Tab 聚焦/回车打开), 卡片本体不再是 role=button(无嵌套交互)', () => {
     const onOpen = vi.fn();
     const { container } = render(<Board columns={columns} actorsById={actors} onOpen={onOpen} />);
     const card = container.querySelector('.card') as HTMLElement; // R-1
-    expect(card.getAttribute('role')).toBe('button');
-    expect(card.getAttribute('tabindex')).toBe('0');
-    fireEvent.keyDown(card, { key: 'Enter' });
+    expect(card.getAttribute('role')).toBeNull(); // 不再嵌套交互
+    const titleBtn = within(card).getByRole('button', { name: /搭建数据层/ }); // aria-label 以标题开头
+    expect(titleBtn.tagName).toBe('BUTTON');
+    fireEvent.click(titleBtn);
     expect(onOpen).toHaveBeenCalledWith('R-1');
-    fireEvent.keyDown(card, { key: ' ' });
-    expect(onOpen).toHaveBeenCalledTimes(2);
   });
 
   it('卡片渲染优先级标记 / 子任务进度 / 关系边 chip(BoardCard 富化字段)', () => {
