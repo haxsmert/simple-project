@@ -48,9 +48,12 @@ body { margin:0; background:var(--bg); color:var(--text); font-family:var(--font
 .app { max-width:1760px; margin:0 auto; padding:16px clamp(20px,2.5vw,40px) 60px; }
 .topbar { display:flex; align-items:center; gap:14px; margin-bottom:16px; flex-wrap:wrap; }
 .brand { display:flex; align-items:center; gap:8px; font-weight:640; }
-.logo { width:20px; height:20px; border-radius:6px; flex:none; background:linear-gradient(135deg,var(--human),var(--agent)); position:relative; }
-.logo::after{ content:""; position:absolute; inset:6px; border-radius:2px;
-  border:1.6px solid rgba(255,255,255,.85); border-right-color:transparent; border-bottom-color:transparent; transform:rotate(45deg); }
+/* 左上角图标 = "上一层"按钮(不是装饰 logo): 渐变方块 + 真·向上箭头; 顶层无处可上时禁用 */
+.up-btn { width:24px; height:24px; border-radius:7px; flex:none; border:none; padding:0; display:grid; place-items:center;
+  color:#fff; background:linear-gradient(135deg,var(--human),var(--agent)); cursor:pointer; transition:filter .12s, opacity .12s; }
+.up-btn:not(:disabled):hover { filter:brightness(1.1); }
+.up-btn:disabled { opacity:.4; cursor:default; }
+.up-btn:focus-visible { outline:2px solid var(--human); outline-offset:2px; }
 .tabs { display:flex; gap:2px; } .tab { font-size:12.5px; padding:5px 11px; border-radius:7px; color:var(--text-dim); cursor:pointer; border:none; background:none; }
 .tab.active { background:var(--surface); color:var(--text); box-shadow:0 1px 2px rgba(20,30,45,.08); font-weight:550; }
 .board { display:grid; grid-auto-flow:column; grid-auto-columns:236px; gap:12px; overflow-x:auto; padding-bottom:10px; scrollbar-width:thin; scrollbar-color:var(--border-2) transparent; }
@@ -88,6 +91,11 @@ body { margin:0; background:var(--bg); color:var(--text); font-family:var(--font
 
 /* 子任务迷你进度条 */
 .sub-mini { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-faint); font-family:var(--font-mono); margin-top:8px; }
+/* 「子任务 N/M」作可点"钻入"入口时(下钻到子任务层) */
+.sub-drill { width:100%; text-align:left; border:1px solid transparent; border-radius:6px; padding:2px 4px; margin-top:6px; background:none; cursor:pointer; }
+.sub-drill:hover { border-color:var(--border-2); background:var(--surface-2); color:var(--text-dim); }
+.sub-drill:focus-visible { outline:2px solid var(--human); outline-offset:1px; }
+.sub-drill .drill { margin-left:auto; color:var(--human); font-weight:600; white-space:nowrap; }
 .bar { width:44px; height:4px; border-radius:3px; background:var(--surface-2); overflow:hidden; border:1px solid var(--border); flex:none; }
 .bar > i { display:block; height:100%; background:var(--human); }
 
@@ -98,7 +106,13 @@ body { margin:0; background:var(--bg); color:var(--text); font-family:var(--font
 @keyframes drawer-in { from { transform:translateX(24px); opacity:.4; } to { transform:translateX(0); opacity:1; } }
 @media (prefers-reduced-motion: reduce) { .drawer, .drawer-backdrop { animation:none; } }
 .drawer h2 { font-size:19px; margin:6px 0 12px; }
-.crumb { font-family:var(--font-mono); font-size:12px; color:var(--text-faint); display:flex; gap:6px; flex-wrap:wrap; }
+.crumb { font-family:var(--font-mono); font-size:12px; color:var(--text-faint); display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.crumb-seg { display:inline-flex; align-items:center; gap:6px; }
+.crumb-sep { color:var(--text-faint); }
+.crumb-link { font-family:inherit; font-size:12px; color:var(--text-dim); background:none; border:none; padding:2px 4px; border-radius:5px; cursor:pointer; }
+.crumb-link:hover { color:var(--human); background:var(--human-soft); }
+.crumb-link:focus-visible { outline:2px solid var(--human); outline-offset:1px; }
+.crumb-cur { color:var(--text); font-weight:600; }
 .status-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:20px; }
 .pill { font-size:12px; font-weight:600; border-radius:20px; padding:3px 11px 3px 9px; display:inline-flex; gap:6px; align-items:center; background:var(--surface-2); color:var(--text-dim); }
 .pill .d { width:7px; height:7px; border-radius:50%; background:var(--text-faint); }

@@ -112,6 +112,28 @@ describe('Board', () => {
     expect(cards[1].querySelector('.card-project')).toBeFalsy();
   });
 
+  it('提供 onDescend 时「子任务 N/M」变成"钻入"入口, 点击调用 onDescend 且不触发 onOpen(详情)', () => {
+    const onOpen = vi.fn(); const onDescend = vi.fn();
+    const cols: BoardColumn[] = [
+      { state: 'executing', tasks: [{ id: 'R-20', title: '有子任务的任务', state: 'executing', currentActor: 'a', currentRole: 'executor', parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null, subtaskCount: 3, doneSubtaskCount: 1 }] },
+      { state: 'awaiting_confirm', tasks: [] }, { state: 'awaiting_decision', tasks: [] }, { state: 'planning', tasks: [] }, { state: 'testing', tasks: [] }, { state: 'done', tasks: [] },
+    ];
+    render(<Board columns={cols} actorsById={actors} onOpen={onOpen} onDescend={onDescend} />);
+    fireEvent.click(screen.getByTitle('钻入子任务'));
+    expect(onDescend).toHaveBeenCalledWith('R-20');
+    expect(onOpen).not.toHaveBeenCalled(); // 钻入不应顺带打开详情
+  });
+
+  it('不提供 onDescend 时「子任务 N/M」是纯展示(无钻入按钮)', () => {
+    const cols: BoardColumn[] = [
+      { state: 'executing', tasks: [{ id: 'R-20', title: '有子任务的任务', state: 'executing', currentActor: 'a', currentRole: 'executor', parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null, subtaskCount: 3, doneSubtaskCount: 1 }] },
+      { state: 'awaiting_confirm', tasks: [] }, { state: 'awaiting_decision', tasks: [] }, { state: 'planning', tasks: [] }, { state: 'testing', tasks: [] }, { state: 'done', tasks: [] },
+    ];
+    render(<Board columns={cols} actorsById={actors} onOpen={vi.fn()} />);
+    expect(screen.queryByTitle('钻入子任务')).toBeNull();
+    expect(screen.getByText(/子任务 1\/3/)).toBeInTheDocument();
+  });
+
   it('待确认卡片显示「待你确认」标记; 项目卡 attention 渲染「N 待处理」', () => {
     const cols: BoardColumn[] = [
       { state: 'awaiting_confirm', tasks: [{ id: 'R-3', title: '计划待确认', state: 'awaiting_confirm', currentActor: 'a', currentRole: 'decider', parentId: 'R-1', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null }] },

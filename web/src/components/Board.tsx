@@ -25,9 +25,9 @@ export function reorderIds(currentIds: string[], dragId: string, dropId: string 
   return ids;
 }
 
-export function Board({ columns, actorsById, onOpen, onReorder, emptyHint }: {
+export function Board({ columns, actorsById, onOpen, onDescend, onReorder, emptyHint }: {
   columns: BoardColumn[]; actorsById: Record<string, Actor>; onOpen: (id: string) => void;
-  onReorder?: (ids: string[]) => void; emptyHint?: ReactNode;
+  onDescend?: (id: string) => void; onReorder?: (ids: string[]) => void; emptyHint?: ReactNode;
 }) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragState, setDragState] = useState<string | null>(null);
@@ -55,7 +55,7 @@ export function Board({ columns, actorsById, onOpen, onReorder, emptyHint }: {
             {col.tasks.length === 0
               ? <div className="col-empty">暂无</div>
               : col.tasks.map((t) => (
-                <TaskCard key={t.id} task={t} actor={t.currentActor ? actorsById[t.currentActor] ?? null : null} onOpen={onOpen}
+                <TaskCard key={t.id} task={t} actor={t.currentActor ? actorsById[t.currentActor] ?? null : null} onOpen={onOpen} onDescend={onDescend}
                   draggable={!!onReorder} dragging={dragId === t.id}
                   onDragStart={() => { setDragId(t.id); setDragState(col.state); }}
                   onDragEnd={() => { setDragId(null); setDragState(null); }}

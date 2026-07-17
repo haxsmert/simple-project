@@ -46,6 +46,18 @@ describe('App shell', () => {
     expect(screen.getByText('演示项目')).toBeInTheDocument();
   });
 
+  it('上一层按钮: 项目总览时禁用; 钻进项目后可用, 点它上溯回项目总览', async () => {
+    render(<App />);
+    await screen.findByText('演示项目');
+    expect(screen.getByRole('button', { name: '返回上一层' })).toBeDisabled(); // 顶层无处可上
+    fireEvent.click(screen.getByText('演示项目')); // 钻进项目
+    await waitFor(() => expect(screen.getByText('演示任务')).toBeInTheDocument());
+    const up = screen.getByRole('button', { name: '返回上一层' });
+    expect(up).not.toBeDisabled();
+    fireEvent.click(up); // 上一层 → 回项目总览
+    await waitFor(() => expect(screen.getByRole('button', { name: '项目' })).toHaveClass('active'));
+  });
+
   it('点任务打开详情', async () => {
     render(<App />);
     fireEvent.click(await screen.findByText('演示项目'));

@@ -15,8 +15,9 @@ const MAX_EDGE_CHIPS = 2;
 const PRIO_LABEL: Record<'hi' | 'mid' | 'lo', string> = { hi: '高', mid: '中', lo: '低' };
 const STATE_NAME: Record<TaskState, string> = { planning: '待规划', awaiting_confirm: '待确认', executing: '执行中', awaiting_decision: '待决策', testing: '测试中', done: '完成' };
 
-export function TaskCard({ task, actor, onOpen, draggable, dragging, onDragStart, onDragOver, onDrop, onDragEnd }: {
+export function TaskCard({ task, actor, onOpen, onDescend, draggable, dragging, onDragStart, onDragOver, onDrop, onDragEnd }: {
   task: BoardCard; actor: Actor | null; onOpen: (id: string) => void;
+  onDescend?: (id: string) => void; // 提供时: 「子任务 N/M」变成"钻入"入口, 下钻到该任务的子任务层
   draggable?: boolean; dragging?: boolean;
   onDragStart?: (e: DragEvent<HTMLDivElement>) => void; onDragOver?: (e: DragEvent<HTMLDivElement>) => void;
   onDrop?: (e: DragEvent<HTMLDivElement>) => void; onDragEnd?: (e: DragEvent<HTMLDivElement>) => void;
@@ -56,7 +57,7 @@ export function TaskCard({ task, actor, onOpen, draggable, dragging, onDragStart
   return (
     <div className={`card${blocked ? ' blocked' : ''}${dragging ? ' dragging' : ''}`} onClick={() => onOpen(task.id)}
       role="button" tabIndex={0} aria-label={a11yLabel}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(task.id); } }}
+      onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onOpen(task.id); } }}
       draggable={draggable} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} onDragEnd={onDragEnd}>
       {task.parentTitle && <div className="card-project">{task.parentTitle}</div>}
       <div className="card-top">
@@ -67,12 +68,19 @@ export function TaskCard({ task, actor, onOpen, draggable, dragging, onDragStart
         {!!task.attention && task.attention > 0 && <span className="attn-chip">{task.attention} 待处理</span>}
       </div>
       <p className="card-title">{task.title}</p>
-      {hasSubtasks && (
+      {hasSubtasks && (onDescend ? (
+        <button type="button" className="sub-mini sub-drill" title="钻入子任务"
+          onClick={(e) => { e.stopPropagation(); onDescend(task.id); }}>
+          <span className="bar"><i style={{ width: `${pct}%` }} /></span>
+          子任务 {doneSubtaskCount}/{subtaskCount}
+          <span className="drill">钻入 ›</span>
+        </button>
+      ) : (
         <div className="sub-mini">
           <span className="bar"><i style={{ width: `${pct}%` }} /></span>
           子任务 {doneSubtaskCount}/{subtaskCount}
         </div>
-      )}
+      ))}
       <div className="card-foot">
         <ActorBadge actor={actor} />
         <span className="card-meta">
