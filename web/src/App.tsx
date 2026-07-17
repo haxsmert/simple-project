@@ -131,7 +131,7 @@ export function App() {
   }), [draft, currentId, loadBoard, refresh, guard]);
 
   const onAnswer = useCallback((clarId: string, answer: string) => guard(async () => {
-    const you = actors.find((a) => a.type === 'human')?.id ?? 'you';
+    const you = actors.find((a) => a.type === 'human')?.id ?? 'admin';
     await api.answer(clarId, { byActor: you, answer });
     await reloadCurrent();
     if (detail) setDetail(await api.task(detail.task.id));
@@ -143,7 +143,7 @@ export function App() {
   const onAct = useCallback(async (input: ActInput, action: TaskAction) => {
     let ok = false;
     await guard(async () => {
-      const you = actors.find((a) => a.type === 'human')?.id ?? 'you';
+      const you = actors.find((a) => a.type === 'human')?.id ?? 'admin';
       // 动作携带的内容先落库再转交: 转交失败(状态被并发改了等)时计划/产出也已保存, 不丢人家写的字
       if (input.planMd !== undefined) await api.plan(input.taskId, { byActor: you, planMd: input.planMd });
       if (input.outputs) await api.output(input.taskId, { byActor: you, outputsMd: input.outputs.outputsMd, summary: input.outputs.summary });
@@ -160,7 +160,7 @@ export function App() {
     return ok;
   }, [actors, actorsById, reloadCurrent, guard]);
   const onComment = useCallback((taskId: string, body: string) => guard(async () => {
-    const you = actors.find((a) => a.type === 'human')?.id ?? 'you';
+    const you = actors.find((a) => a.type === 'human')?.id ?? 'admin';
     await api.comment(taskId, { actor: you, body });
     await reloadCurrent();
     if (detail) setDetail(await api.task(detail.task.id));

@@ -14,7 +14,7 @@ function svc() {
   const db = openDb(':memory:');
   const service = new RelayService(db, mkdtempSync(join(tmpdir(), 'relay-tw-')));
   service.registerActor({ id: 'x', name: 'X', type: 'agent' });
-  service.registerActor({ id: 'you', name: '你', type: 'human' });
+  service.registerActor({ id: 'admin', name: 'admin', type: 'human' });
   return { db, service };
 }
 
@@ -32,16 +32,16 @@ describe('MCP write tools', () => {
   it('handoff 换手', () => {
     const { db, service } = svc();
     const t = service.createTask({ title: 't', state: 'executing', currentActor: 'x', currentRole: 'executor' });
-    handoffTool.handler(service, { task_id: t.id, by_actor: 'x', to_actor: 'you', to_role: 'tester', to_state: 'testing' });
+    handoffTool.handler(service, { task_id: t.id, by_actor: 'x', to_actor: 'admin', to_role: 'tester', to_state: 'testing' });
     expect(getTask(db, t.id)!.state).toBe('testing');
   });
 
   it('raise + answer 待确认', () => {
     const { db, service } = svc();
     const p = service.createTask({ title: 'p', state: 'executing', currentActor: 'x', currentRole: 'executor' });
-    const raised = JSON.parse(raiseClarificationTool.handler(service, { parent_id: p.id, by_actor: 'x', question: 'Q', to_decider: 'you' }).content[0].text);
+    const raised = JSON.parse(raiseClarificationTool.handler(service, { parent_id: p.id, by_actor: 'x', question: 'Q', to_decider: 'admin' }).content[0].text);
     expect(getTask(db, p.id)!.state).toBe('awaiting_decision');
-    answerClarificationTool.handler(service, { clar_task_id: raised.clarTask.id, by_actor: 'you', answer: 'A' });
+    answerClarificationTool.handler(service, { clar_task_id: raised.clarTask.id, by_actor: 'admin', answer: 'A' });
     expect(getTask(db, p.id)!.state).toBe('executing');
   });
 

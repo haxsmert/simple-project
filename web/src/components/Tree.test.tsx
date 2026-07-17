@@ -10,13 +10,13 @@ const mk = (over: Partial<TaskNode>): TaskNode => ({
 
 const nodes: TaskNode[] = [
   mk({
-    id: 'R-1', title: '项目A', state: 'executing', currentActor: 'you',
+    id: 'R-1', title: '项目A', state: 'executing', currentActor: 'admin',
     children: [
       mk({ id: 'R-2', title: '要不要富文本', state: 'awaiting_decision', parentId: 'R-1', currentActor: 'a' }),
     ],
   }),
 ];
-const actors = { you: { id: 'you', name: '你', type: 'human' as const, handle: null }, a: { id: 'a', name: '执行A', type: 'agent' as const, handle: null } };
+const actors = { admin: { id: 'admin', name: 'admin', type: 'human' as const, handle: null }, a: { id: 'a', name: '执行A', type: 'agent' as const, handle: null } };
 
 describe('Tree', () => {
   it('每行显示状态名, 递归渲染子节点, 负责人可见', () => {

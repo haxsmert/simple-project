@@ -8,15 +8,15 @@ const pkg: TaskPackage = {
   breadcrumb: [{ id: 'R-1', title: '项目', state: 'executing', currentActor: null, currentRole: null, parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null }],
   inputs: { goal: '建三张表', inputsMd: '计划…', depOutputs: [{ taskId: 'R-140', title: 'MCP接口', summary: '锁定字段', outputsMd: null }] },
   outputs: { outputsMd: '产物 schema.sql', summary: '进行中' },
-  clarifications: [{ id: 'R-148', title: '待确认: 富文本?', state: 'awaiting_decision', currentActor: 'you', currentRole: 'decider', parentId: 'R-142', goal: '富文本?', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }],
+  clarifications: [{ id: 'R-148', title: '待确认: 富文本?', state: 'awaiting_decision', currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: '富文本?', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }],
   thread: [{ id: 'e1', taskId: 'R-142', actorId: 'a', kind: 'clarify', roleFrom: 'executor', roleTo: 'decider', toActor: null, stateFrom: null, stateTo: null, body: '富文本?', createdAt: '2026-07-16' }],
   subtasks: [{ id: 'R-143', title: 'tasks 表', state: 'done', currentActor: null, currentRole: null, parentId: 'R-142', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null }],
   edges: { out: [{ id: 'x', fromTask: 'R-142', toTask: 'R-140', type: 'depends_on' }], in: [] },
 };
-const actors = { a: { id: 'a', name: '执行A', type: 'agent' as const, handle: null }, t: { id: 't', name: '测试T', type: 'agent' as const, handle: null }, you: { id: 'you', name: '你', type: 'human' as const, handle: null } };
+const actors = { a: { id: 'a', name: '执行A', type: 'agent' as const, handle: null }, t: { id: 't', name: '测试T', type: 'agent' as const, handle: null }, admin: { id: 'admin', name: 'admin', type: 'human' as const, handle: null } };
 // 默认路由表(后端按"最近谁在扮演该角色"推出): 界面据此预填交给谁
 const H = (id: string) => ({ actorId: id, basis: 'history' as const });
-const routing = { planner: H('a'), executor: H('a'), tester: H('t'), questioner: H('a'), decider: H('you') };
+const routing = { planner: H('a'), executor: H('a'), tester: H('t'), questioner: H('a'), decider: H('admin') };
 
 describe('fmtTime', () => {
   it('裸 UTC ISO → 「MM-DD HH:mm」本地时间, 不再显示机器味的 T/Z/毫秒', () => {
@@ -61,7 +61,7 @@ describe('TaskDetail', () => {
     const resolvedPkg: TaskPackage = {
       ...pkg,
       task: { ...pkg.task, state: 'executing' },
-      clarifications: [{ id: 'R-148', title: '待确认: 富文本?', state: 'done', currentActor: 'you', currentRole: 'decider', parentId: 'R-142', goal: '富文本?', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }],
+      clarifications: [{ id: 'R-148', title: '待确认: 富文本?', state: 'done', currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: '富文本?', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }],
     };
     const { container } = render(<TaskDetail pkg={resolvedPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     const heads = Array.from(container.querySelectorAll('.slot-head h4')).map((h) => h.textContent);
@@ -72,7 +72,7 @@ describe('TaskDetail', () => {
     const onAnswer = vi.fn();
     const optPkg: TaskPackage = {
       ...pkg,
-      clarifications: [{ id: 'R-148', title: '待确认: 导出范围?', state: 'awaiting_decision', currentActor: 'you', currentRole: 'decider', parentId: 'R-142', goal: '导出范围?\n- A. 含全部\n- B. 仅未完成', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }],
+      clarifications: [{ id: 'R-148', title: '待确认: 导出范围?', state: 'awaiting_decision', currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: '导出范围?\n- A. 含全部\n- B. 仅未完成', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }],
     };
     render(<TaskDetail pkg={optPkg} actorsById={actors} routing={routing} onAnswer={onAnswer} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: /A\. 含全部/ }));
@@ -129,7 +129,7 @@ describe('TaskDetail', () => {
     fireEvent.change(ta, { target: { value: '- [ ] 新一步' } });
     fireEvent.click(screen.getByRole('button', { name: '提交计划, 等我确认' }));
     await waitFor(() => expect(onAct).toHaveBeenCalledWith(
-      expect.objectContaining({ planMd: '- [ ] 新一步', toState: 'awaiting_confirm', toActor: 'you' }),
+      expect.objectContaining({ planMd: '- [ ] 新一步', toState: 'awaiting_confirm', toActor: 'admin' }),
       expect.objectContaining({ key: 'submit' })));
   });
 
@@ -241,9 +241,9 @@ describe('TaskDetail', () => {
     const histPkg: TaskPackage = {
       ...pkg,
       thread: [
-        { id: 'h1', taskId: 'R-142', actorId: 'you', kind: 'handoff', roleFrom: 'decider', roleTo: 'executor', toActor: 'a', stateFrom: 'awaiting_confirm', stateTo: 'executing', body: null, createdAt: '2026-07-17T08:49:00Z' },
-        { id: 'h2', taskId: 'R-142', actorId: 'you', kind: 'handoff', roleFrom: 'executor', roleTo: 'tester', toActor: 't', stateFrom: 'executing', stateTo: 'testing', body: null, createdAt: '2026-07-17T08:49:00Z' },
-        { id: 'h3', taskId: 'R-142', actorId: 'you', kind: 'handoff', roleFrom: 'tester', roleTo: 'tester', toActor: 'a', stateFrom: 'testing', stateTo: 'testing', body: null, createdAt: '2026-07-17T08:49:00Z' },
+        { id: 'h1', taskId: 'R-142', actorId: 'admin', kind: 'handoff', roleFrom: 'decider', roleTo: 'executor', toActor: 'a', stateFrom: 'awaiting_confirm', stateTo: 'executing', body: null, createdAt: '2026-07-17T08:49:00Z' },
+        { id: 'h2', taskId: 'R-142', actorId: 'admin', kind: 'handoff', roleFrom: 'executor', roleTo: 'tester', toActor: 't', stateFrom: 'executing', stateTo: 'testing', body: null, createdAt: '2026-07-17T08:49:00Z' },
+        { id: 'h3', taskId: 'R-142', actorId: 'admin', kind: 'handoff', roleFrom: 'tester', roleTo: 'tester', toActor: 'a', stateFrom: 'testing', stateTo: 'testing', body: null, createdAt: '2026-07-17T08:49:00Z' },
       ],
     };
     const { container } = render(<TaskDetail pkg={histPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
@@ -259,8 +259,8 @@ describe('TaskDetail', () => {
     const oldPkg: TaskPackage = {
       ...pkg,
       thread: [
-        { id: 'o1', taskId: 'R-142', actorId: 'you', kind: 'handoff', roleFrom: null, roleTo: 'executor', toActor: null, stateFrom: 'planning', stateTo: 'executing', body: null, createdAt: '2026-07-17T08:49:00Z' },
-        { id: 'o2', taskId: 'R-142', actorId: 'you', kind: 'handoff', roleFrom: null, roleTo: 'executor', toActor: null, stateFrom: null, stateTo: null, body: null, createdAt: '2026-07-17T08:49:00Z' },
+        { id: 'o1', taskId: 'R-142', actorId: 'admin', kind: 'handoff', roleFrom: null, roleTo: 'executor', toActor: null, stateFrom: 'planning', stateTo: 'executing', body: null, createdAt: '2026-07-17T08:49:00Z' },
+        { id: 'o2', taskId: 'R-142', actorId: 'admin', kind: 'handoff', roleFrom: null, roleTo: 'executor', toActor: null, stateFrom: null, stateTo: null, body: null, createdAt: '2026-07-17T08:49:00Z' },
       ],
     };
     const { container } = render(<TaskDetail pkg={oldPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
@@ -286,8 +286,8 @@ describe('TaskDetail', () => {
     const multiPkg: TaskPackage = {
       ...pkg,
       clarifications: [
-        { id: 'R-148', title: '待确认: 要不要富文本?', state: 'awaiting_decision', currentActor: 'you', currentRole: 'decider', parentId: 'R-142', goal: '要不要富文本?', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' },
-        { id: 'R-149', title: '待确认: 要不要暗色模式?', state: 'awaiting_decision', currentActor: 'you', currentRole: 'decider', parentId: 'R-142', goal: '要不要暗色模式?', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' },
+        { id: 'R-148', title: '待确认: 要不要富文本?', state: 'awaiting_decision', currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: '要不要富文本?', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' },
+        { id: 'R-149', title: '待确认: 要不要暗色模式?', state: 'awaiting_decision', currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: '要不要暗色模式?', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' },
       ],
       thread: [
         { id: 'e1', taskId: 'R-142', actorId: 'a', kind: 'clarify', roleFrom: 'executor', roleTo: 'decider', toActor: null, stateFrom: null, stateTo: null, body: '要不要富文本?', createdAt: '2026-07-16T01:00:00' },

@@ -5,10 +5,10 @@ import type { BoardColumn } from '../types';
 
 const columns: BoardColumn[] = [
   { state: 'executing', tasks: [{ id: 'R-1', title: '搭建数据层', state: 'executing', currentActor: 'a', currentRole: 'executor', parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }] },
-  { state: 'awaiting_decision', tasks: [{ id: 'R-2', title: '要不要富文本', state: 'awaiting_decision', currentActor: 'you', currentRole: 'decider', parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }] },
+  { state: 'awaiting_decision', tasks: [{ id: 'R-2', title: '要不要富文本', state: 'awaiting_decision', currentActor: 'admin', currentRole: 'decider', parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }] },
   { state: 'planning', tasks: [] }, { state: 'awaiting_confirm', tasks: [] }, { state: 'testing', tasks: [] }, { state: 'done', tasks: [] },
 ];
-const actors = { a: { id: 'a', name: '执行A', type: 'agent' as const, handle: null }, you: { id: 'you', name: '你', type: 'human' as const, handle: null } };
+const actors = { a: { id: 'a', name: '执行A', type: 'agent' as const, handle: null }, admin: { id: 'admin', name: 'admin', type: 'human' as const, handle: null } };
 
 // 同一列(executing)下 3 张卡片, 专供拖拽排序测试使用
 const dragColumns: BoardColumn[] = [
@@ -73,14 +73,14 @@ describe('Board', () => {
       {
         state: 'awaiting_decision',
         tasks: [{
-          id: 'R-148', title: '要不要富文本?', state: 'awaiting_decision', currentActor: 'you', currentRole: 'decider',
+          id: 'R-148', title: '要不要富文本?', state: 'awaiting_decision', currentActor: 'admin', currentRole: 'decider',
           parentId: 'R-142', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi',
         }],
       },
       {
         state: 'awaiting_confirm',
         tasks: [{
-          id: 'R-149', title: '计划待确认的任务', state: 'awaiting_confirm', currentActor: 'you', currentRole: 'decider',
+          id: 'R-149', title: '计划待确认的任务', state: 'awaiting_confirm', currentActor: 'admin', currentRole: 'decider',
           parentId: 'R-142', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null,
         }],
       },

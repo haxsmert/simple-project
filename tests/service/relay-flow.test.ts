@@ -26,11 +26,11 @@ describe('RelayService flow', () => {
   it('raise/answer 待确认全链路', () => {
     const { db, service } = svc();
     service.registerActor({ id: 'x', name: 'X', type: 'agent' });
-    service.registerActor({ id: 'you', name: '你', type: 'human' });
+    service.registerActor({ id: 'admin', name: 'admin', type: 'human' });
     const p = service.createTask({ title: 'p', state: 'executing', currentActor: 'x', currentRole: 'executor' });
-    const { clarTask } = service.raiseClarification({ parentId: p.id, byActor: 'x', question: '附件?', toDecider: 'you' });
+    const { clarTask } = service.raiseClarification({ parentId: p.id, byActor: 'x', question: '附件?', toDecider: 'admin' });
     expect(getTask(db, p.id)!.state).toBe('awaiting_decision');
-    service.answerClarification({ clarTaskId: clarTask.id, byActor: 'you', answer: '方案A' });
+    service.answerClarification({ clarTaskId: clarTask.id, byActor: 'admin', answer: '方案A' });
     expect(getTask(db, p.id)!.state).toBe('executing');
   });
 

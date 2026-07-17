@@ -148,14 +148,14 @@ describe('RelayService reads', () => {
   it('projectBoard 项目卡 attention = 直接任务里"待你处理"(待确认+待决策)数, 与该项目看板两列之和一致; taskBoard/allTasksBoard 不带', () => {
     const { db, service } = svc();
     service.registerActor({ id: 'x', name: 'X', type: 'agent' });
-    service.registerActor({ id: 'you', name: '你', type: 'human' });
+    service.registerActor({ id: 'admin', name: 'admin', type: 'human' });
 
     // 项目A: 一个任务被拉去待确认 → 任务本身 + 新生的 clarification 子任务都是 awaiting_decision;
     // 另一个任务的计划待你确认(awaiting_confirm) —— 两者都"轮到你处理"。
     createTask(db, { id: 'R-80', title: '项目A', state: 'planning' });
     createTask(db, { id: 'R-81', title: '任务1', parentId: 'R-80', state: 'executing', currentActor: 'x', currentRole: 'executor' });
-    service.raiseClarification({ parentId: 'R-81', byActor: 'x', question: '选哪个方案?', toDecider: 'you' }); // 自动生成 clar 任务 R-82
-    createTask(db, { id: 'R-85', title: '任务2(计划待确认)', parentId: 'R-80', state: 'awaiting_confirm', currentActor: 'you', currentRole: 'decider' });
+    service.raiseClarification({ parentId: 'R-81', byActor: 'x', question: '选哪个方案?', toDecider: 'admin' }); // 自动生成 clar 任务 R-82
+    createTask(db, { id: 'R-85', title: '任务2(计划待确认)', parentId: 'R-80', state: 'awaiting_confirm', currentActor: 'admin', currentRole: 'decider' });
 
     // 项目B: 全程无待你处理项
     createTask(db, { id: 'R-90', title: '项目B', state: 'planning' });

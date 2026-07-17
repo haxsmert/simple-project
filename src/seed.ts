@@ -15,7 +15,7 @@ import { mirrorTask } from './mirror/writer';
 //  · 子任务(可钻入)、依赖边(可跳转)、优先级、产出与摘要
 //  · 「经过」有故事: 换手事件记全"谁交给了谁 / 状态怎么变的"
 export function seed(db: DB, dir: string): { taskCount: number; files: string[] } {
-  const you = createActor(db, { id: 'you', name: '你', type: 'human' });
+  const admin = createActor(db, { id: 'admin', name: 'admin', type: 'human' });
   const execA = createActor(db, { id: 'agent-exec-a', name: '执行·A', type: 'agent', handle: 'mcp:exec-a' });
   const execB = createActor(db, { id: 'agent-exec-b', name: '执行·B', type: 'agent', handle: 'mcp:exec-b' });
   const planP = createActor(db, { id: 'agent-plan-p', name: '规划·P', type: 'agent', handle: 'mcp:plan-p' });
@@ -32,7 +32,7 @@ export function seed(db: DB, dir: string): { taskCount: number; files: string[] 
 
   // ── 项目 1: Relay 平台化(主线) ──────────────────────────────────
   const p1 = createTask(db, {
-    id: 'R-1', title: 'Relay 平台化', state: 'executing', currentActor: you.id, currentRole: 'planner',
+    id: 'R-1', title: 'Relay 平台化', state: 'executing', currentActor: admin.id, currentRole: 'planner',
     priority: 'hi', goal: '把 Relay 从单机原型推到能给团队用。',
   });
 
@@ -46,8 +46,8 @@ export function seed(db: DB, dir: string): { taskCount: number; files: string[] 
   });
   createTask(db, { id: 'R-3', title: '令牌桶实现', parentId: t2.id, state: 'done', currentActor: execA.id, currentRole: 'executor' });
   createTask(db, { id: 'R-4', title: '每 actor 配额', parentId: t2.id, state: 'executing', currentActor: execA.id, currentRole: 'executor' });
-  handoffEvent(t2.id, you.id, execA.id, 'executor', 'awaiting_confirm', 'executing', '先按 actor 维度限流, 工具维度以后再说');
-  appendEvent(db, { taskId: t2.id, actorId: you.id, kind: 'comment', body: '配额按 actor 还是按工具? 先按 actor。' });
+  handoffEvent(t2.id, admin.id, execA.id, 'executor', 'awaiting_confirm', 'executing', '先按 actor 维度限流, 工具维度以后再说');
+  appendEvent(db, { taskId: t2.id, actorId: admin.id, kind: 'comment', body: '配额按 actor 还是按工具? 先按 actor。' });
 
   createTask(db, {
     id: 'R-5', title: '看板拖拽换手交互', parentId: p1.id,
@@ -55,7 +55,7 @@ export function seed(db: DB, dir: string): { taskCount: number; files: string[] 
     goal: '列内拖拽排序; 跨列不给拖 —— 状态归状态机管。',
     outputsMd: '- web/src/components/Board.tsx', summary: '排序算法已单测, 等人工验收',
   });
-  handoffEvent('R-5', you.id, testT.id, 'tester', 'executing', 'testing');
+  handoffEvent('R-5', admin.id, testT.id, 'tester', 'executing', 'testing');
 
   createTask(db, {
     id: 'R-6', title: 'Web 端实时刷新', parentId: p1.id,
@@ -73,24 +73,24 @@ export function seed(db: DB, dir: string): { taskCount: number; files: string[] 
     parentId: t7.id, byActor: execB.id,
     question: '导出范围含已完成子任务吗?',
     options: ['含全部', '仅未完成'],
-    toDecider: you.id,
+    toDecider: admin.id,
   });
 
   // ── 项目 2: MCP 生态接入 ───────────────────────────────────────
   const p2 = createTask(db, {
-    id: 'R-9', title: 'MCP 生态接入', state: 'planning', currentActor: you.id, currentRole: 'planner',
+    id: 'R-9', title: 'MCP 生态接入', state: 'planning', currentActor: admin.id, currentRole: 'planner',
     priority: 'mid', goal: '让第三方 agent 也能接进来干活。',
   });
 
   // 轮到你 ②: 规划 agent 写完计划交回给你, 你说行才开工
   createTask(db, {
     id: 'R-10', title: '第三方 agent 注册流程', parentId: p2.id,
-    state: 'awaiting_confirm', currentActor: you.id, currentRole: 'decider', priority: 'mid',
+    state: 'awaiting_confirm', currentActor: admin.id, currentRole: 'decider', priority: 'mid',
     goal: '注册与鉴权草案',
     inputsMd: '打算这么做:\n- [ ] handle 唯一性校验\n- [ ] 能力声明(能担任哪些角色)\n- [ ] 最小权限的工具白名单',
   });
   appendEvent(db, { taskId: 'R-10', actorId: planP.id, kind: 'plan' }); // 「经过」讲全: 先写了计划, 再交给你拍板
-  handoffEvent('R-10', planP.id, you.id, 'decider', 'planning', 'awaiting_confirm', '计划写完了, 你看下能不能开工');
+  handoffEvent('R-10', planP.id, admin.id, 'decider', 'planning', 'awaiting_confirm', '计划写完了, 你看下能不能开工');
 
   // ── 项目 3: 看板体验打磨 ───────────────────────────────────────
   const p3 = createTask(db, {
@@ -103,7 +103,7 @@ export function seed(db: DB, dir: string): { taskCount: number; files: string[] 
     goal: '项目总览 → 钻进任务 → 再钻子任务, 上箭头逐层弹回。',
     outputsMd: '- web/src/App.tsx (路径栈)', summary: '递归导航已通, 面包屑还在打磨',
   });
-  createTask(db, { id: 'R-15', title: '列内拖拽排序', parentId: p3.id, state: 'planning', currentActor: you.id, currentRole: 'planner', priority: 'lo' });
+  createTask(db, { id: 'R-15', title: '列内拖拽排序', parentId: p3.id, state: 'planning', currentActor: admin.id, currentRole: 'planner', priority: 'lo' });
 
   // ── 项目 4: 已完成的地基(演示"完成"态) ────────────────────────
   const p4 = createTask(db, {
@@ -114,7 +114,7 @@ export function seed(db: DB, dir: string): { taskCount: number; files: string[] 
     id: 'R-20', title: 'MCP 工具集接口设计', parentId: p4.id, state: 'done',
     currentActor: execA.id, currentRole: 'executor', summary: '锁定 claim/handoff/raise 的字段命名。',
   });
-  handoffEvent('R-16', you.id, testT.id, 'tester', 'testing', 'done', '验收通过');
+  handoffEvent('R-16', admin.id, testT.id, 'tester', 'testing', 'done', '验收通过');
 
   // 关系边: R-2 依赖 R-20 的接口定义(抽屉「相关任务」里点得进去)
   createEdge(db, { fromTask: t2.id, toTask: dep.id, type: 'depends_on' });

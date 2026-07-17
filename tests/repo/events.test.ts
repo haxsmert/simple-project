@@ -7,12 +7,12 @@ import { appendEvent, listEvents } from '../../src/repo/events';
 describe('events repo', () => {
   it('追加事件并按插入顺序返回', () => {
     const db = openDb(':memory:');
-    createActor(db, { id: 'you', name: '你', type: 'human' });
+    createActor(db, { id: 'admin', name: 'admin', type: 'human' });
     const t = createTask(db, { title: 'T' });
 
-    appendEvent(db, { taskId: t.id, actorId: 'you', kind: 'claim' });
+    appendEvent(db, { taskId: t.id, actorId: 'admin', kind: 'claim' });
     appendEvent(db, {
-      taskId: t.id, actorId: 'you', kind: 'handoff',
+      taskId: t.id, actorId: 'admin', kind: 'handoff',
       roleFrom: 'planner', roleTo: 'executor', body: '交给执行者',
     });
 

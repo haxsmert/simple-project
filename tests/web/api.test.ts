@@ -35,11 +35,11 @@ describe('web api', () => {
   it('待确认全链路: raise → answer', async () => {
     const { service, app } = mk();
     service.registerActor({ id: 'x', name: 'X', type: 'agent' });
-    service.registerActor({ id: 'you', name: '你', type: 'human' });
+    service.registerActor({ id: 'admin', name: 'admin', type: 'human' });
     const p = service.createTask({ title: 'p', state: 'executing', currentActor: 'x', currentRole: 'executor' });
-    const raised = await app.inject({ method: 'POST', url: '/api/clarifications', payload: { parentId: p.id, byActor: 'x', question: 'Q', toDecider: 'you' } });
+    const raised = await app.inject({ method: 'POST', url: '/api/clarifications', payload: { parentId: p.id, byActor: 'x', question: 'Q', toDecider: 'admin' } });
     const clarId = raised.json().clarTask.id;
-    const ans = await app.inject({ method: 'POST', url: `/api/clarifications/${clarId}/answer`, payload: { byActor: 'you', answer: 'A' } });
+    const ans = await app.inject({ method: 'POST', url: `/api/clarifications/${clarId}/answer`, payload: { byActor: 'admin', answer: 'A' } });
     expect(ans.statusCode).toBe(200);
     expect(ans.json().parent.state).toBe('executing');
   });

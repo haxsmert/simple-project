@@ -10,14 +10,14 @@ describe('待确认闭环', () => {
   it('执行者卡住 → 触发待确认 → 父任务挂起', () => {
     const db = openDb(':memory:');
     createActor(db, { id: 'exec', name: '执行·A', type: 'agent' });
-    createActor(db, { id: 'you', name: '你', type: 'human' });
+    createActor(db, { id: 'admin', name: 'admin', type: 'human' });
     const parent = createTask(db, {
       title: '搭建数据层', state: 'executing', currentActor: 'exec', currentRole: 'executor',
     });
 
     const { clarTask } = raiseClarification(db, {
       parentId: parent.id, byActor: 'exec',
-      question: '信息包是否允许附件?', options: ['纯 Markdown', '结构化 JSON'], toDecider: 'you',
+      question: '信息包是否允许附件?', options: ['纯 Markdown', '结构化 JSON'], toDecider: 'admin',
     });
 
     expect(getTask(db, parent.id)!.state).toBe('awaiting_decision'); // 父挂起
@@ -36,16 +36,16 @@ describe('待确认闭环', () => {
   it('决策者答复 → 答案回流 → 父任务解冻续跑', () => {
     const db = openDb(':memory:');
     createActor(db, { id: 'exec', name: '执行·A', type: 'agent' });
-    createActor(db, { id: 'you', name: '你', type: 'human' });
+    createActor(db, { id: 'admin', name: 'admin', type: 'human' });
     const parent = createTask(db, {
       title: '搭建数据层', state: 'executing', currentActor: 'exec', currentRole: 'executor',
     });
     const { clarTask } = raiseClarification(db, {
-      parentId: parent.id, byActor: 'exec', question: '附件?', toDecider: 'you',
+      parentId: parent.id, byActor: 'exec', question: '附件?', toDecider: 'admin',
     });
 
     const { clarTask: closed, parent: resumed } = answerClarification(db, {
-      clarTaskId: clarTask.id, byActor: 'you', answer: '方案 A: 纯 Markdown + 外链',
+      clarTaskId: clarTask.id, byActor: 'admin', answer: '方案 A: 纯 Markdown + 外链',
     });
 
     expect(closed.state).toBe('done');
@@ -57,30 +57,30 @@ describe('待确认闭环', () => {
   it('多个待确认: 答一个不解冻, 全答完才解冻', () => {
     const db = openDb(':memory:');
     createActor(db, { id: 'exec', name: '执行·A', type: 'agent' });
-    createActor(db, { id: 'you', name: '你', type: 'human' });
+    createActor(db, { id: 'admin', name: 'admin', type: 'human' });
     const parent = createTask(db, { title: 'p', state: 'executing', currentActor: 'exec', currentRole: 'executor' });
-    const { clarTask: c1 } = raiseClarification(db, { parentId: parent.id, byActor: 'exec', question: 'Q1', toDecider: 'you' });
-    const { clarTask: c2 } = raiseClarification(db, { parentId: parent.id, byActor: 'exec', question: 'Q2', toDecider: 'you' });
-    answerClarification(db, { clarTaskId: c1.id, byActor: 'you', answer: 'A1' });
+    const { clarTask: c1 } = raiseClarification(db, { parentId: parent.id, byActor: 'exec', question: 'Q1', toDecider: 'admin' });
+    const { clarTask: c2 } = raiseClarification(db, { parentId: parent.id, byActor: 'exec', question: 'Q2', toDecider: 'admin' });
+    answerClarification(db, { clarTaskId: c1.id, byActor: 'admin', answer: 'A1' });
     expect(getTask(db, parent.id)!.state).toBe('awaiting_decision'); // 仍有 Q2
-    answerClarification(db, { clarTaskId: c2.id, byActor: 'you', answer: 'A2' });
+    answerClarification(db, { clarTaskId: c2.id, byActor: 'admin', answer: 'A2' });
     expect(getTask(db, parent.id)!.state).toBe('executing'); // 全答完, 解冻
   });
 
   it('不能对非 executing 任务触发待确认(状态机权威)', () => {
     const db = openDb(':memory:');
-    createActor(db, { id: 'you', name: '你', type: 'human' });
-    const p = createTask(db, { title: 'p', state: 'planning', currentActor: 'you', currentRole: 'planner' });
-    expect(() => raiseClarification(db, { parentId: p.id, byActor: 'you', question: 'Q' })).toThrow(/非法状态流转/);
+    createActor(db, { id: 'admin', name: 'admin', type: 'human' });
+    const p = createTask(db, { title: 'p', state: 'planning', currentActor: 'admin', currentRole: 'planner' });
+    expect(() => raiseClarification(db, { parentId: p.id, byActor: 'admin', question: 'Q' })).toThrow(/非法状态流转/);
   });
 
   it('已决策的待确认不可重复答复', () => {
     const db = openDb(':memory:');
     createActor(db, { id: 'exec', name: 'A', type: 'agent' });
-    createActor(db, { id: 'you', name: '你', type: 'human' });
+    createActor(db, { id: 'admin', name: 'admin', type: 'human' });
     const parent = createTask(db, { title: 'p', state: 'executing', currentActor: 'exec', currentRole: 'executor' });
-    const { clarTask } = raiseClarification(db, { parentId: parent.id, byActor: 'exec', question: 'Q', toDecider: 'you' });
-    answerClarification(db, { clarTaskId: clarTask.id, byActor: 'you', answer: 'A' });
-    expect(() => answerClarification(db, { clarTaskId: clarTask.id, byActor: 'you', answer: 'A2' })).toThrow(/勿重复/);
+    const { clarTask } = raiseClarification(db, { parentId: parent.id, byActor: 'exec', question: 'Q', toDecider: 'admin' });
+    answerClarification(db, { clarTaskId: clarTask.id, byActor: 'admin', answer: 'A' });
+    expect(() => answerClarification(db, { clarTaskId: clarTask.id, byActor: 'admin', answer: 'A2' })).toThrow(/勿重复/);
   });
 });

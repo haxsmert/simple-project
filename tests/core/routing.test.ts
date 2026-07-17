@@ -6,7 +6,7 @@ import { suggestActorForRole, routingTable } from '../../src/core/routing';
 
 function db0() {
   const db = openDb(':memory:');
-  createActor(db, { id: 'you', name: '你', type: 'human' });
+  createActor(db, { id: 'admin', name: 'admin', type: 'human' });
   createActor(db, { id: 'ex-a', name: '执行·A', type: 'agent' });
   createActor(db, { id: 'test-t', name: '测试·T', type: 'agent' });
   return db;
@@ -55,7 +55,7 @@ describe('默认路由(角色 → 默认派给谁)', () => {
 
   it('决策没历史时兜底给"人"(决策是人的活, 不该默认派给 agent)', () => {
     const db = db0();
-    expect(suggestActorForRole(db, 'decider')).toBe('you');
+    expect(suggestActorForRole(db, 'decider')).toBe('admin');
   });
 
   it('routingTable 给全五个角色的默认人选', () => {
