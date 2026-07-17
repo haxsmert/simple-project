@@ -5,7 +5,7 @@ import type { TaskNode } from '../types';
 
 const mk = (over: Partial<TaskNode>): TaskNode => ({
   id: 'R-1', title: 't', parentId: null, state: 'planning', hold: null, currentActor: null, currentRole: null,
-  goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null, children: [], ...over,
+  goal: null, planMd: null, outputsMd: null, summary: null, priority: null, children: [], ...over,
 });
 
 const nodes: TaskNode[] = [
@@ -16,7 +16,7 @@ const nodes: TaskNode[] = [
     ],
   }),
 ];
-const actors = { admin: { id: 'admin', name: 'admin', type: 'human' as const, handle: null }, a: { id: 'a', name: '执行A', type: 'agent' as const, handle: null } };
+const actors = { admin: { id: 'admin', name: 'admin', type: 'human' as const }, a: { id: 'a', name: '执行A', type: 'agent' as const } };
 
 describe('Tree', () => {
   it('每行显示状态名, 递归渲染子节点, 负责人可见', () => {

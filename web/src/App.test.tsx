@@ -6,21 +6,21 @@ const ALL_STATES = ['planning', 'executing', 'testing', 'done'];
 
 const projectCard = {
   id: 'P-1', title: '演示项目', state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor',
-  parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null,
+  parentId: null, goal: null, planMd: null, outputsMd: null, summary: null, priority: null,
   subtaskCount: 1, doneSubtaskCount: 0, attention: 2,
 };
 const projectBoard = ALL_STATES.map((s) => ({ state: s, tasks: s === 'executing' ? [projectCard] : [] }));
 
 const taskCard = {
   id: 'R-1', title: '演示任务', state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor',
-  parentId: 'P-1', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null,
+  parentId: 'P-1', goal: null, planMd: null, outputsMd: null, summary: null, priority: null,
 };
 const taskBoard = ALL_STATES.map((s) => ({ state: s, tasks: s === 'executing' ? [taskCard] : [] }));
 const allTasksBoard = ALL_STATES.map((s) => ({ state: s, tasks: s === 'executing' ? [taskCard] : [] }));
 
-const actors = [{ id: 'a', name: '执行A', type: 'agent', handle: null }];
+const actors = [{ id: 'a', name: '执行A', type: 'agent' }];
 const pkg = {
-  task: taskCard, breadcrumb: [], inputs: { goal: '演示目标', inputsMd: null, depOutputs: [] },
+  task: taskCard, breadcrumb: [], inputs: { goal: '演示目标', planMd: null, depOutputs: [] },
   outputs: { outputsMd: null, summary: null }, clarifications: [], thread: [], subtasks: [], edges: { out: [], in: [] },
 };
 

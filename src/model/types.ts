@@ -1,8 +1,11 @@
 export type ActorType = 'human' | 'agent';
-export type Role = 'planner' | 'executor' | 'tester' | 'questioner' | 'decider';
+// 角色 = 此刻在任务上扮演什么。「提问」是动作(raise_clarification), 不是常驻角色 —— questioner 已删
+export type Role = 'planner' | 'executor' | 'tester' | 'decider';
 // 主干四阶段: 计划 → 执行 → 测试 → 完成。挂起(待确认/待决策)不是阶段, 是平行的 Hold 字段。
 export type TaskState = 'planning' | 'executing' | 'testing' | 'done';
-export type EdgeType = 'blocks' | 'depends_on' | 'clarifies' | 'spawns';
+// 关系边只留两种说得清的: depends_on(A 依赖 B 的产出) / clarifies(问题卡 → 所属任务)。
+// blocks 与 depends_on 互为反向(同一关系两个名字)、spawns 是 clarifies 的反向冗余 —— 均已删
+export type EdgeType = 'depends_on' | 'clarifies';
 export type EventKind = 'handoff' | 'comment' | 'output' | 'clarify' | 'decide' | 'claim' | 'plan' | 'update';
 
 // 挂起(2026-07-17 用户定的模型): 与主干阶段**平行**的另一个字段, 类似"锁定/中断"。
@@ -15,7 +18,6 @@ export interface Actor {
   id: string;
   name: string;
   type: ActorType;
-  handle: string | null;
   createdAt: string;
 }
 
@@ -28,7 +30,7 @@ export interface Task {
   currentActor: string | null;
   currentRole: Role | null;
   goal: string | null;
-  inputsMd: string | null;
+  planMd: string | null;   // 计划(规划的交付物, 执行的输入)
   outputsMd: string | null;
   summary: string | null;
   priority: Priority | null;

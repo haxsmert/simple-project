@@ -9,14 +9,14 @@ const columns: BoardColumn[] = [
   {
     state: 'executing',
     tasks: [
-      { id: 'R-1', title: '搭建数据层', state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor', parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi' },
-      { id: 'R-2', title: '要不要富文本', state: 'executing', hold: 'decision', currentActor: 'admin', currentRole: 'decider', parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi' },
+      { id: 'R-1', title: '搭建数据层', state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor', parentId: null, goal: null, planMd: null, outputsMd: null, summary: null, priority: 'hi' },
+      { id: 'R-2', title: '要不要富文本', state: 'executing', hold: 'decision', currentActor: 'admin', currentRole: 'decider', parentId: null, goal: null, planMd: null, outputsMd: null, summary: null, priority: 'hi' },
     ],
   },
   { state: 'testing', tasks: [] },
   { state: 'done', tasks: [] },
 ];
-const actors = { a: { id: 'a', name: '执行A', type: 'agent' as const, handle: null }, admin: { id: 'admin', name: 'admin', type: 'human' as const, handle: null } };
+const actors = { a: { id: 'a', name: '执行A', type: 'agent' as const }, admin: { id: 'admin', name: 'admin', type: 'human' as const } };
 
 const fourCols = (tasks: BoardColumn['tasks'], at: BoardColumn['state'] = 'executing'): BoardColumn[] =>
   (['planning', 'executing', 'testing', 'done'] as const).map((state) => ({ state, tasks: state === at ? tasks : [] }));
@@ -24,7 +24,7 @@ const fourCols = (tasks: BoardColumn['tasks'], at: BoardColumn['state'] = 'execu
 // 同一列(executing)下 3 张卡片, 专供拖拽排序测试使用
 const dragColumns: BoardColumn[] = fourCols((['R-1', 'R-2', 'R-3'] as const).map((id, i) => ({
   id, title: `任务${i + 1}`, state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor',
-  parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi',
+  parentId: null, goal: null, planMd: null, outputsMd: null, summary: null, priority: 'hi',
 })));
 
 describe('Board', () => {
@@ -51,7 +51,7 @@ describe('Board', () => {
   it('卡面降噪: 子任务进度保留; 优先级不用文字标签(位置即优先级), 关系边/角色/状态 chip 一律不上卡面', () => {
     const richColumns = fourCols([{
       id: 'R-20', title: '带富化信息的卡片', state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor',
-      parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi',
+      parentId: null, goal: null, planMd: null, outputsMd: null, summary: null, priority: 'hi',
       subtaskCount: 5, doneSubtaskCount: 3,
       edges: { out: [{ id: 'e1', fromTask: 'R-20', toTask: 'R-30', type: 'depends_on' }], in: [] },
     }]);
@@ -67,8 +67,8 @@ describe('Board', () => {
 
   it('挂起的卡"原地举手": 留在自己的阶段列, 整卡琥珀 + 「待你决策/待你确认」徽标; 读屏 aria-label 同样带上', () => {
     const holdColumns: BoardColumn[] = [
-      { state: 'planning', tasks: [{ id: 'R-149', title: '计划待确认的任务', state: 'planning', hold: 'confirm', currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null }] },
-      { state: 'executing', tasks: [{ id: 'R-148', title: '要不要富文本?', state: 'executing', hold: 'decision', currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }] },
+      { state: 'planning', tasks: [{ id: 'R-149', title: '计划待确认的任务', state: 'planning', hold: 'confirm', currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: null, planMd: null, outputsMd: null, summary: null, priority: null }] },
+      { state: 'executing', tasks: [{ id: 'R-148', title: '要不要富文本?', state: 'executing', hold: 'decision', currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: null, planMd: null, outputsMd: null, summary: null, priority: 'hi' }] },
       { state: 'testing', tasks: [] }, { state: 'done', tasks: [] },
     ];
     const { container } = render(<Board columns={holdColumns} actorsById={actors} onOpen={vi.fn()} />);
@@ -84,7 +84,7 @@ describe('Board', () => {
   it('项目名只在跨项目视图(showProject)显示; 单项目视图里不重复渲染同一项目名', () => {
     const projTitleColumns = fourCols([{
       id: 'R-80', title: '带项目名的任务', state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor',
-      parentId: 'R-79', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi',
+      parentId: 'R-79', goal: null, planMd: null, outputsMd: null, summary: null, priority: 'hi',
       parentTitle: '演示项目',
     }]);
     const { container: withProj } = render(<Board columns={projTitleColumns} actorsById={actors} onOpen={vi.fn()} showProject />);
@@ -95,7 +95,7 @@ describe('Board', () => {
 
   it('提供 onDescend 时「子任务 N/M」变成"钻入"入口, 点击调用 onDescend 且不触发 onOpen(详情)', () => {
     const onOpen = vi.fn(); const onDescend = vi.fn();
-    const cols = fourCols([{ id: 'R-20', title: '有子任务的任务', state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor', parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null, subtaskCount: 3, doneSubtaskCount: 1 }]);
+    const cols = fourCols([{ id: 'R-20', title: '有子任务的任务', state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor', parentId: null, goal: null, planMd: null, outputsMd: null, summary: null, priority: null, subtaskCount: 3, doneSubtaskCount: 1 }]);
     render(<Board columns={cols} actorsById={actors} onOpen={onOpen} onDescend={onDescend} />);
     fireEvent.click(screen.getByTitle('钻入子任务'));
     expect(onDescend).toHaveBeenCalledWith('R-20');
@@ -103,14 +103,14 @@ describe('Board', () => {
   });
 
   it('不提供 onDescend 时「子任务 N/M」是纯展示(无钻入按钮)', () => {
-    const cols = fourCols([{ id: 'R-20', title: '有子任务的任务', state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor', parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null, subtaskCount: 3, doneSubtaskCount: 1 }]);
+    const cols = fourCols([{ id: 'R-20', title: '有子任务的任务', state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor', parentId: null, goal: null, planMd: null, outputsMd: null, summary: null, priority: null, subtaskCount: 3, doneSubtaskCount: 1 }]);
     render(<Board columns={cols} actorsById={actors} onOpen={vi.fn()} />);
     expect(screen.queryByTitle('钻入子任务')).toBeNull();
     expect(screen.getByText(/子任务 1\/3/)).toBeInTheDocument();
   });
 
   it('项目卡 attention 渲染「N 待处理」聚合角标(唯一上卡面的 chip)', () => {
-    const cols = fourCols([{ id: 'R-1', title: '项目A', state: 'planning', hold: null, currentActor: null, currentRole: null, parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null, attention: 2 }], 'planning');
+    const cols = fourCols([{ id: 'R-1', title: '项目A', state: 'planning', hold: null, currentActor: null, currentRole: null, parentId: null, goal: null, planMd: null, outputsMd: null, summary: null, priority: null, attention: 2 }], 'planning');
     render(<Board columns={cols} actorsById={actors} onOpen={vi.fn()} />);
     expect(screen.getByText('2 待处理')).toBeInTheDocument(); // 聚合信号非重复信息, 保留
   });

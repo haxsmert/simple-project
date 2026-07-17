@@ -16,6 +16,14 @@ export function openDb(path: string = ':memory:'): DB {
   // 安全迁移: 已存在的 db 文件不会被 CREATE TABLE IF NOT EXISTS 重建, 需手动补列
   const cols = db.prepare('PRAGMA table_info(tasks)').all() as { name: string }[];
   if (!cols.some((c) => c.name === 'rank')) db.exec('ALTER TABLE tasks ADD COLUMN rank REAL');
+  // 字段语义大扫除(2026-07-18): inputs_md 存的一直是"计划" → 改名 plan_md, 名实相符
+  if (cols.some((c) => c.name === 'inputs_md')) db.exec('ALTER TABLE tasks RENAME COLUMN inputs_md TO plan_md');
+  // actors.handle 只写不读零消费 → 删列
+  const acols = db.prepare('PRAGMA table_info(actors)').all() as { name: string }[];
+  if (acols.some((c) => c.name === 'handle')) db.exec('ALTER TABLE actors DROP COLUMN handle');
+  // 关系边收敛为两种: blocks 与 depends_on 互为反向(翻转保留信息), spawns 是 clarifies 的反向冗余(直接删)
+  db.exec("UPDATE edges SET type='depends_on', from_task=to_task, to_task=from_task WHERE type='blocks'"); // SET 右侧取旧值, swap 安全
+  db.exec("DELETE FROM edges WHERE type='spawns'");
   const ev = db.prepare('PRAGMA table_info(events)').all() as { name: string }[];
   if (!ev.some((c) => c.name === 'to_actor')) db.exec('ALTER TABLE events ADD COLUMN to_actor TEXT REFERENCES actors(id)');
   if (!ev.some((c) => c.name === 'state_from')) db.exec('ALTER TABLE events ADD COLUMN state_from TEXT');
@@ -53,14 +61,14 @@ export function openDb(path: string = ':memory:'): DB {
       db.exec('ALTER TABLE tasks RENAME TO tasks_legacy');
       db.exec(schema);
       db.exec(
-        `INSERT INTO tasks (id,title,parent_id,state,hold,current_actor,current_role,goal,inputs_md,outputs_md,summary,priority,rank,created_at,updated_at)
+        `INSERT INTO tasks (id,title,parent_id,state,hold,current_actor,current_role,goal,plan_md,outputs_md,summary,priority,rank,created_at,updated_at)
          SELECT id,title,parent_id,
            CASE state
              WHEN 'awaiting_confirm' THEN 'planning'
              WHEN 'awaiting_decision' THEN CASE WHEN EXISTS(SELECT 1 FROM edges e WHERE e.from_task=tasks_legacy.id AND e.type='clarifies') THEN 'planning' ELSE 'executing' END
              ELSE state END,
            CASE state WHEN 'awaiting_confirm' THEN 'confirm' WHEN 'awaiting_decision' THEN 'decision' ELSE NULL END,
-           current_actor,current_role,goal,inputs_md,outputs_md,summary,priority,rank,created_at,updated_at
+           current_actor,current_role,goal,plan_md,outputs_md,summary,priority,rank,created_at,updated_at
          FROM tasks_legacy`,
       );
       db.exec('DROP TABLE tasks_legacy');

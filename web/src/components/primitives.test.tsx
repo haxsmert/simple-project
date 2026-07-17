@@ -6,9 +6,9 @@ import { EdgeChip } from './EdgeChip';
 
 describe('primitives', () => {
   it('ActorBadge 人/agent 双编码', () => {
-    const { container: c1 } = render(<ActorBadge actor={{ id: 'admin', name: 'admin', type: 'human', handle: null }} />);
+    const { container: c1 } = render(<ActorBadge actor={{ id: 'admin', name: 'admin', type: 'human' }} />);
     expect(c1.querySelector('.actor.human')).toBeTruthy();
-    const { container: c2 } = render(<ActorBadge actor={{ id: 'a', name: '执行A', type: 'agent', handle: null }} />);
+    const { container: c2 } = render(<ActorBadge actor={{ id: 'a', name: '执行A', type: 'agent' }} />);
     expect(c2.querySelector('.actor.agent')).toBeTruthy();
     const { container: c3 } = render(<ActorBadge actor={null} />);
     expect(c3.querySelector('.actor.none')).toBeTruthy();

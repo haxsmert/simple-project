@@ -20,7 +20,7 @@ describe('openDb', () => {
   it('重开已是新 schema 的库不得重跑迁移: hold 值原样保留(guard 误判会把挂起全抹掉 —— 踩过)', () => {
     const path = join(mkdtempSync(join(tmpdir(), 'relay-reopen-')), 'x.db');
     const db1 = openDb(path);
-    db1.exec(`INSERT INTO actors VALUES ('a','A','agent',NULL,'2026-01-01');
+    db1.exec(`INSERT INTO actors VALUES ('a','A','agent','2026-01-01');
       INSERT INTO tasks (id,title,state,hold,created_at,updated_at) VALUES ('R-1','t','planning','confirm','2026-01-01','2026-01-01');`);
     db1.close();
     const db2 = openDb(path); // 重开: 迁移 guard 不得触发重建
@@ -34,7 +34,7 @@ describe('openDb', () => {
     legacy.exec(`
       CREATE TABLE actors (id TEXT PRIMARY KEY, name TEXT NOT NULL, type TEXT NOT NULL, handle TEXT, created_at TEXT NOT NULL);
       CREATE TABLE tasks (id TEXT PRIMARY KEY, title TEXT NOT NULL, parent_id TEXT, state TEXT NOT NULL,
-        current_actor TEXT, current_role TEXT, goal TEXT, inputs_md TEXT, outputs_md TEXT, summary TEXT,
+        current_actor TEXT, current_role TEXT, goal TEXT, plan_md TEXT, outputs_md TEXT, summary TEXT,
         priority TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE TABLE edges (id TEXT PRIMARY KEY, from_task TEXT NOT NULL, to_task TEXT NOT NULL, type TEXT NOT NULL, created_at TEXT NOT NULL);
       CREATE TABLE events (

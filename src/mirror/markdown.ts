@@ -21,7 +21,7 @@ export function renderTaskMarkdown(pkg: TaskPackage): string {
   ];
 
   if (t.goal) lines.push(`**目标:** ${t.goal}`, '');
-  if (t.inputsMd) lines.push(t.inputsMd, '');
+  if (t.planMd) lines.push(t.planMd, '');
   if (pkg.inputs.depOutputs.length) {
     lines.push('**依赖产出:**');
     for (const d of pkg.inputs.depOutputs) {

@@ -43,8 +43,7 @@ export function raiseClarification(
     priority: parent.priority,
   });
 
-  createEdge(db, { fromTask: clarTask.id, toTask: input.parentId, type: 'clarifies' });
-  createEdge(db, { fromTask: input.parentId, toTask: clarTask.id, type: 'spawns' });
+  createEdge(db, { fromTask: clarTask.id, toTask: input.parentId, type: 'clarifies' }); // 反向不再冗余存 spawns 边(查询取入边即可)
 
   const parentUpdated = updateTask(db, input.parentId, { hold: 'decision' }); // 阶段不动, 原地举手
   appendEvent(db, {

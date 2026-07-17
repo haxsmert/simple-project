@@ -9,7 +9,7 @@ export function ok(data: unknown): ToolResult {
   return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
 }
 
-const roleEnum = z.enum(['planner', 'executor', 'tester', 'questioner', 'decider']);
+const roleEnum = z.enum(['planner', 'executor', 'tester', 'decider']);
 
 export const listMyTasksTool = {
   name: 'list_my_tasks',
@@ -59,9 +59,9 @@ export const deleteTaskTool = {
 
 export const linkEdgeTool = {
   name: 'link_edge',
-  description: '建任务间的有向关系边: blocks(阻塞)/depends_on(依赖)/clarifies(待确认)/spawns(引出)。',
-  schema: { from_task: z.string(), to_task: z.string(), type: z.enum(['blocks', 'depends_on', 'clarifies', 'spawns']) },
-  handler(service: RelayService, args: { from_task: string; to_task: string; type: 'blocks' | 'depends_on' | 'clarifies' | 'spawns' }): ToolResult {
+  description: '建任务间的有向关系边: depends_on(A 依赖 B 的产出)/clarifies(问题卡→所属任务)。',
+  schema: { from_task: z.string(), to_task: z.string(), type: z.enum(['depends_on', 'clarifies']) },
+  handler(service: RelayService, args: { from_task: string; to_task: string; type: 'depends_on' | 'clarifies' }): ToolResult {
     return ok(service.linkEdge({ fromTask: args.from_task, toTask: args.to_task, type: args.type }));
   },
 };
@@ -69,8 +69,8 @@ export const linkEdgeTool = {
 export const registerActorTool = {
   name: 'register_actor',
   description: '注册行动者(人或 agent)。新 agent 接入时先自报家门, 之后才能领任务/被指派。',
-  schema: { id: z.string(), name: z.string(), type: z.enum(['human', 'agent']), handle: z.string().optional() },
-  handler(service: RelayService, args: { id: string; name: string; type: 'human' | 'agent'; handle?: string }): ToolResult {
+  schema: { id: z.string(), name: z.string(), type: z.enum(['human', 'agent']) },
+  handler(service: RelayService, args: { id: string; name: string; type: 'human' | 'agent' }): ToolResult {
     return ok(service.registerActor(args));
   },
 };

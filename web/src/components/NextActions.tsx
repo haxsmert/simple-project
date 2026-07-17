@@ -13,7 +13,7 @@ export function NextActions({ taskId, state, hold, currentActor, actorsById, rou
   taskId: string; state: TaskState; hold: Hold; currentActor: string | null;
   actorsById: Record<string, Actor>;
   routing: Record<string, { actorId: string | null; basis: 'history' | 'fallback' }>;
-  content: { inputsMd: string | null; outputsMd: string | null; summary: string | null }; // 表单预填: 已写过的别让人重打
+  content: { planMd: string | null; outputsMd: string | null; summary: string | null }; // 表单预填: 已写过的别让人重打
   openSubtasks: number; // 未完成的直接子任务数 —— 完成前必须清零(硬闸在后端), 进测试只如实提示
   onAct: (input: ActInput, action: TaskAction) => Promise<boolean>;
 }) {
@@ -49,7 +49,7 @@ export function NextActions({ taskId, state, hold, currentActor, actorsById, rou
   // 展开某动作的面板, 预填现有内容(改计划/补产出都是在已有基础上写, 别让人从零重打)
   const openPanel = (a: TaskAction) => {
     if (a.key === 'reassign') setPicked(candidates[0]?.id ?? '');
-    else if (a.form?.kind === 'plan') setPlanV(content.inputsMd ?? '');
+    else if (a.form?.kind === 'plan') setPlanV(content.planMd ?? '');
     else if (a.form?.kind === 'output') { setOutV(content.outputsMd ?? ''); setSumV(content.summary ?? ''); }
     else if (a.form?.kind === 'reason') setReasonV(note); // 共用留言框里已写的话接过来, 别丢
     setOpenFor(a.key);
@@ -141,7 +141,7 @@ export function NextActions({ taskId, state, hold, currentActor, actorsById, rou
           }
           // onlyIfMissing 表单 = 入门守卫: 内容已有就一键直走, 缺了才展开要求写(如"开始执行"的计划)
           const guardPassed = a.form?.onlyIfMissing && (
-            a.form.kind === 'plan' ? !!content.inputsMd?.trim()
+            a.form.kind === 'plan' ? !!content.planMd?.trim()
               : a.form.kind === 'output' ? !!(content.outputsMd?.trim() || content.summary?.trim())
                 : true);
           return (

@@ -15,7 +15,7 @@ describe('assemblePackage', () => {
     const task = createTask(db, {
       title: '搭建数据层', parentId: project.id, state: 'executing',
       currentActor: 'exec', currentRole: 'executor',
-      goal: '建三张表', inputsMd: '计划: ...', outputsMd: '产物: schema.sql', summary: '进行中',
+      goal: '建三张表', planMd: '计划: ...', outputsMd: '产物: schema.sql', summary: '进行中',
     });
     createTask(db, { title: '子任务1', parentId: task.id });
 

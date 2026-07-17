@@ -98,7 +98,7 @@ function SlotHead({ icon, tint, title, tag }: { icon: React.ReactNode; tint: 'hu
   );
 }
 
-// ——— 数据解析(inputsMd / outputsMd / goal 里的 markdown 片段) ———
+// ——— 数据解析(planMd / outputsMd / goal 里的 markdown 片段) ———
 function parsePlan(md: string | null): { plain: string[]; items: { done: boolean; text: string }[] } {
   const plain: string[] = [];
   const items: { done: boolean; text: string }[] = [];
@@ -236,7 +236,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
   onClose: () => void;
 }) {
   const t = pkg.task;
-  const inputPlan = parsePlan(pkg.inputs.inputsMd);
+  const inputPlan = parsePlan(pkg.inputs.planMd);
   const outputArtifacts = parseArtifacts(pkg.outputs.outputsMd);
   const openClar = pkg.clarifications.filter((c) => c.state !== 'done');
   const openClarCount = openClar.length;
@@ -261,7 +261,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
   // 待确认(计划等你拍板)时提到最顶当主角; 其余状态放在底部当收尾动作。
   const nextActions = (
     <NextActions key={t.id} taskId={t.id} state={t.state} hold={t.hold} currentActor={t.currentActor} actorsById={actorsById} routing={routing}
-      content={{ inputsMd: pkg.inputs.inputsMd, outputsMd: pkg.outputs.outputsMd, summary: pkg.outputs.summary }}
+      content={{ planMd: pkg.inputs.planMd, outputsMd: pkg.outputs.outputsMd, summary: pkg.outputs.summary }}
       openSubtasks={pkg.subtasks.filter((s) => s.state !== 'done').length} onAct={onAct} />
   );
   // 拍板槽自带拍板依据: 目标 + 计划正文就在批准/打回按钮上方 —— 依据和动作分居两个槽位,

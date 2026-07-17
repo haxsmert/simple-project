@@ -4,16 +4,16 @@ import { TaskDetail, fmtTime } from './TaskDetail';
 import type { TaskPackage } from '../types';
 
 const pkg: TaskPackage = {
-  task: { id: 'R-142', title: '搭建数据层', state: 'executing', hold: 'decision', currentActor: 'a', currentRole: 'executor', parentId: 'R-1', goal: '建三张表', inputsMd: '计划…', outputsMd: '产物 schema.sql', summary: '进行中', priority: 'hi' },
-  breadcrumb: [{ id: 'R-1', title: '项目', state: 'executing', hold: null, currentActor: null, currentRole: null, parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null }],
-  inputs: { goal: '建三张表', inputsMd: '计划…', depOutputs: [{ taskId: 'R-140', title: 'MCP接口', summary: '锁定字段', outputsMd: null }] },
+  task: { id: 'R-142', title: '搭建数据层', state: 'executing', hold: 'decision', currentActor: 'a', currentRole: 'executor', parentId: 'R-1', goal: '建三张表', planMd: '计划…', outputsMd: '产物 schema.sql', summary: '进行中', priority: 'hi' },
+  breadcrumb: [{ id: 'R-1', title: '项目', state: 'executing', hold: null, currentActor: null, currentRole: null, parentId: null, goal: null, planMd: null, outputsMd: null, summary: null, priority: null }],
+  inputs: { goal: '建三张表', planMd: '计划…', depOutputs: [{ taskId: 'R-140', title: 'MCP接口', summary: '锁定字段', outputsMd: null }] },
   outputs: { outputsMd: '产物 schema.sql', summary: '进行中' },
-  clarifications: [{ id: 'R-148', title: '待确认: 富文本?', state: 'planning', hold: 'decision', currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: '富文本?', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }],
+  clarifications: [{ id: 'R-148', title: '待确认: 富文本?', state: 'planning', hold: 'decision', currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: '富文本?', planMd: null, outputsMd: null, summary: null, priority: 'hi' }],
   thread: [{ id: 'e1', taskId: 'R-142', actorId: 'a', kind: 'clarify', roleFrom: 'executor', roleTo: 'decider', toActor: null, stateFrom: null, stateTo: null, holdFrom: null, holdTo: null, body: '富文本?', createdAt: '2026-07-16' }],
-  subtasks: [{ id: 'R-143', title: 'tasks 表', state: 'done', hold: null, currentActor: null, currentRole: null, parentId: 'R-142', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null }],
+  subtasks: [{ id: 'R-143', title: 'tasks 表', state: 'done', hold: null, currentActor: null, currentRole: null, parentId: 'R-142', goal: null, planMd: null, outputsMd: null, summary: null, priority: null }],
   edges: { out: [{ id: 'x', fromTask: 'R-142', toTask: 'R-140', type: 'depends_on', peerTitle: 'MCP接口' }], in: [] },
 };
-const actors = { a: { id: 'a', name: '执行A', type: 'agent' as const, handle: null }, t: { id: 't', name: '测试T', type: 'agent' as const, handle: null }, admin: { id: 'admin', name: 'admin', type: 'human' as const, handle: null } };
+const actors = { a: { id: 'a', name: '执行A', type: 'agent' as const }, t: { id: 't', name: '测试T', type: 'agent' as const }, admin: { id: 'admin', name: 'admin', type: 'human' as const } };
 // 默认路由表(后端按"最近谁在扮演该角色"推出): 界面据此预填交给谁
 const H = (id: string) => ({ actorId: id, basis: 'history' as const });
 const routing = { planner: H('a'), executor: H('a'), tester: H('t'), questioner: H('a'), decider: H('admin') };
@@ -61,7 +61,7 @@ describe('TaskDetail', () => {
     const resolvedPkg: TaskPackage = {
       ...pkg,
       task: { ...pkg.task, state: 'executing', hold: null },
-      clarifications: [{ id: 'R-148', title: '待确认: 富文本?', state: 'done', hold: null, currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: '富文本?', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }],
+      clarifications: [{ id: 'R-148', title: '待确认: 富文本?', state: 'done', hold: null, currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: '富文本?', planMd: null, outputsMd: null, summary: null, priority: 'hi' }],
     };
     const { container } = render(<TaskDetail pkg={resolvedPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     const heads = Array.from(container.querySelectorAll('.slot-head h4')).map((h) => h.textContent);
@@ -72,7 +72,7 @@ describe('TaskDetail', () => {
     const onAnswer = vi.fn();
     const optPkg: TaskPackage = {
       ...pkg,
-      clarifications: [{ id: 'R-148', title: '待确认: 导出范围?', state: 'planning', hold: 'decision', currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: '导出范围?\n- A. 含全部\n- B. 仅未完成', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }],
+      clarifications: [{ id: 'R-148', title: '待确认: 导出范围?', state: 'planning', hold: 'decision', currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: '导出范围?\n- A. 含全部\n- B. 仅未完成', planMd: null, outputsMd: null, summary: null, priority: 'hi' }],
     };
     render(<TaskDetail pkg={optPkg} actorsById={actors} routing={routing} onAnswer={onAnswer} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: /A\. 含全部/ }));
@@ -103,7 +103,7 @@ describe('TaskDetail', () => {
     const confirmPkg: TaskPackage = {
       ...pkg,
       task: { ...pkg.task, state: 'planning', hold: 'confirm', currentActor: 'admin' }, clarifications: [],
-      inputs: { ...pkg.inputs, inputsMd: '- [ ] 建表\n- [ ] 加索引' },
+      inputs: { ...pkg.inputs, planMd: '- [ ] 建表\n- [ ] 加索引' },
     };
     const { container } = render(<TaskDetail pkg={confirmPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     const confirmSlot = container.querySelectorAll('.slot')[0] as HTMLElement; // 「等你拍板」在最顶
@@ -118,7 +118,7 @@ describe('TaskDetail', () => {
     const barePkg: TaskPackage = {
       ...pkg,
       task: { ...pkg.task, state: 'planning', hold: null }, clarifications: [],
-      inputs: { goal: null, inputsMd: null, depOutputs: [] },
+      inputs: { goal: null, planMd: null, depOutputs: [] },
     };
     const { unmount } = render(<TaskDetail pkg={barePkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={onAct} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: '开始执行' }));
@@ -135,7 +135,7 @@ describe('TaskDetail', () => {
     const plannedPkg: TaskPackage = {
       ...pkg,
       task: { ...pkg.task, state: 'planning', hold: null }, clarifications: [],
-      inputs: { ...pkg.inputs, inputsMd: '- [ ] 已有计划' },
+      inputs: { ...pkg.inputs, planMd: '- [ ] 已有计划' },
     };
     render(<TaskDetail pkg={plannedPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={onAct2} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: '开始执行' }));
@@ -159,7 +159,7 @@ describe('TaskDetail', () => {
     const withOpenChild: TaskPackage = {
       ...pkg,
       task: { ...pkg.task, state: 'testing', hold: null }, clarifications: [],
-      subtasks: [{ id: 'R-143', title: '还没完的子任务', state: 'executing', hold: null, currentActor: null, currentRole: null, parentId: 'R-142', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null }],
+      subtasks: [{ id: 'R-143', title: '还没完的子任务', state: 'executing', hold: null, currentActor: null, currentRole: null, parentId: 'R-142', goal: null, planMd: null, outputsMd: null, summary: null, priority: null }],
     };
     const { unmount } = render(<TaskDetail pkg={withOpenChild} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     const pass = screen.getByRole('button', { name: /验收通过/ });
@@ -178,7 +178,7 @@ describe('TaskDetail', () => {
     const planPkg: TaskPackage = {
       ...pkg,
       task: { ...pkg.task, state: 'planning', hold: null }, clarifications: [],
-      inputs: { ...pkg.inputs, inputsMd: '- [ ] 老一步' },
+      inputs: { ...pkg.inputs, planMd: '- [ ] 老一步' },
     };
     render(<TaskDetail pkg={planPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={onAct} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: /提交计划/ }));
@@ -195,7 +195,7 @@ describe('TaskDetail', () => {
   });
 
   it('诚实性: 计划清单与子任务都不渲染复选框(勾不动的东西不许长成复选框)', () => {
-    const planPkg: TaskPackage = { ...pkg, inputs: { ...pkg.inputs, inputsMd: '- [x] 令牌桶\n- [ ] 每 actor 配额' } };
+    const planPkg: TaskPackage = { ...pkg, inputs: { ...pkg.inputs, planMd: '- [x] 令牌桶\n- [ ] 每 actor 配额' } };
     const { container } = render(<TaskDetail pkg={planPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     expect(container.querySelector('input[type="checkbox"]')).toBeNull();
     expect(container.querySelector('ul.plan .ck')).toBeNull();
@@ -228,7 +228,7 @@ describe('TaskDetail', () => {
   });
 
   it('完成与否对读屏可感知(✓/圆点都是视觉的, 必须配隐藏文本)', () => {
-    const planPkg: TaskPackage = { ...pkg, inputs: { ...pkg.inputs, inputsMd: '- [x] 令牌桶\n- [ ] 每 actor 配额' } };
+    const planPkg: TaskPackage = { ...pkg, inputs: { ...pkg.inputs, planMd: '- [x] 令牌桶\n- [ ] 每 actor 配额' } };
     render(<TaskDetail pkg={planPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     expect(screen.getByText('已完成')).toBeInTheDocument();
     expect(screen.getByText('未完成')).toBeInTheDocument();
@@ -246,8 +246,8 @@ describe('TaskDetail', () => {
   it('空槽位不渲染: 输入/产出/交互记录 没内容时连标题都不出现(不承诺不存在的内容)', () => {
     const bare: TaskPackage = {
       ...pkg,
-      task: { ...pkg.task, state: 'executing', hold: null, goal: null, inputsMd: null, outputsMd: null, summary: null },
-      inputs: { goal: null, inputsMd: null, depOutputs: [] },
+      task: { ...pkg.task, state: 'executing', hold: null, goal: null, planMd: null, outputsMd: null, summary: null },
+      inputs: { goal: null, planMd: null, depOutputs: [] },
       outputs: { outputsMd: null, summary: null },
       clarifications: [], thread: [], subtasks: [], edges: { out: [], in: [] },
     };
@@ -357,15 +357,15 @@ describe('TaskDetail', () => {
     const multiPkg: TaskPackage = {
       ...pkg,
       clarifications: [
-        { id: 'R-148', title: '待确认: 要不要富文本?', state: 'planning', hold: 'decision', currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: '要不要富文本?', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' },
-        { id: 'R-149', title: '待确认: 要不要暗色模式?', state: 'planning', hold: 'decision', currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: '要不要暗色模式?', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' },
+        { id: 'R-148', title: '待确认: 要不要富文本?', state: 'planning', hold: 'decision', currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: '要不要富文本?', planMd: null, outputsMd: null, summary: null, priority: 'hi' },
+        { id: 'R-149', title: '待确认: 要不要暗色模式?', state: 'planning', hold: 'decision', currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: '要不要暗色模式?', planMd: null, outputsMd: null, summary: null, priority: 'hi' },
       ],
       thread: [
         { id: 'e1', taskId: 'R-142', actorId: 'a', kind: 'clarify', roleFrom: 'executor', roleTo: 'decider', toActor: null, stateFrom: null, stateTo: null, holdFrom: null, holdTo: null, body: '要不要富文本?', createdAt: '2026-07-16T01:00:00' },
         { id: 'e2', taskId: 'R-142', actorId: 'b', kind: 'clarify', roleFrom: 'executor', roleTo: 'decider', toActor: null, stateFrom: null, stateTo: null, holdFrom: null, holdTo: null, body: '要不要暗色模式?', createdAt: '2026-07-16T02:00:00' },
       ],
     };
-    const multiActors = { ...actors, b: { id: 'b', name: '执行B', type: 'agent' as const, handle: null } };
+    const multiActors = { ...actors, b: { id: 'b', name: '执行B', type: 'agent' as const } };
     const { container } = render(<TaskDetail pkg={multiPkg} actorsById={multiActors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     const clarCards = container.querySelectorAll('.clar');
     expect(clarCards.length).toBe(2);

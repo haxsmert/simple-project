@@ -197,7 +197,7 @@ describe('RelayService reads', () => {
     service.registerActor({ id: 'x', name: 'X', type: 'agent' });
     service.registerActor({ id: 'admin', name: 'admin', type: 'human' });
     // 等拍板: 计划站挂 confirm, 交到 admin 手里
-    createTask(db, { id: 'R-60', title: '注册流程', state: 'planning', hold: 'confirm', currentActor: 'admin', currentRole: 'decider', inputsMd: '- [ ] 第一步' });
+    createTask(db, { id: 'R-60', title: '注册流程', state: 'planning', hold: 'confirm', currentActor: 'admin', currentRole: 'decider', planMd: '- [ ] 第一步' });
     // 等答复: x 在 R-61 上提问给 admin → 生成问题卡(admin 持有), 父任务挂起(x 仍持有)
     createTask(db, { id: 'R-61', title: '导出报告', state: 'executing', currentActor: 'x', currentRole: 'executor' });
     service.raiseClarification({ parentId: 'R-61', byActor: 'x', question: '含已完成的吗?', options: ['含全部', '仅未完成'], toDecider: 'admin' });

@@ -171,7 +171,7 @@ export class RelayService {
     decisions: Array<{ question: Task; questionText: string; options: Array<{ key: string; text: string }>; parent: Task | null }>;
   } {
     const mine = this.listByActor(actorId);
-    const confirms = mine.filter((t) => t.hold === 'confirm').map((t) => ({ task: t, plan: t.inputsMd }));
+    const confirms = mine.filter((t) => t.hold === 'confirm').map((t) => ({ task: t, plan: t.planMd }));
     const decisions = mine
       .filter((t) => t.hold === 'decision' && t.state !== 'done')
       .flatMap((q) => {
@@ -273,10 +273,10 @@ export class RelayService {
     return { ok: true, unfrozeParent };
   }
 
-  // 计划是规划者的交付物, 落在 inputsMd(它是下一棒执行的输入)。
+  // 计划是规划者的交付物, 落在 planMd(它是下一棒执行的输入)。
   // 没有这个通道, "提交计划"就是一句空话 —— 界面和 agent 都无处把计划写进来。
   submitPlan(taskId: string, byActor: string, planMd: string): Task {
-    const t = updateTask(this.db, taskId, { inputsMd: planMd });
+    const t = updateTask(this.db, taskId, { planMd: planMd });
     appendEvent(this.db, { taskId, actorId: byActor, kind: 'plan' });
     this.mirror(taskId);
     return t;

@@ -58,10 +58,10 @@ describe('默认路由(角色 → 默认派给谁)', () => {
     expect(suggestActorForRole(db, 'decider')).toBe('admin');
   });
 
-  it('routingTable 给全五个角色的默认人选', () => {
+  it('routingTable 给全部四个角色的默认人选', () => {
     const db = db0();
     const t = routingTable(db);
-    expect(Object.keys(t).sort()).toEqual(['decider', 'executor', 'planner', 'questioner', 'tester']);
+    expect(Object.keys(t).sort()).toEqual(['decider', 'executor', 'planner', 'tester']);
     expect(Object.values(t).every((v) => v !== null)).toBe(true);
   });
 });

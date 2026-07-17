@@ -25,7 +25,7 @@ export function handoff(db: DB, input: HandoffInput): Task {
   // 产品约定(2026-07-17): 确认关可以跳过, 但计划不能跳过 —— 计划是执行的输入,
   // 从计划阶段推进(直接开工, 或提交等确认)都必须先有计划。
   const advancing = task.state === 'planning' && task.hold === null && (toState !== 'planning' || toHold === 'confirm');
-  if (advancing && !(task.inputsMd ?? '').trim()) {
+  if (advancing && !(task.planMd ?? '').trim()) {
     throw new Error('还没有计划: 先写计划(界面的计划输入 / MCP submit_plan)再推进');
   }
   // 原地改派保角色(2026-07-17 实洞): 位置不动(阶段、挂起都不变)的换手 = 纯换人,

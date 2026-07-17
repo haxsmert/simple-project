@@ -27,9 +27,9 @@
 | 概念 | 说明 |
 |---|---|
 | **Actor 行动者** | 你 或 某个 agent。统一抽象, 任务不假设负责人是人。agent 注册后即一等 Actor。 |
-| **Role 角色** | 规划/确认、执行、测试、提问、决策。角色是"此刻在这个任务上扮演什么", **不绑死在 Actor 身上**——同一 agent 这个任务当执行者、那个任务当测试者。 |
+| **Role 角色** | 规划、执行、测试、决策(四种)。角色是"此刻在这个任务上扮演什么", **不绑死在 Actor 身上**——同一 agent 这个任务当执行者、那个任务当测试者。「提问」是动作(raise), 不是常驻角色, 已删。 |
 | **Task 任务** | 唯一的结构单位。**递归**——一个够大的任务就是"项目", 不存在独立的"项目/子任务"概念。 |
-| **Edge 关系边** | 任务之间的有向关系: `阻塞 blocks`、`依赖 depends_on`、`待确认 clarifies`、`引出 spawns`。 |
+| **Edge 关系边** | 任务之间的有向关系, 只留两种说得清的: `依赖 depends_on`(A 依赖 B 的产出)、`待确认 clarifies`(问题卡→所属任务)。blocks 与 depends_on 互为反向、spawns 是 clarifies 的反向冗余, 均已删(2026-07-18 字段语义大扫除)。 |
 
 ### 2.1 状态机(约定俗成的固定骨架 · 2026-07-17 改版: 阶段与挂起正交)
 
@@ -56,7 +56,6 @@ actors(
   id          TEXT PRIMARY KEY,      -- 'you' / 'agent-exec-a' ...
   name        TEXT NOT NULL,         -- '你' / '执行·A'
   type        TEXT NOT NULL,         -- 'human' | 'agent'
-  handle      TEXT,                  -- agent 的 MCP 身份标识
   created_at  TEXT NOT NULL
 )
 
@@ -70,7 +69,7 @@ tasks(
   current_actor TEXT REFERENCES actors(id),  -- 接力棒此刻在谁手上
   current_role  TEXT,                -- planner|executor|tester|questioner|decider
   goal          TEXT,                -- 目标意图(输入槽)
-  inputs_md     TEXT,                -- 确认后的计划 + 引用(输入槽, markdown)
+  plan_md       TEXT,                -- 计划(规划的交付物, 执行的输入; 原名 inputs_md, 名实相符化)
   outputs_md    TEXT,                -- 产物清单 + 链接(产出槽, markdown)
   summary       TEXT,                -- 一句话摘要(产出槽)
   priority      TEXT,                -- hi|mid|lo
@@ -133,7 +132,7 @@ UI 上的"四槽位"不是四张新表, 而是对已有机制的呈现:
 
 | UI 槽位 | 机制落地 |
 |---|---|
-| 输入 Inputs | `tasks.goal` + `tasks.inputs_md` + 依赖任务(`depends_on`)的产出 |
+| 输入 Inputs | `tasks.goal` + `tasks.plan_md` + 依赖任务(`depends_on`)的产出 |
 | 产出 Outputs | `tasks.outputs_md` + `tasks.summary` |
 | 待确认 Clarification | 由 `clarifies` 边关联的子任务(状态驱动), **复用 task+edge** |
 | 交互记录 Thread | `events` 表(append-only) |

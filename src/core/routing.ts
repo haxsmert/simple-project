@@ -1,7 +1,7 @@
 import type { DB } from '../db/connection';
 import type { Role } from '../model/types';
 
-export const ALL_ROLES: Role[] = ['planner', 'executor', 'tester', 'questioner', 'decider'];
+export const ALL_ROLES: Role[] = ['planner', 'executor', 'tester', 'decider'];
 
 // 默认路由: 某个角色该派给谁。
 //

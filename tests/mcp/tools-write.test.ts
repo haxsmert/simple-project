@@ -49,7 +49,7 @@ describe('MCP write tools', () => {
     const { db, service } = svc();
     const t = service.createTask({ title: 't' });
     submitPlanTool.handler(service, { task_id: t.id, by_actor: 'x', plan_md: '- [ ] 先建表' });
-    expect(getTask(db, t.id)!.inputsMd).toBe('- [ ] 先建表');
+    expect(getTask(db, t.id)!.planMd).toBe('- [ ] 先建表');
   });
 
   it('ALL_TOOLS 含全部 17 个工具(增删改查全量释放: 流程之外 agent 还能建/改/删/连边/注册/认人)', () => {

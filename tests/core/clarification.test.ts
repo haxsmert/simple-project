@@ -30,9 +30,8 @@ describe('待确认闭环', () => {
     expect(clarTask.goal).toContain('信息包是否允许附件?');
     expect(clarTask.goal).toContain('纯 Markdown'); // 选项进了 goal
 
-    // 边: 子 --clarifies--> 父, 父 --spawns--> 子
+    // 边: 子 --clarifies--> 父(单边, 反向查询取入边)
     expect(edgesFrom(db, clarTask.id).some((e) => e.type === 'clarifies' && e.toTask === parent.id)).toBe(true);
-    expect(edgesTo(db, clarTask.id).some((e) => e.type === 'spawns' && e.fromTask === parent.id)).toBe(true);
     const ev = listEvents(db, parent.id).at(-1)!;
     expect(ev.kind).toBe('clarify');
     expect(ev.holdTo).toBe('decision'); // 「经过」有挂起证据

@@ -46,7 +46,7 @@ describe('handoff', () => {
     createActor(db, { id: 'p', name: 'P', type: 'agent' });
     createActor(db, { id: 'admin', name: 'admin', type: 'human' });
     createActor(db, { id: 'admin2', name: 'admin2', type: 'human' });
-    const t = createTask(db, { title: 't', state: 'planning', hold: 'confirm', currentActor: 'admin', currentRole: 'decider', inputsMd: '- [ ] x' });
+    const t = createTask(db, { title: 't', state: 'planning', hold: 'confirm', currentActor: 'admin', currentRole: 'decider', planMd: '- [ ] x' });
     expect(() => handoff(db, { taskId: t.id, byActor: 'admin', toActor: 'p', toRole: 'planner' }))
       .toThrow(/原地改派不改变角色/);
     expect(handoff(db, { taskId: t.id, byActor: 'admin', toActor: 'admin2', toRole: 'decider' }).currentActor).toBe('admin2');
@@ -61,7 +61,7 @@ describe('handoff', () => {
     createActor(db, { id: 'p', name: 'P', type: 'agent' });
     createActor(db, { id: 'admin', name: 'admin', type: 'human' });
     createActor(db, { id: 'admin2', name: 'admin2', type: 'human' });
-    const t = createTask(db, { title: 't', state: 'planning', currentActor: 'p', currentRole: 'planner', inputsMd: '- [ ] x' });
+    const t = createTask(db, { title: 't', state: 'planning', currentActor: 'p', currentRole: 'planner', planMd: '- [ ] x' });
     // 提交给自己批 → 拒
     expect(() => handoff(db, { taskId: t.id, byActor: 'p', toActor: 'p', toRole: 'decider', toHold: 'confirm' }))
       .toThrow(/不能当自己/);
@@ -105,10 +105,10 @@ describe('handoff', () => {
     createActor(db, { id: 'q', name: 'Q', type: 'agent' });
     expect(() => handoff(db, { taskId: bare.id, byActor: 'p', toActor: 'q', toRole: 'planner' })).not.toThrow();
     // 空白字符不算计划
-    const blank = createTask(db, { title: '空白计划', state: 'planning', currentActor: 'p', currentRole: 'planner', inputsMd: '  \n ' });
+    const blank = createTask(db, { title: '空白计划', state: 'planning', currentActor: 'p', currentRole: 'planner', planMd: '  \n ' });
     expect(() => handoff(db, { taskId: blank.id, byActor: 'p', toActor: 'p', toRole: 'executor', toState: 'executing' }))
       .toThrow(/还没有计划/);
-    const planned = createTask(db, { title: '有计划', state: 'planning', currentActor: 'p', currentRole: 'planner', inputsMd: '- [ ] 第一步' });
+    const planned = createTask(db, { title: '有计划', state: 'planning', currentActor: 'p', currentRole: 'planner', planMd: '- [ ] 第一步' });
     expect(handoff(db, { taskId: planned.id, byActor: 'p', toActor: 'p', toRole: 'executor', toState: 'executing' }).state)
       .toBe('executing');
   });

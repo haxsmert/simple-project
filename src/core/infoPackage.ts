@@ -18,7 +18,7 @@ export type EdgeRef = Edge & { peerTitle: string };
 export interface TaskPackage {
   task: Task;
   breadcrumb: Task[];
-  inputs: { goal: string | null; inputsMd: string | null; depOutputs: DepOutput[] };
+  inputs: { goal: string | null; planMd: string | null; depOutputs: DepOutput[] };
   outputs: { outputsMd: string | null; summary: string | null };
   clarifications: Task[];
   thread: TaskEvent[];
@@ -56,7 +56,7 @@ export function assemblePackage(db: DB, id: string): TaskPackage {
   return {
     task,
     breadcrumb: ancestors(db, id),
-    inputs: { goal: task.goal, inputsMd: task.inputsMd, depOutputs },
+    inputs: { goal: task.goal, planMd: task.planMd, depOutputs },
     outputs: { outputsMd: task.outputsMd, summary: task.summary },
     clarifications,
     thread: listEvents(db, id),

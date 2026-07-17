@@ -16,10 +16,10 @@ import { mirrorTask } from './mirror/writer';
 //  · 「经过」有故事: 换手事件记全"谁交给了谁 / 状态怎么变的"
 export function seed(db: DB, dir: string): { taskCount: number; files: string[] } {
   const admin = createActor(db, { id: 'admin', name: 'admin', type: 'human' });
-  const execA = createActor(db, { id: 'agent-exec-a', name: '执行·A', type: 'agent', handle: 'mcp:exec-a' });
-  const execB = createActor(db, { id: 'agent-exec-b', name: '执行·B', type: 'agent', handle: 'mcp:exec-b' });
-  const planP = createActor(db, { id: 'agent-plan-p', name: '规划·P', type: 'agent', handle: 'mcp:plan-p' });
-  const testT = createActor(db, { id: 'agent-test-t', name: '测试·T', type: 'agent', handle: 'mcp:test-t' });
+  const execA = createActor(db, { id: 'agent-exec-a', name: '执行·A', type: 'agent' });
+  const execB = createActor(db, { id: 'agent-exec-b', name: '执行·B', type: 'agent' });
+  const planP = createActor(db, { id: 'agent-plan-p', name: '规划·P', type: 'agent' });
+  const testT = createActor(db, { id: 'agent-test-t', name: '测试·T', type: 'agent' });
 
   // 换手事件: 记全"谁交给了谁 / 状态怎么变" —— 少了这些,「经过」只能吐"交给了下一个人"这种废话
   const handoffEvent = (
@@ -41,7 +41,7 @@ export function seed(db: DB, dir: string): { taskCount: number; files: string[] 
     id: 'R-2', title: 'MCP 工具限流与并发控制', parentId: p1.id,
     state: 'executing', currentActor: execA.id, currentRole: 'executor', priority: 'hi',
     goal: '给 8 个 MCP 工具加限流与并发保护',
-    inputsMd: '确认后的计划:\n- [x] 令牌桶\n- [ ] 每 actor 配额',
+    planMd: '确认后的计划:\n- [x] 令牌桶\n- [ ] 每 actor 配额',
     outputsMd: '- src/mcp/limiter.ts (草稿)',
     summary: '令牌桶已通, 配额进行中',
   });
@@ -88,7 +88,7 @@ export function seed(db: DB, dir: string): { taskCount: number; files: string[] 
     id: 'R-10', title: '第三方 agent 注册流程', parentId: p2.id,
     state: 'planning', hold: 'confirm', currentActor: admin.id, currentRole: 'decider', priority: 'mid',
     goal: '注册与鉴权草案',
-    inputsMd: '打算这么做:\n- [ ] handle 唯一性校验\n- [ ] 能力声明(能担任哪些角色)\n- [ ] 最小权限的工具白名单',
+    planMd: '打算这么做:\n- [ ] handle 唯一性校验\n- [ ] 能力声明(能担任哪些角色)\n- [ ] 最小权限的工具白名单',
   });
   appendEvent(db, { taskId: 'R-10', actorId: planP.id, kind: 'plan' }); // 「经过」讲全: 先写了计划, 再交给你拍板
   handoffEvent('R-10', planP.id, admin.id, 'decider', 'planning', 'planning', { from: null, to: 'confirm' }, '计划写完了, 你看下能不能开工');

@@ -3,22 +3,22 @@ import type { Actor, ActorType } from '../model/types';
 import { now } from '../util';
 
 interface ActorRow {
-  id: string; name: string; type: ActorType; handle: string | null; created_at: string;
+  id: string; name: string; type: ActorType; created_at: string;
 }
 const map = (r: ActorRow): Actor => ({
-  id: r.id, name: r.name, type: r.type, handle: r.handle, createdAt: r.created_at,
+  id: r.id, name: r.name, type: r.type, createdAt: r.created_at,
 });
 
 export function createActor(
   db: DB,
-  input: { id: string; name: string; type: ActorType; handle?: string | null },
+  input: { id: string; name: string; type: ActorType },
 ): Actor {
   const row: ActorRow = {
     id: input.id, name: input.name, type: input.type,
-    handle: input.handle ?? null, created_at: now(),
+    created_at: now(),
   };
-  db.prepare('INSERT INTO actors (id,name,type,handle,created_at) VALUES (?,?,?,?,?)')
-    .run(row.id, row.name, row.type, row.handle, row.created_at);
+  db.prepare('INSERT INTO actors (id,name,type,created_at) VALUES (?,?,?,?)')
+    .run(row.id, row.name, row.type, row.created_at);
   return map(row);
 }
 

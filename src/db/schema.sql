@@ -2,7 +2,6 @@ CREATE TABLE IF NOT EXISTS actors (
   id         TEXT PRIMARY KEY,
   name       TEXT NOT NULL,
   type       TEXT NOT NULL CHECK (type IN ('human','agent')),
-  handle     TEXT,
   created_at TEXT NOT NULL
 );
 
@@ -14,9 +13,9 @@ CREATE TABLE IF NOT EXISTS tasks (
   state         TEXT NOT NULL CHECK (state IN ('planning','executing','testing','done')),
   hold          TEXT CHECK (hold IN ('confirm','decision')),
   current_actor TEXT REFERENCES actors(id),
-  current_role  TEXT CHECK (current_role IN ('planner','executor','tester','questioner','decider')),
+  current_role  TEXT CHECK (current_role IN ('planner','executor','tester','decider')),
   goal          TEXT,
-  inputs_md     TEXT,
+  plan_md       TEXT,
   outputs_md    TEXT,
   summary       TEXT,
   priority      TEXT CHECK (priority IN ('hi','mid','lo')),
@@ -29,7 +28,7 @@ CREATE TABLE IF NOT EXISTS edges (
   id         TEXT PRIMARY KEY,
   from_task  TEXT NOT NULL REFERENCES tasks(id),
   to_task    TEXT NOT NULL REFERENCES tasks(id),
-  type       TEXT NOT NULL CHECK (type IN ('blocks','depends_on','clarifies','spawns')),
+  type       TEXT NOT NULL CHECK (type IN ('depends_on','clarifies')),
   created_at TEXT NOT NULL
 );
 
