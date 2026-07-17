@@ -121,7 +121,7 @@ export const getTaskTool = {
 
 export const claimTool = {
   name: 'claim',
-  description: '领取一个任务(设为当前负责人, 可指定角色)',
+  description: '领取一个**无主**任务(可指定角色)。已有人在做的不可直接领取(换人走 handoff 改派); 挂起中(等确认/等决策)的任务不可领取。',
   schema: { task_id: z.string(), actor: z.string(), role: roleEnum.optional() },
   handler(service: RelayService, args: { task_id: string; actor: string; role?: z.infer<typeof roleEnum> }): ToolResult {
     return ok(service.claim(args.task_id, args.actor, args.role));

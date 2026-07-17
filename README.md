@@ -33,7 +33,7 @@ hold:  confirm 等确认 —— 本阶段产出已提交，等决策者批准前
 | 确认可跳过，计划不可 | 「开始执行」跳过的是确认关，不是计划 |
 | 自批闸 | 提交确认的人不能当自己这份计划/产出的批准人 |
 | 原地改派保角色 | 位置（阶段×挂起）不动的换手＝纯换人，不许顺带改角色 |
-| 挂起不可领取 | 等确认/等决策的任务不可 `claim`（换人走 `handoff` 改派） |
+| claim 只领无主 | 已有人做的、挂起中的都不可 `claim`（换人走 `handoff` 改派，有角色守卫） |
 | 决策只归答复管 | `decision` 挂起的设/解只走提问/答复，`handoff` 一律拒 |
 | 父子最小不变量 | 完成的任务不能有没完成的子（进「完成」硬拦；进测试只提示） |
 
@@ -68,7 +68,7 @@ Claude Code 侧接入 MCP（`.mcp.json`）：
 | `POST /api/tasks` · `PATCH /api/tasks/:id` · `DELETE /api/tasks/:id` | 建任务 · 改标题/目标/优先级（记「经过」） · 硬删（有子任务拒；删未决问题卡＝撤回提问） |
 | `POST /api/handoff` | 换手（`toState` 阶段、`toHold` 挂起变化：提交确认/批准/打回/改派都走它） |
 | `POST /api/tasks/:id/plan` · `/output` · `/comment` | 写计划 · 交产出＋摘要 · 留言 |
-| `POST /api/tasks/:id/claim` | 领取任务（挂起中不可领） |
+| `POST /api/tasks/:id/claim` | 领取**无主**任务（已有人做的走 handoff 改派；挂起中不可领） |
 | `POST /api/clarifications` · `POST /api/clarifications/:id/answer` | 提问挂起 · 答复（全部答复后原地解冻） |
 | `POST /api/actors` · `POST /api/edges` · `POST /api/reorder` | 注册行动者 · 建关系边 · 列内排序 |
 
