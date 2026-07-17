@@ -5,6 +5,7 @@ import { Board } from './components/Board';
 import { Tree } from './components/Tree';
 import { TaskDetail } from './components/TaskDetail';
 import { ProjectPicker } from './components/ProjectPicker';
+import type { TaskAction } from './actions';
 
 type NavNode = { id: string; title: string };
 // "全部任务"作为伪节点占据路径第一格: 与真实项目同构, 面包屑/上溯/加载全走同一套机制, 不开特例分支
@@ -24,6 +25,9 @@ export function App() {
   const [loaded, setLoaded] = useState(false); // 首屏数据是否已到 —— 未到前不渲染空态, 避免误报"还没有项目"
   const [draft, setDraft] = useState<{ kind: 'project' | 'task'; title: string } | null>(null);
   const triggerRef = useRef<HTMLElement | null>(null); // 打开抽屉的那张卡, 关闭后把焦点还给它(键盘闭环)
+  // 动作反馈: toast 说"我干成了什么", flashId 让看板上那张卡亮一下 —— 两者合起来把"我点了→它去哪了"的因果做可见
+  const [toast, setToast] = useState<string | null>(null);
+  const [flashId, setFlashId] = useState<string | null>(null);
 
   const closeDetail = useCallback(() => { setDetail(null); triggerRef.current?.focus?.(); }, []);
 
@@ -49,6 +53,17 @@ export function App() {
 
   // 导航/视图一变就废弃未提交的新建草稿 —— 否则在项目 A 开的表单跳到项目 B 后提交, 会把任务建到 B 下
   useEffect(() => { setDraft(null); }, [path, view]);
+
+  useEffect(() => { // toast 3.5s 自动收(不抢焦点, aria-live 播报)
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(t);
+  }, [toast]);
+  useEffect(() => { // 卡片高亮放完就清, 免得重复触发
+    if (!flashId) return;
+    const t = setTimeout(() => setFlashId(null), 1200);
+    return () => clearTimeout(t);
+  }, [flashId]);
 
   useEffect(() => {
     if (!detail) return;
@@ -117,13 +132,18 @@ export function App() {
     await reloadCurrent();
     if (detail) setDetail(await api.task(detail.task.id));
   }), [actors, detail, reloadCurrent, guard]);
-  const onHandoff = useCallback((input: { taskId: string; toActor: string; toRole: string; toState: string; note: string }) =>
-    guard(async () => {
+  // 执行一个「下一步」动作: 做完给出成功反馈(toast) + 让被影响的卡在看板上亮一下
+  const onAct = useCallback(async (input: { taskId: string; toActor: string; toRole: string; toState: string; note: string }, action: TaskAction) => {
+    await guard(async () => {
       const you = actors.find((a) => a.type === 'human')?.id ?? 'you';
       await api.handoff({ ...input, byActor: you });
       await reloadCurrent();
       if (detail) setDetail(await api.task(detail.task.id));
-    }), [actors, detail, reloadCurrent, guard]);
+      const who = actorsById[input.toActor]?.name;
+      setToast(`${action.done}${action.keepActor || !who ? '' : ` · 交给 ${who}`}`);
+      setFlashId(input.taskId);
+    });
+  }, [actors, actorsById, detail, reloadCurrent, guard]);
   const onComment = useCallback((taskId: string, body: string) => guard(async () => {
     const you = actors.find((a) => a.type === 'human')?.id ?? 'you';
     await api.comment(taskId, { actor: you, body });
@@ -208,7 +228,7 @@ export function App() {
           onReorder={onReorder}
           emptyHint={<><b>还没有项目</b><div>点右上角「+ 新建项目」开始</div></>} />
       ) : (
-        <Board columns={taskCols} actorsById={actorsById} onOpen={openTask} onReorder={onReorder}
+        <Board columns={taskCols} actorsById={actorsById} onOpen={openTask} onReorder={onReorder} flashId={flashId}
           // 只有已在某项目内才允许继续下钻 —— 从"全部任务"钻入会让 path[0] 成为非项目, 面包屑/上溯都乱套
           onDescend={isAll ? undefined : (id) => { const t = taskCols.flatMap((c) => c.tasks).find((x) => x.id === id); if (t) descend({ id: t.id, title: t.title }); }}
           showProject={isAll}
@@ -218,10 +238,12 @@ export function App() {
         ? <Tree nodes={tree} onOpen={openTask} actorsById={actorsById} />
         : <div className="board-empty"><b>还没有任务</b><div>新建项目后,任务树会在这里展开</div></div>)}
 
+      {toast && <div className="toast" role="status" aria-live="polite">{toast}</div>}
+
       {detail && (
         <>
           <div className="drawer-backdrop" onClick={closeDetail} aria-hidden="true" />
-          <TaskDetail pkg={detail} actorsById={actorsById} onAnswer={onAnswer} onHandoff={onHandoff} onComment={onComment} onOpenTask={openTask} onClose={closeDetail} />
+          <TaskDetail pkg={detail} actorsById={actorsById} onAnswer={onAnswer} onAct={onAct} onComment={onComment} onOpenTask={openTask} onClose={closeDetail} />
         </>
       )}
     </div>

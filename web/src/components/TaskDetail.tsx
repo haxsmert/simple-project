@@ -4,13 +4,14 @@ import { ActorBadge } from './ActorBadge';
 import { RoleChip } from './RoleChip';
 import { EdgeChip } from './EdgeChip';
 import { STATE_NAME, STATE_COLOR } from '../states';
+import { NextActions } from './NextActions';
+import { NEXT_ACTIONS, type TaskAction } from '../actions';
 
 const STATE_PILL: Record<TaskState, string> = { planning: 'plan', awaiting_confirm: 'confirm', executing: 'exec', awaiting_decision: 'decide', testing: 'test', done: 'done' };
 const ROLE_NAME: Record<Role, string> = { planner: '规划', executor: '执行', tester: '测试', questioner: '提问', decider: '决策' };
-const ALL_STATES: TaskState[] = ['planning', 'awaiting_confirm', 'executing', 'awaiting_decision', 'testing', 'done'];
-const ALL_ROLES: Role[] = ['planner', 'executor', 'tester', 'questioner', 'decider'];
+// 「经过」里显示给人看的动词: 说人话, 不用协议名/比喻。(事件 kind 是协议内部名, 不动)
 const KIND_VERB: Record<string, string> = {
-  handoff: '换手', comment: '评论', output: '提交产出', clarify: '提出待确认', decide: '决策', claim: '领取',
+  handoff: '交给了下一个人', comment: '留言', output: '交了产出', clarify: '提了个问题等人决定', decide: '拍了板', claim: '接手',
 };
 
 // ——— 图标(照搬 mockup 的 inline SVG) ———
@@ -70,11 +71,12 @@ const IconLink = () => (
   </svg>
 );
 
-function SlotHead({ icon, tint, title, en, tag }: { icon: React.ReactNode; tint: 'human' | 'agent' | 'warn' | 'neutral'; title: string; en: string; tag?: string }) {
+// 槽位标题: 只用大白话中文。英文副标题(Inputs/Outputs/Handoff/Thread)是纯装饰, 对使用者零信息量, 已撤。
+function SlotHead({ icon, tint, title, tag }: { icon: React.ReactNode; tint: 'human' | 'agent' | 'warn' | 'neutral'; title: string; tag?: string }) {
   return (
     <div className="slot-head">
       <span className={`ico ${tint}`}>{icon}</span>
-      <h4>{title}</h4><span className="en">{en}</span>
+      <h4>{title}</h4>
       {tag && <span className="tag">{tag}</span>}
     </div>
   );
@@ -162,56 +164,6 @@ function ClarBox({ clarId, autoFocus, onAnswer }: { clarId: string; autoFocus?: 
   );
 }
 
-function HandoffBox({ taskId, currentState, actors, onHandoff }: {
-  taskId: string; currentState: TaskState; actors: Actor[];
-  onHandoff: (input: { taskId: string; toActor: string; toRole: Role; toState: TaskState; note: string }) => void;
-}) {
-  const [toActor, setToActor] = useState(actors[0]?.id ?? '');
-  const [toRole, setToRole] = useState<Role>('executor');
-  const [toState, setToState] = useState<TaskState>(currentState);
-  const [note, setNote] = useState('');
-  return (
-    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-      <select aria-label="换手给" value={toActor} onChange={(e) => setToActor(e.target.value)}>
-        {actors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-      </select>
-      <select aria-label="角色" value={toRole} onChange={(e) => setToRole(e.target.value as Role)}>
-        {ALL_ROLES.map((r) => <option key={r} value={r}>{ROLE_NAME[r]}</option>)}
-      </select>
-      <select aria-label="目标状态" value={toState} onChange={(e) => setToState(e.target.value as TaskState)}>
-        {ALL_STATES.map((s) => <option key={s} value={s}>{STATE_NAME[s]}</option>)}
-      </select>
-      <input placeholder="备注(可选)" value={note} onChange={(e) => setNote(e.target.value)} style={{ flex: 1, minWidth: 80 }} />
-      <button className="btn primary" onClick={() => { onHandoff({ taskId, toActor, toRole, toState, note }); setNote(''); }}>换手</button>
-    </div>
-  );
-}
-
-// 计划确认块: 决策者在开工前的关卡 —— 一键批准(→执行中)或打回(→待规划), 补充意见随动作记入交互记录。
-// 默认把任务交给第一个 agent 执行/重规划; 想指定具体行动者仍可用下方「换手」。
-function ConfirmBox({ taskId, actorsById, hasPlan, onHandoff }: {
-  taskId: string; actorsById: Record<string, Actor>; hasPlan: boolean;
-  onHandoff: (input: { taskId: string; toActor: string; toRole: Role; toState: TaskState; note: string }) => void;
-}) {
-  const [note, setNote] = useState('');
-  const agents = Object.values(actorsById).filter((a) => a.type === 'agent');
-  const target = agents[0]?.id ?? Object.keys(actorsById)[0] ?? '';
-  const approve = () => onHandoff({ taskId, toActor: target, toRole: 'executor', toState: 'executing', note: note.trim() });
-  const bounce = () => onHandoff({ taskId, toActor: target, toRole: 'planner', toState: 'planning', note: note.trim() });
-  return (
-    <div className="confirm-box">
-      {/* 只有输入槽真的会渲染时才指路过去 —— 空槽门控下它可能整个不存在, 指了就是悬空 */}
-      <p className="confirm-hint">{hasPlan ? '计划已就绪, 等你确认后开工。计划详情见下方「输入」。' : '等你确认后开工。上一棒没留下计划详情。'}</p>
-      <input className="confirm-note" placeholder="补充意见(可选, 随批准/打回记入交互记录)…"
-        value={note} onChange={(e) => setNote(e.target.value)} />
-      <div className="confirm-actions">
-        <button className="btn primary" onClick={approve} disabled={!target}>✓ 批准开工</button>
-        <button className="btn" onClick={bounce} disabled={!target}>↩ 打回重规划</button>
-      </div>
-    </div>
-  );
-}
-
 function CommentBox({ taskId, onComment }: { taskId: string; onComment: (taskId: string, body: string) => void }) {
   const [v, setV] = useState('');
   const submit = () => { const b = v.trim(); if (b) { onComment(taskId, b); setV(''); } };
@@ -224,10 +176,10 @@ function CommentBox({ taskId, onComment }: { taskId: string; onComment: (taskId:
   );
 }
 
-export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, onOpenTask, onClose }: {
+export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpenTask, onClose }: {
   pkg: TaskPackage; actorsById: Record<string, Actor>;
   onAnswer: (clarId: string, answer: string) => void;
-  onHandoff: (input: { taskId: string; toActor: string; toRole: Role; toState: TaskState; note: string }) => void;
+  onAct: (input: { taskId: string; toActor: string; toRole: Role; toState: TaskState; note: string }, action: TaskAction) => Promise<void> | void;
   onComment: (taskId: string, body: string) => void;
   onOpenTask: (id: string) => void; // 任务引用(面包屑/子任务/关系边/依赖)跳到那个任务的详情
   onClose: () => void;
@@ -253,12 +205,17 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
     prevTaskId.current = t.id;
   }, [t.id, firstOpenId]);
 
-  // 待确认槽位: 计划就绪、开工前的人类关卡 —— 与待决策同为"轮到你"的最高价值动作, 提到最顶。
+  // 「下一步」面板 —— 同一个机制(状态机允许的去向翻成大白话动作), 只是摆放位置随"轮不轮到你"变:
+  // 待确认(计划等你拍板)时提到最顶当主角; 其余状态放在底部当收尾动作。
+  const nextActions = (
+    <NextActions taskId={t.id} state={t.state} currentActor={t.currentActor} actorsById={actorsById} onAct={onAct} />
+  );
   const confirmSlot = t.state === 'awaiting_confirm' && (
     <div className="slot">
-      <SlotHead icon={<IconWarnTriangle />} tint="warn" title="待你确认" en="Confirm" tag="计划就绪 · 开工前的关卡" />
+      <SlotHead icon={<IconWarnTriangle />} tint="warn" title="等你拍板" tag="计划已就绪, 开工前过你这关" />
       <div className="slot-body">
-        <ConfirmBox taskId={t.id} actorsById={actorsById} hasPlan={hasInputs} onHandoff={onHandoff} />
+        <p className="confirm-hint">{hasInputs ? '下面「任务内容」是它打算怎么做。你说行就开工。' : '上一步没留下计划详情。你说行就开工。'}</p>
+        {nextActions}
       </div>
     </div>
   );
@@ -266,7 +223,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
   // 待决策槽位: 决策者最高价值动作, 提到最顶(status 行正下方); 全部已决策则作为历史保留在原语义位置
   const clarSlot = pkg.clarifications.length > 0 && (
     <div className="slot">
-      <SlotHead icon={<IconQuestion />} tint="warn" title="待确认" en="Clarification" tag={openClarCount > 0 ? '阻塞中 · 已挂起本任务' : '已全部决策'} />
+      <SlotHead icon={<IconQuestion />} tint="warn" title="等你决定" tag={openClarCount > 0 ? '阻塞中 · 已挂起本任务' : '已全部决策'} />
       <div className="slot-body">
         {pkg.clarifications.map((c) => {
           if (c.state === 'done') {
@@ -326,6 +283,8 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
           </span>
         ))}
       </nav>
+      {/* key=任务id: 换任务时整块重挂 → 触发交叉淡入, 不是硬切(同容器内替换内容的连续性) */}
+      <div className="drawer-body" key={t.id}>
       <h2 ref={headingRef} tabIndex={-1}>{t.title}</h2>
       <div className="status-row">
         <span className={`pill ${STATE_PILL[t.state]}`}><span className="d" />{STATE_NAME[t.state]}</span>
@@ -338,7 +297,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
 
       {hasInputs && (
       <div className="slot">
-        <SlotHead icon={<IconFile />} tint="human" title="输入" en="Inputs" tag="上一棒交付" />
+        <SlotHead icon={<IconFile />} tint="human" title="任务内容" tag="要做的事和计划" />
         <div className="slot-body">
           {pkg.inputs.goal && <div className="goal"><b>目标:</b> {pkg.inputs.goal}</div>}
           {inputPlan.plain.map((l, i) => <p key={i}>{l}</p>)}
@@ -367,7 +326,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
 
       {hasOutputs && (
       <div className="slot">
-        <SlotHead icon={<IconOutputs />} tint="agent" title="产出" en="Outputs" tag="换手后自动成为下一棒的输入" />
+        <SlotHead icon={<IconOutputs />} tint="agent" title="做出了什么" tag="交出去后就是下一个人的输入" />
         <div className="slot-body">
           {outputArtifacts.plain.map((l, i) => <p key={i}>{l}</p>)}
           {outputArtifacts.files.map((f, i) => (
@@ -382,7 +341,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
 
       {pkg.subtasks.length > 0 && (
         <div className="slot">
-          <SlotHead icon={<IconChecklist />} tint="neutral" title="子任务" en="Subtasks"
+          <SlotHead icon={<IconChecklist />} tint="neutral" title="子任务"
             tag={`${pkg.subtasks.filter((s) => s.state === 'done').length} / ${pkg.subtasks.length}`} />
           <div className="slot-body">
             {/* 子任务是真任务: 整行可点进它的详情; 完成与否用状态点+状态名(与任务树同语言), 不用假复选框 */}
@@ -401,7 +360,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
 
       {(pkg.edges.out.length > 0 || pkg.edges.in.length > 0) && (
         <div className="slot">
-          <SlotHead icon={<IconLink />} tint="neutral" title="关系边" en="Edges" />
+          <SlotHead icon={<IconLink />} tint="neutral" title="相关任务" />
           <div className="slot-body">
             <div className="edges-list">
               {/* 边指向的都是真任务: id 做成链接可跳过去, 不再是死文字 */}
@@ -421,7 +380,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
 
       {pkg.thread.length > 0 && (
       <div className="slot">
-        <SlotHead icon={<IconThread />} tint="neutral" title="交互记录" en="Thread" tag="换手 / 评论 / 提问 / 决策全在此" />
+        <SlotHead icon={<IconThread />} tint="neutral" title="经过" tag="谁在什么时候做了什么" />
         <div className="slot-body">
           <div className="thread">
             {pkg.thread.map((ev) => {
@@ -445,18 +404,20 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
       </div>
       )}
 
-      <div className="slot">
-        <SlotHead icon={<IconHandoff />} tint="human" title="换手" en="Handoff" tag="转交给下一棒" />
-        <div className="slot-body">
-          <HandoffBox taskId={t.id} currentState={t.state} actors={Object.values(actorsById)} onHandoff={onHandoff} />
+      {/* 待确认时「下一步」已在顶部当主角, 此处不重复 */}
+      {t.state !== 'awaiting_confirm' && NEXT_ACTIONS[t.state].length > 0 && (
+        <div className="slot">
+          <SlotHead icon={<IconHandoff />} tint="human" title="下一步" tag="推进它, 或交给别人" />
+          <div className="slot-body">{nextActions}</div>
         </div>
-      </div>
+      )}
 
       <div className="slot">
-        <SlotHead icon={<IconPencil />} tint="neutral" title="评论" en="Comment" tag="补充说明" />
+        <SlotHead icon={<IconPencil />} tint="neutral" title="说点什么" tag="留言给接手的人" />
         <div className="slot-body">
           <CommentBox taskId={t.id} onComment={onComment} />
         </div>
+      </div>
       </div>
     </div>
   );

@@ -177,12 +177,44 @@ ul.plan li.done .ptext { color:var(--text-faint); text-decoration:line-through; 
 .clar-done svg { width:12px; height:12px; color:var(--done); flex:none; }
 .clar-done .clar-done-tag { margin-left:auto; font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint); }
 
-/* 计划确认块(待确认状态): 与待决策同为"轮到你"的动作面板, 用琥珀语言 */
-.confirm-box { border:1px solid color-mix(in srgb,var(--warn) 40%,var(--border)); border-radius:10px; background:var(--warn-soft); padding:12px; }
 .confirm-hint { margin:0 0 10px; font-size:13px; color:var(--text); }
-.confirm-note { width:100%; }
-.confirm-actions { display:flex; gap:8px; margin-top:10px; }
-.confirm-actions .btn { font-size:13px; padding:7px 14px; }
+
+/* 「下一步」动作面板: 一句大白话 + 后果, 点一下就走。取代原来 谁×角色×状态 的三元组表单 */
+.next-actions { display:flex; flex-direction:column; gap:9px; }
+.assign { display:inline-flex; align-items:center; gap:7px; font-size:12px; color:var(--text-dim); }
+.assign-label { font-weight:600; } /* 可见标签 —— 原来三个下拉全靠 aria-label, 眼睛看不见 */
+.act-list { display:flex; gap:8px; flex-wrap:wrap; }
+.act { display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:8px 14px; line-height:1.3; transition:background .15s ease-out, border-color .15s ease-out, transform .1s ease-out; }
+.act:not(:disabled):active { transform:scale(.98); } /* 按下有反馈 */
+.act-label { font-size:13px; font-weight:600; }
+.act-hint { font-size:11px; opacity:.72; font-weight:400; }
+.act.danger { color:var(--danger); border-color:color-mix(in srgb,var(--danger) 35%,var(--border)); }
+.act.danger:not(:disabled):hover { background:var(--danger-soft); }
+.act-note { width:100%; }
+
+/* 动作成功反馈: 说清"我干成了什么"; 不抢焦点, aria-live 播报 */
+.toast { position:fixed; left:50%; bottom:28px; transform:translateX(-50%); z-index:60;
+  background:var(--text); color:var(--surface); font-size:13px; font-weight:550;
+  padding:9px 16px; border-radius:20px; box-shadow:0 6px 24px rgba(20,30,45,.22);
+  animation:toast-in .2s ease-out; }
+@keyframes toast-in { from { opacity:0; transform:translateX(-50%) translateY(8px); } }
+
+/* 被动作影响的卡片亮一下 —— 让"我点了 → 它挪到这列了"的因果可见(动效表达因果, 不是装饰) */
+.card.flash { animation:card-flash 1.1s ease-out; }
+@keyframes card-flash {
+  0%   { box-shadow:0 0 0 3px var(--human); }
+  70%  { box-shadow:0 0 0 3px color-mix(in srgb,var(--human) 30%,transparent); }
+  100% { box-shadow:0 1px 2px rgba(20,30,45,.07); }
+}
+
+/* 抽屉内换任务: 同容器内替换内容用交叉淡入, 不硬切(保持空间连续性) */
+.drawer-body { animation:body-in .16s ease-out; }
+@keyframes body-in { from { opacity:0; transform:translateY(4px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .toast, .card.flash, .drawer-body, .act { animation:none; transition:none; }
+  .act:not(:disabled):active { transform:none; }
+}
 
 /* 子任务 / 关系边(侧栏风格搬进单列) */
 /* 子任务行 = 真按钮(点进它的详情); 状态用点+文字, 不用假复选框 */

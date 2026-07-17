@@ -8,10 +8,11 @@ import { STATE_NAME } from '../states';
 // 读屏不受降噪影响: aria-label 完整携带 项目/状态/待处理数/优先级。
 const PRIO_LABEL: Record<'hi' | 'mid' | 'lo', string> = { hi: '高', mid: '中', lo: '低' };
 
-export function TaskCard({ task, actor, onOpen, onDescend, showProject, draggable, dragging, onDragStart, onDragOver, onDrop, onDragEnd }: {
+export function TaskCard({ task, actor, onOpen, onDescend, showProject, flash, draggable, dragging, onDragStart, onDragOver, onDrop, onDragEnd }: {
   task: BoardCard; actor: Actor | null; onOpen: (id: string) => void;
   onDescend?: (id: string) => void; // 提供时: 「子任务 N/M」变成"钻入"入口, 下钻到该任务的子任务层
   showProject?: boolean; // 仅跨项目视图(全部任务)展示所属项目名
+  flash?: boolean;       // 刚被动作影响 → 亮一下
   draggable?: boolean; dragging?: boolean;
   onDragStart?: (e: DragEvent<HTMLDivElement>) => void; onDragOver?: (e: DragEvent<HTMLDivElement>) => void;
   onDrop?: (e: DragEvent<HTMLDivElement>) => void; onDragEnd?: (e: DragEvent<HTMLDivElement>) => void;
@@ -33,7 +34,7 @@ export function TaskCard({ task, actor, onOpen, onDescend, showProject, draggabl
   ].filter(Boolean).join(' · ');
 
   return (
-    <div className={`card${needsYou ? ' blocked' : ''}${dragging ? ' dragging' : ''}`} onClick={() => onOpen(task.id)}
+    <div className={`card${needsYou ? ' blocked' : ''}${dragging ? ' dragging' : ''}${flash ? ' flash' : ''}`} onClick={() => onOpen(task.id)}
       draggable={draggable} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} onDragEnd={onDragEnd}>
       {showProject && task.parentTitle && <div className="card-project">{task.parentTitle}</div>}
       {!!task.attention && task.attention > 0 && (

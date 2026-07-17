@@ -25,9 +25,11 @@ export function reorderIds(currentIds: string[], dragId: string, dropId: string 
   return ids;
 }
 
-export function Board({ columns, actorsById, onOpen, onDescend, onReorder, showProject, emptyHint }: {
+export function Board({ columns, actorsById, onOpen, onDescend, onReorder, showProject, flashId, emptyHint }: {
   columns: BoardColumn[]; actorsById: Record<string, Actor>; onOpen: (id: string) => void;
-  onDescend?: (id: string) => void; onReorder?: (ids: string[]) => void; showProject?: boolean; emptyHint?: ReactNode;
+  onDescend?: (id: string) => void; onReorder?: (ids: string[]) => void; showProject?: boolean;
+  flashId?: string | null; // 刚被动作影响的卡: 亮一下, 让"我点了 → 它挪到这列了"的因果可见
+  emptyHint?: ReactNode;
 }) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragState, setDragState] = useState<string | null>(null);
@@ -55,7 +57,7 @@ export function Board({ columns, actorsById, onOpen, onDescend, onReorder, showP
             {col.tasks.length === 0
               ? <div className="col-empty">暂无</div>
               : col.tasks.map((t) => (
-                <TaskCard key={t.id} task={t} actor={t.currentActor ? actorsById[t.currentActor] ?? null : null} onOpen={onOpen} onDescend={onDescend} showProject={showProject}
+                <TaskCard key={t.id} task={t} actor={t.currentActor ? actorsById[t.currentActor] ?? null : null} onOpen={onOpen} onDescend={onDescend} showProject={showProject} flash={flashId === t.id}
                   draggable={!!onReorder} dragging={dragId === t.id}
                   onDragStart={() => { setDragId(t.id); setDragState(col.state); }}
                   onDragEnd={() => { setDragId(null); setDragState(null); }}
