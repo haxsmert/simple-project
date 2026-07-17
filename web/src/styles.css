@@ -29,7 +29,7 @@ body { margin:0; background:var(--bg); color:var(--text); font-family:var(--font
 .role.ask .rd,.role.decide .rd{ background:var(--warn); }
 
 /* edge chip */
-.edge { font-size:10.5px; font-weight:600; border-radius:6px; padding:2px 6px; display:inline-flex; align-items:center; gap:4px; }
+.edge { font-size:10.5px; font-weight:600; border-radius:6px; padding:2px 6px; display:inline-flex; align-items:center; gap:4px; white-space:nowrap; flex:none; }
 .edge.block{ color:var(--danger); background:var(--danger-soft); } .edge.await{ color:var(--warn); background:var(--warn-soft); }
 .edge.dep,.edge.spawn{ color:var(--text-dim); background:var(--surface-2); border:1px solid var(--border); }
 
@@ -299,3 +299,16 @@ select { cursor:pointer; }
 /* inline create · 内联创建表单(替代 window.prompt) */
 .inline-create { display:inline-flex; align-items:center; gap:6px; }
 .inline-create input { min-width:180px; }
+
+/* ── 手机(≤640px): 同一套信息架构, 小屏重排 —— 不做删减版 ──
+   看板 = 一屏一列 + 横滑吸附翻列(下一列露一条边, 提示还能滑);
+   抽屉全屏; 边距收紧。拖拽调序依赖 HTML5 drag, 触屏暂不可用(已知限制)。 */
+@media (max-width: 640px) {
+  .app { padding: 10px 12px 40px; }
+  .board { grid-auto-columns: 84vw; scroll-snap-type: x mandatory; scroll-padding-left: 5px; }
+  .col { scroll-snap-align: start; }
+  .drawer { width: 100vw; border-left: none; padding: 16px 14px; }
+  .topbar { gap: 8px; margin-bottom: 12px; }
+  .act-list { flex-direction: column; }
+  .act { width: 100%; align-items: flex-start; }
+}
