@@ -350,7 +350,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
                 <li key={i} className={it.done ? 'done' : ''}>
                   {/* ✓ 是 aria-hidden、圆点是 CSS ::before、删除线读屏不播报 → 必须补一句隐藏文本, 否则"已完成/未完成"对读屏毫无区别 */}
                   <span className="pmark">{it.done ? <IconCheck /> : null}<span className="sr-only">{it.done ? '已完成' : '未完成'}</span></span>
-                  <span>{it.text}</span>
+                  <span className="ptext">{it.text}</span>
                 </li>
               ))}
             </ul>

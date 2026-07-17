@@ -139,12 +139,16 @@ body { margin:0; background:var(--bg); color:var(--text); font-family:var(--font
 
 /* 计划清单 · 真复选框 */
 ul.plan { list-style:none; margin:8px 0 0; padding:0; display:flex; flex-direction:column; gap:5px; }
-ul.plan li { display:flex; align-items:flex-start; gap:8px; }
-/* 完成标记(只读): ✓=已完成 / 素圆点=未完成。刻意不用方框 —— 方框=复选框=承诺"可勾选", 而这里勾不动 */
-ul.plan .pmark { width:14px; flex:none; margin-top:2px; display:grid; place-items:center; color:var(--done); }
+ul.plan li { display:flex; align-items:flex-start; gap:8px; line-height:1.45; }
+/* 完成标记(只读): ✓=已完成 / 素圆点=未完成。刻意不用方框 —— 方框=复选框=承诺"可勾选", 而这里勾不动。
+   高度必须固定成一整行行高: 否则盒子被内容撑开(✓ 11px vs 圆点 5px), 在 align-items:flex-start 下
+   两个不等高的盒子按顶边对齐 → 圆点飘在文字上方。固定行高 + 盒内居中, 标记才恒落在首行文字中线。 */
+ul.plan .pmark { width:14px; height:1.45em; flex:none; display:grid; place-items:center; color:var(--done); }
 ul.plan .pmark svg { width:11px; height:11px; }
 ul.plan li:not(.done) .pmark::before { content:""; width:5px; height:5px; border-radius:50%; background:var(--border-2); }
-ul.plan li.done span { color:var(--text-faint); text-decoration:line-through; text-decoration-color:var(--border-2); }
+/* 只弱化文字本身 —— 早先写的是 li.done span, 特异度(0-2-3)悄悄盖掉 .pmark 的绿(0-2-1), ✓ 被渲染成灰:
+   渲染结果与代码意图不符。改为只命中 .ptext, 让 ✓ 保持 --done 绿。 */
+ul.plan li.done .ptext { color:var(--text-faint); text-decoration:line-through; text-decoration-color:var(--border-2); }
 
 /* 产出 · 产物行 */
 /* 产物是记录不是控件: 去掉圆角边框(那是按钮/输入框的相), 只留代码底衬 */
