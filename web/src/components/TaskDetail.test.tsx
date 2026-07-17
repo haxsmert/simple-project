@@ -33,7 +33,7 @@ describe('fmtTime', () => {
 describe('TaskDetail', () => {
   it('渲染各槽位并能答复等你决定的问题', () => {
     const onAnswer = vi.fn();
-    render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={onAnswer} onAct={() => {}} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={onAnswer} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     expect(screen.getByText('搭建数据层')).toBeInTheDocument();
     expect(screen.getByText('建三张表')).toBeInTheDocument();          // 输入
     expect(screen.getByText(/schema.sql/)).toBeInTheDocument();        // 产出
@@ -45,7 +45,7 @@ describe('TaskDetail', () => {
   });
 
   it('决策优先: 「等你决定」排在「任务内容」之上, 「下一步」降到「经过」之下', () => {
-    const { container } = render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={() => {}} onAct={() => {}} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    const { container } = render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     const heads = Array.from(container.querySelectorAll('.slot-head h4')).map((h) => h.textContent);
     expect(heads.indexOf('等你决定')).toBe(0); // 轮到你 → 提到最顶
     expect(heads.indexOf('等你决定')).toBeLessThan(heads.indexOf('任务内容'));
@@ -60,7 +60,7 @@ describe('TaskDetail', () => {
       task: { ...pkg.task, state: 'executing' },
       clarifications: [{ id: 'R-148', title: '待确认: 富文本?', state: 'done', currentActor: 'you', currentRole: 'decider', parentId: 'R-142', goal: '富文本?', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }],
     };
-    const { container } = render(<TaskDetail pkg={resolvedPkg} actorsById={actors} onAnswer={() => {}} onAct={() => {}} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    const { container } = render(<TaskDetail pkg={resolvedPkg} actorsById={actors} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     const heads = Array.from(container.querySelectorAll('.slot-head h4')).map((h) => h.textContent);
     expect(heads.indexOf('等你决定')).toBeGreaterThan(heads.indexOf('任务内容')); // 已决定=历史, 让位给内容
   });
@@ -71,13 +71,13 @@ describe('TaskDetail', () => {
       ...pkg,
       clarifications: [{ id: 'R-148', title: '待确认: 导出范围?', state: 'awaiting_decision', currentActor: 'you', currentRole: 'decider', parentId: 'R-142', goal: '导出范围?\n- A. 含全部\n- B. 仅未完成', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }],
     };
-    render(<TaskDetail pkg={optPkg} actorsById={actors} onAnswer={onAnswer} onAct={() => {}} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    render(<TaskDetail pkg={optPkg} actorsById={actors} onAnswer={onAnswer} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: /A\. 含全部/ }));
     expect(onAnswer).toHaveBeenCalledWith('R-148', 'A. 含全部');
   });
 
   it('待确认: 顶部出现「等你拍板」, 批准→执行中/执行者, 打回→待规划/规划者, 说明随动作带上', async () => {
-    const onAct = vi.fn();
+    const onAct = vi.fn().mockResolvedValue(true);
     const confirmPkg: TaskPackage = { ...pkg, task: { ...pkg.task, state: 'awaiting_confirm' }, clarifications: [] };
     const { container } = render(<TaskDetail pkg={confirmPkg} actorsById={actors} onAnswer={() => {}} onAct={onAct} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     const heads = Array.from(container.querySelectorAll('.slot-head h4')).map((h) => h.textContent);
@@ -94,7 +94,7 @@ describe('TaskDetail', () => {
 
   it('诚实性: 计划清单与子任务都不渲染复选框(勾不动的东西不许长成复选框)', () => {
     const planPkg: TaskPackage = { ...pkg, inputs: { ...pkg.inputs, inputsMd: '- [x] 令牌桶\n- [ ] 每 actor 配额' } };
-    const { container } = render(<TaskDetail pkg={planPkg} actorsById={actors} onAnswer={() => {}} onAct={() => {}} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    const { container } = render(<TaskDetail pkg={planPkg} actorsById={actors} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     expect(container.querySelector('input[type="checkbox"]')).toBeNull();
     expect(container.querySelector('ul.plan .ck')).toBeNull();
     expect(container.querySelector('.sub .cb')).toBeNull();
@@ -104,7 +104,7 @@ describe('TaskDetail', () => {
 
   it('任务引用都是真链接: 子任务行 / 关系边+依赖 / 面包屑 点了都跳到该任务详情', () => {
     const onOpenTask = vi.fn();
-    render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={() => {}} onAct={() => {}} onComment={() => {}} onOpenTask={onOpenTask} onClose={() => {}} />);
+    render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={onOpenTask} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: /tasks 表/ })); // 子任务行(R-143)
     expect(onOpenTask).toHaveBeenCalledWith('R-143');
     // R-140 既是依赖又是关系边目标: 两处都可跳, 且可及名各自说清关系(不能都叫裸 "R-140")
@@ -117,15 +117,15 @@ describe('TaskDetail', () => {
 
   it('完成与否对读屏可感知(✓/圆点都是视觉的, 必须配隐藏文本)', () => {
     const planPkg: TaskPackage = { ...pkg, inputs: { ...pkg.inputs, inputsMd: '- [x] 令牌桶\n- [ ] 每 actor 配额' } };
-    render(<TaskDetail pkg={planPkg} actorsById={actors} onAnswer={() => {}} onAct={() => {}} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    render(<TaskDetail pkg={planPkg} actorsById={actors} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     expect(screen.getByText('已完成')).toBeInTheDocument();
     expect(screen.getByText('未完成')).toBeInTheDocument();
   });
 
   it('抽屉内跳转后焦点落到新任务标题, 不掉回 body(键盘不断链)', () => {
-    const { rerender, container } = render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={() => {}} onAct={() => {}} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    const { rerender, container } = render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     const next: TaskPackage = { ...pkg, task: { ...pkg.task, id: 'R-143', title: '跳过去的任务', state: 'executing' }, clarifications: [] };
-    rerender(<TaskDetail pkg={next} actorsById={actors} onAnswer={() => {}} onAct={() => {}} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    rerender(<TaskDetail pkg={next} actorsById={actors} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     const h2 = container.querySelector('h2') as HTMLElement;
     expect(h2.textContent).toBe('跳过去的任务');
     expect(document.activeElement).toBe(h2);
@@ -139,7 +139,7 @@ describe('TaskDetail', () => {
       outputs: { outputsMd: null, summary: null },
       clarifications: [], thread: [], subtasks: [], edges: { out: [], in: [] },
     };
-    const { container } = render(<TaskDetail pkg={bare} actorsById={actors} onAnswer={() => {}} onAct={() => {}} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    const { container } = render(<TaskDetail pkg={bare} actorsById={actors} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     const heads = Array.from(container.querySelectorAll('.slot-head h4')).map((h) => h.textContent);
     expect(heads).not.toContain('任务内容');
     expect(heads).not.toContain('做出了什么');
@@ -148,7 +148,7 @@ describe('TaskDetail', () => {
   });
 
   it('执行中的任务: 「下一步」只给状态机允许的那一条(交去测试), 且「交给」有可见标签', async () => {
-    const onAct = vi.fn();
+    const onAct = vi.fn().mockResolvedValue(true);
     const execPkg: TaskPackage = { ...pkg, task: { ...pkg.task, state: 'executing' }, clarifications: [] };
     render(<TaskDetail pkg={execPkg} actorsById={actors} onAnswer={() => {}} onAct={onAct} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     expect(screen.getByText('交给')).toBeInTheDocument();          // 可见标签, 不再是哑下拉
@@ -160,7 +160,7 @@ describe('TaskDetail', () => {
 
   it('评论控件调用 onComment', () => {
     const onComment = vi.fn();
-    render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={() => {}} onAct={() => {}} onComment={onComment} onOpenTask={() => {}} onClose={() => {}} />);
+    render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={() => {}} onAct={async () => true} onComment={onComment} onOpenTask={() => {}} onClose={() => {}} />);
     fireEvent.change(screen.getByPlaceholderText('写条评论…'), { target: { value: '看这里' } });
     fireEvent.click(screen.getByRole('button', { name: '评论' }));
     expect(onComment).toHaveBeenCalledWith('R-142', '看这里');
@@ -174,7 +174,7 @@ describe('TaskDetail', () => {
         { id: 'e2', taskId: 'R-142', actorId: 'a', kind: 'output', roleFrom: 'executor', roleTo: null, body: '交了产物', createdAt: '2026-07-16T03:00:00' },
       ],
     };
-    render(<TaskDetail pkg={outputPkg} actorsById={actors} onAnswer={() => {}} onAct={() => {}} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    render(<TaskDetail pkg={outputPkg} actorsById={actors} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     expect(screen.getByText(/交了产出/)).toBeInTheDocument();
     expect(screen.queryByText(/^output/)).toBeNull();
   });
@@ -192,7 +192,7 @@ describe('TaskDetail', () => {
       ],
     };
     const multiActors = { ...actors, b: { id: 'b', name: '执行B', type: 'agent' as const, handle: null } };
-    const { container } = render(<TaskDetail pkg={multiPkg} actorsById={multiActors} onAnswer={() => {}} onAct={() => {}} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    const { container } = render(<TaskDetail pkg={multiPkg} actorsById={multiActors} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     const clarCards = container.querySelectorAll('.clar');
     expect(clarCards.length).toBe(2);
     expect(within(clarCards[0] as HTMLElement).getByText('执行A')).toBeInTheDocument();

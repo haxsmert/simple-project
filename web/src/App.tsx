@@ -26,8 +26,10 @@ export function App() {
   const [draft, setDraft] = useState<{ kind: 'project' | 'task'; title: string } | null>(null);
   const triggerRef = useRef<HTMLElement | null>(null); // 打开抽屉的那张卡, 关闭后把焦点还给它(键盘闭环)
   // 动作反馈: toast 说"我干成了什么", flashId 让看板上那张卡亮一下 —— 两者合起来把"我点了→它去哪了"的因果做可见
-  const [toast, setToast] = useState<string | null>(null);
-  const [flashId, setFlashId] = useState<string | null>(null);
+  // 带 nonce: 同文案/同 id 连发时 React 会 bail-out 导致计时器不重置、动画不重播
+  const [toast, setToast] = useState<{ text: string; n: number } | null>(null);
+  const [flash, setFlash] = useState<{ id: string; n: number } | null>(null);
+  const nonce = useRef(0);
 
   const closeDetail = useCallback(() => { setDetail(null); triggerRef.current?.focus?.(); }, []);
 
@@ -60,10 +62,10 @@ export function App() {
     return () => clearTimeout(t);
   }, [toast]);
   useEffect(() => { // 卡片高亮放完就清, 免得重复触发
-    if (!flashId) return;
-    const t = setTimeout(() => setFlashId(null), 1200);
+    if (!flash) return;
+    const t = setTimeout(() => setFlash(null), 1200);
     return () => clearTimeout(t);
-  }, [flashId]);
+  }, [flash]);
 
   useEffect(() => {
     if (!detail) return;
@@ -133,17 +135,25 @@ export function App() {
     if (detail) setDetail(await api.task(detail.task.id));
   }), [actors, detail, reloadCurrent, guard]);
   // 执行一个「下一步」动作: 做完给出成功反馈(toast) + 让被影响的卡在看板上亮一下
+  // 执行一个「下一步」动作。返回是否成功 —— 失败时 NextActions 不该抹掉人家写的说明。
+  // 成功后关抽屉: 你在这条任务上的事已了, 回到看板才看得见那张卡挪去了哪(高亮就在那儿),
+  // 否则遮罩+抽屉正好盖住看板, 高亮亮给空气看。
   const onAct = useCallback(async (input: { taskId: string; toActor: string; toRole: string; toState: string; note: string }, action: TaskAction) => {
+    let ok = false;
     await guard(async () => {
       const you = actors.find((a) => a.type === 'human')?.id ?? 'you';
       await api.handoff({ ...input, byActor: you });
       await reloadCurrent();
-      if (detail) setDetail(await api.task(detail.task.id));
       const who = actorsById[input.toActor]?.name;
-      setToast(`${action.done}${action.keepActor || !who ? '' : ` · 交给 ${who}`}`);
-      setFlashId(input.taskId);
+      const suffix = action.keepActor || !who ? '' : ` · 交给 ${who}`;
+      const n = ++nonce.current;
+      setToast({ text: `${action.done}${suffix}`, n });
+      setFlash({ id: input.taskId, n });
+      setDetail(null); // 关抽屉, 让回执/高亮落在看板上
+      ok = true;
     });
-  }, [actors, actorsById, detail, reloadCurrent, guard]);
+    return ok;
+  }, [actors, actorsById, reloadCurrent, guard]);
   const onComment = useCallback((taskId: string, body: string) => guard(async () => {
     const you = actors.find((a) => a.type === 'human')?.id ?? 'you';
     await api.comment(taskId, { actor: you, body });
@@ -228,7 +238,7 @@ export function App() {
           onReorder={onReorder}
           emptyHint={<><b>还没有项目</b><div>点右上角「+ 新建项目」开始</div></>} />
       ) : (
-        <Board columns={taskCols} actorsById={actorsById} onOpen={openTask} onReorder={onReorder} flashId={flashId}
+        <Board columns={taskCols} actorsById={actorsById} onOpen={openTask} onReorder={onReorder} flashId={flash?.id ?? null}
           // 只有已在某项目内才允许继续下钻 —— 从"全部任务"钻入会让 path[0] 成为非项目, 面包屑/上溯都乱套
           onDescend={isAll ? undefined : (id) => { const t = taskCols.flatMap((c) => c.tasks).find((x) => x.id === id); if (t) descend({ id: t.id, title: t.title }); }}
           showProject={isAll}
@@ -238,7 +248,10 @@ export function App() {
         ? <Tree nodes={tree} onOpen={openTask} actorsById={actorsById} />
         : <div className="board-empty"><b>还没有任务</b><div>新建项目后,任务树会在这里展开</div></div>)}
 
-      {toast && <div className="toast" role="status" aria-live="polite">{toast}</div>}
+      {/* live region 常驻 DOM, 只换文本 —— 容器与内容同时插入, 读屏多半不播报 */}
+      <div className="toast-region" role="status" aria-live="polite">
+        {toast && <div className="toast" key={toast.n}>{toast.text}</div>}
+      </div>
 
       {detail && (
         <>

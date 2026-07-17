@@ -3,7 +3,8 @@ import { NEXT_ACTIONS } from './actions';
 import { TRANSITIONS, canTransition } from '../../src/core/stateMachine';
 import type { TaskState } from './types';
 
-const ALL: TaskState[] = ['planning', 'awaiting_confirm', 'executing', 'awaiting_decision', 'testing', 'done'];
+// 从表本身取, 不手抄 —— 手抄的清单会在新增状态时静默漏测
+const ALL = Object.keys(NEXT_ACTIONS) as TaskState[];
 
 describe('「下一步」动作表', () => {
   // 这条是结构性守卫: 原来的换手表单把全部 6 个状态列给使用者, 其中一半是状态机不允许的去向,
@@ -24,6 +25,28 @@ describe('「下一步」动作表', () => {
     expect(NEXT_ACTIONS.awaiting_decision).toEqual([]);
     for (const from of ALL.filter((s) => s !== 'done' && s !== 'awaiting_decision')) {
       expect(NEXT_ACTIONS[from].length, `${from} 没有任何可做的下一步`).toBeGreaterThan(0);
+    }
+  });
+
+  it('交给"人"的动作必须用 toHuman, 不能用 keepActor 冒充(否则 agent 会成为自己计划的批准人)', () => {
+    const submit = NEXT_ACTIONS.planning.find((a) => a.toRole === 'decider');
+    expect(submit, '规划态应有一条"提交给人确认"的动作').toBeTruthy();
+    expect(submit!.toHuman, 'toRole=decider 却没标 toHuman → 会把当前 agent 设成决策者').toBe(true);
+    expect(submit!.keepActor).toBeFalsy();
+    // 反向: 任何交给决策者的动作都不许 keepActor
+    for (const from of ALL) {
+      for (const a of NEXT_ACTIONS[from]) {
+        if (a.toRole === 'decider') expect(a.keepActor, `${a.label}: 决策者不能靠 keepActor 指定`).toBeFalsy();
+      }
+    }
+  });
+
+  it('每个非终态都保留"纯改派"(同态换手) —— 行动者卡住时要能换人, 这是后端允许的能力', () => {
+    for (const from of ['planning', 'executing', 'testing'] as TaskState[]) {
+      const r = NEXT_ACTIONS[from].find((a) => a.key === 'reassign');
+      expect(r, `${from} 缺少改派动作`).toBeTruthy();
+      expect(r!.toState, '改派不该改变阶段').toBe(from);
+      expect(canTransition(from, r!.toState), '同态换手应是合法流转').toBe(true);
     }
   });
 

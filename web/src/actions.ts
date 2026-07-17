@@ -18,13 +18,22 @@ export type TaskAction = {
   toRole: Role;
   primary?: boolean;    // 一屏只有一个主 CTA
   danger?: boolean;     // 打回/返工类, 视觉上与主动作分开
-  keepActor?: boolean;  // true = 留在当前行动者手里, 不需要"交给谁"
+  keepActor?: boolean;  // 留在当前行动者手里(如"验收通过"就是测试者自己盖章)
+  toHuman?: boolean;    // 交到"你"(人类决策者)手里 —— 不能用 keepActor 冒充:
+                        // 那会把当前 agent 设成 decider, 等于让 agent 自己批准自己的计划, 正是这道闸要拦的事
 };
+
+// 纯改派(同态换手): 状态不动, 只换人。canTransition 首行 from===to 就是允许它的,
+// 旧换手表单的默认行为正是这个 —— 执行者卡住/下线时要能转给别人, 不能只剩"推到下一阶段"这一条路。
+const reassign = (state: TaskState, role: Role): TaskAction => ({
+  key: 'reassign', label: '换个人做', hint: '阶段不变, 换个行动者接手', done: '已改派', toState: state, toRole: role,
+});
 
 export const NEXT_ACTIONS: Record<TaskState, TaskAction[]> = {
   planning: [
     { key: 'start', label: '开始执行', hint: '计划够了, 直接开工', done: '已开工', toState: 'executing', toRole: 'executor', primary: true },
-    { key: 'submit', label: '提交计划, 等我确认', hint: '先过你这关再开工', done: '计划已提交, 等你确认', toState: 'awaiting_confirm', toRole: 'decider', keepActor: true },
+    { key: 'submit', label: '提交计划, 等我确认', hint: '先过你这关再开工', done: '计划已提交, 等你确认', toState: 'awaiting_confirm', toRole: 'decider', toHuman: true },
+    reassign('planning', 'planner'),
   ],
   awaiting_confirm: [
     { key: 'approve', label: '批准开工', hint: '计划通过, 交给执行者去做', done: '已批准, 开工了', toState: 'executing', toRole: 'executor', primary: true },
@@ -32,6 +41,7 @@ export const NEXT_ACTIONS: Record<TaskState, TaskAction[]> = {
   ],
   executing: [
     { key: 'toTest', label: '做完了, 交去测试', hint: '交给测试者验收', done: '已送去测试', toState: 'testing', toRole: 'tester', primary: true },
+    reassign('executing', 'executor'),
   ],
   // 待决策的唯一出路是"答复它的问题"(答复后状态机自动解冻回执行中), 所以这里刻意为空。
   // 曾想给一条「不答复直接继续」的出口: 虽然 executing 是合法边, 但 spec §3.2 定死
@@ -41,6 +51,7 @@ export const NEXT_ACTIONS: Record<TaskState, TaskAction[]> = {
   testing: [
     { key: 'pass', label: '验收通过', hint: '标记为完成', done: '已验收通过, 完成', toState: 'done', toRole: 'tester', primary: true, keepActor: true },
     { key: 'fail', label: '打回返工', hint: '没通过, 退回执行者重做', done: '没通过, 已退回去重做', toState: 'executing', toRole: 'executor', danger: true },
+    reassign('testing', 'tester'),
   ],
   done: [],
 };

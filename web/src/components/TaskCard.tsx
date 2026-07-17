@@ -1,4 +1,4 @@
-import type { DragEvent } from 'react';
+import { useEffect, useRef, type DragEvent } from 'react';
 import type { BoardCard, Actor, TaskState } from '../types';
 import { ActorBadge } from './ActorBadge';
 import { STATE_NAME } from '../states';
@@ -26,6 +26,11 @@ export function TaskCard({ task, actor, onOpen, onDescend, showProject, flash, d
   const pct = hasSubtasks ? Math.round((doneSubtaskCount / subtaskCount) * 100) : 0;
 
   // 可及名把卡面降噪掉的关键信号(所属项目/状态/待你处理数/优先级)完整保留给读屏
+  // 动作完成后抽屉会关掉, 原触发卡已随重渲染换成新 DOM 节点(旧 ref 失效 → 焦点掉回 body)。
+  // 由"刚被动作影响、正在高亮"的这张卡接住焦点 —— 它就是你刚操作的那张, 键盘不断链。
+  const titleRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (flash) titleRef.current?.focus(); }, [flash]);
+
   const a11yLabel = [
     showProject ? task.parentTitle : null, task.title, STATE_NAME[task.state],
     task.attention ? `${task.attention} 项待你处理` : '',
@@ -41,7 +46,7 @@ export function TaskCard({ task, actor, onOpen, onDescend, showProject, flash, d
         <div className="card-top"><span className="attn-chip">{task.attention} 待处理</span></div>
       )}
       {/* 标题即"打开详情"按钮: 卡片本体是普通容器(鼠标点任意处也打开), 键盘/读屏走这个真按钮, 不嵌套交互 */}
-      <button type="button" className="card-title" aria-label={a11yLabel} onClick={(e) => { e.stopPropagation(); onOpen(task.id); }}>{task.title}</button>
+      <button ref={titleRef} type="button" className="card-title" aria-label={a11yLabel} onClick={(e) => { e.stopPropagation(); onOpen(task.id); }}>{task.title}</button>
       {hasSubtasks && (onDescend ? (
         <button type="button" className="sub-mini sub-drill" title="钻入子任务"
           onClick={(e) => { e.stopPropagation(); onDescend(task.id); }}>

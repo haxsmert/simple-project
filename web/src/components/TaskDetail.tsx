@@ -179,7 +179,7 @@ function CommentBox({ taskId, onComment }: { taskId: string; onComment: (taskId:
 export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpenTask, onClose }: {
   pkg: TaskPackage; actorsById: Record<string, Actor>;
   onAnswer: (clarId: string, answer: string) => void;
-  onAct: (input: { taskId: string; toActor: string; toRole: Role; toState: TaskState; note: string }, action: TaskAction) => Promise<void> | void;
+  onAct: (input: { taskId: string; toActor: string; toRole: Role; toState: TaskState; note: string }, action: TaskAction) => Promise<boolean>;
   onComment: (taskId: string, body: string) => void;
   onOpenTask: (id: string) => void; // 任务引用(面包屑/子任务/关系边/依赖)跳到那个任务的详情
   onClose: () => void;
@@ -193,6 +193,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
 
   // 槽位有话说才出现(与子任务/关系边/待确认同一规则): 只有标题和"上一棒交付"这类承诺性副标题、
   // 底下却空空如也, 是在承诺不存在的内容 —— 与假复选框同一类不诚实。
+  const parentNode = pkg.breadcrumb[pkg.breadcrumb.length - 1] ?? null; // 直接父任务(面包屑末位)
   const hasInputs = !!pkg.inputs.goal || inputPlan.plain.length > 0 || inputPlan.items.length > 0 || pkg.inputs.depOutputs.length > 0;
   const hasOutputs = outputArtifacts.plain.length > 0 || outputArtifacts.files.length > 0 || !!pkg.outputs.summary;
 
@@ -402,6 +403,20 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
           </div>
         </div>
       </div>
+      )}
+
+      {/* 这张卡本身就是"待你拍板的问题"(澄清任务): 它自己没有「等你决定」块(那长在父任务上),
+          也没有「下一步」(答复才是出路) —— 不给指路就是死胡同, 只能关掉, 界面还不说。 */}
+      {t.state === 'awaiting_decision' && pkg.clarifications.length === 0 && parentNode && (
+        <div className="slot">
+          <SlotHead icon={<IconQuestion />} tint="warn" title="等你决定" tag="这是一个等你拍板的问题" />
+          <div className="slot-body">
+            <p className="confirm-hint">这个问题要在它所属的任务里答复(那边能看到上下文和选项)。</p>
+            <button type="button" className="btn primary" onClick={() => onOpenTask(parentNode.id)}>
+              去「{parentNode.title}」答复 →
+            </button>
+          </div>
+        </div>
       )}
 
       {/* 待确认时「下一步」已在顶部当主角, 此处不重复 */}
