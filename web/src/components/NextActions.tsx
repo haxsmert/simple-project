@@ -9,11 +9,12 @@ import { actionsFor, type TaskAction, type ActInput } from '../actions';
 // - **带内容的动作点开先展开输入区**(计划/产出/理由): 内容和动作同址 —— "提交计划"却没处写计划,
 //   动作就是空话。展开区预填现有内容, 改完一并提交。
 // - 主动作只有一个; 点击后禁用 + 「处理中…」防连点
-export function NextActions({ taskId, state, hold, currentActor, actorsById, routing, content, onAct }: {
+export function NextActions({ taskId, state, hold, currentActor, actorsById, routing, content, openSubtasks, onAct }: {
   taskId: string; state: TaskState; hold: Hold; currentActor: string | null;
   actorsById: Record<string, Actor>;
   routing: Record<string, { actorId: string | null; basis: 'history' | 'fallback' }>;
   content: { inputsMd: string | null; outputsMd: string | null; summary: string | null }; // 表单预填: 已写过的别让人重打
+  openSubtasks: number; // 未完成的直接子任务数 —— 完成前必须清零(硬闸在后端), 进测试只如实提示
   onAct: (input: ActInput, action: TaskAction) => Promise<boolean>;
 }) {
   const actions = actionsFor(state, hold);
@@ -83,9 +84,13 @@ export function NextActions({ taskId, state, hold, currentActor, actorsById, rou
           const isPick = a.key === 'reassign';
           const target = targetOf(a);
           const who = actorsById[target]?.name;
+          // 父子最小不变量(方案 B): 完成的任务不能有没完成的子 —— 收官类动作禁用并说明原因(后端同拦);
+          // 进测试不拦, 但把"还有几个没完成"如实摆在按钮上
+          const blockedByChildren = a.toState === 'done' && openSubtasks > 0;
           // 按钮第二行直接写明后果 + 交给谁 —— 默认可见, 才谈得上"默认规则"而不是黑箱
-          const sub = isPick ? a.hint
-            : `${a.hint}${!a.keepActor && who ? ` · 交给 ${who}${isGuess(a) ? '(还没人做过这个角色, 先随便派的)' : ''}` : ''}`;
+          const sub = blockedByChildren ? `还有 ${openSubtasks} 个子任务未完成 —— 全完成才能收官`
+            : isPick ? a.hint
+              : `${a.hint}${!a.keepActor && who ? ` · 交给 ${who}${isGuess(a) ? '(还没人做过这个角色, 先随便派的)' : ''}` : ''}${a.toState === 'testing' && openSubtasks > 0 ? ` · 还有 ${openSubtasks} 个子任务未完成` : ''}`;
           if (isPick && openFor === a.key) {
             return (
               <div key={a.key} className="reassign-open">
@@ -141,9 +146,9 @@ export function NextActions({ taskId, state, hold, currentActor, actorsById, rou
                 : true);
           return (
             // 可及名只取 label: label+hint 会糊成"提交计划, 等我确认先过你这关再开工"这种病句
-            <button key={a.key} type="button" aria-label={a.label}
+            <button key={a.key} type="button" aria-label={blockedByChildren ? `${a.label}(还有 ${openSubtasks} 个子任务未完成)` : a.label}
               className={`btn act${a.primary ? ' primary' : ''}${a.danger ? ' danger' : ''}`}
-              disabled={!!busy} onClick={() => {
+              disabled={!!busy || blockedByChildren} onClick={() => {
                 if (isPick || (a.form && !guardPassed)) openPanel(a); // 带面板的动作: 点开才展开(常见路径保持一键)
                 else run(a);
               }}>

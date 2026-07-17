@@ -144,6 +144,24 @@ describe('TaskDetail', () => {
     expect((onAct2.mock.calls[0][0] as { planMd?: string }).planMd).toBeUndefined(); // 计划已在库里, 不重写
   });
 
+  it('父子最小不变量: 子未完时「验收通过」禁用并说明原因; 「交去测试」不拦但如实提示', () => {
+    const withOpenChild: TaskPackage = {
+      ...pkg,
+      task: { ...pkg.task, state: 'testing', hold: null }, clarifications: [],
+      subtasks: [{ id: 'R-143', title: '还没完的子任务', state: 'executing', hold: null, currentActor: null, currentRole: null, parentId: 'R-142', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null }],
+    };
+    const { unmount } = render(<TaskDetail pkg={withOpenChild} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    const pass = screen.getByRole('button', { name: /验收通过/ });
+    expect(pass).toBeDisabled(); // 完成的任务不能有没完成的子(后端同拦, 界面直接说清不让人撞墙)
+    expect(screen.getByText(/还有 1 个子任务未完成 —— 全完成才能收官/)).toBeInTheDocument();
+    unmount();
+
+    const execPkg: TaskPackage = { ...withOpenChild, task: { ...withOpenChild.task, state: 'executing' } };
+    render(<TaskDetail pkg={execPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    expect(screen.getByRole('button', { name: /交去测试/ })).toBeEnabled(); // 进测试不拦
+    expect(screen.getByText(/还有 1 个子任务未完成/)).toBeInTheDocument();  // 但如实提示
+  });
+
   it('「提交计划」就地写计划: 预填现有内容, 空计划不给提交, 提交时计划随动作带走', async () => {
     const onAct = vi.fn().mockResolvedValue(true);
     const planPkg: TaskPackage = {

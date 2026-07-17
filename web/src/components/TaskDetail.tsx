@@ -261,7 +261,8 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
   // 待确认(计划等你拍板)时提到最顶当主角; 其余状态放在底部当收尾动作。
   const nextActions = (
     <NextActions key={t.id} taskId={t.id} state={t.state} hold={t.hold} currentActor={t.currentActor} actorsById={actorsById} routing={routing}
-      content={{ inputsMd: pkg.inputs.inputsMd, outputsMd: pkg.outputs.outputsMd, summary: pkg.outputs.summary }} onAct={onAct} />
+      content={{ inputsMd: pkg.inputs.inputsMd, outputsMd: pkg.outputs.outputsMd, summary: pkg.outputs.summary }}
+      openSubtasks={pkg.subtasks.filter((s) => s.state !== 'done').length} onAct={onAct} />
   );
   // 拍板槽自带拍板依据: 目标 + 计划正文就在批准/打回按钮上方 —— 依据和动作分居两个槽位,
   // 人就得"往下翻找计划再翻回来点批准", 这正是"计划罗列不直观"的病根
