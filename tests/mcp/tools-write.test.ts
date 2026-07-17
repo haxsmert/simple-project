@@ -6,7 +6,7 @@ import { openDb } from '../../src/db/connection';
 import { getTask } from '../../src/repo/tasks';
 import { RelayService } from '../../src/service/relay';
 import {
-  claimTool, handoffTool, submitOutputTool,
+  claimTool, handoffTool, submitPlanTool, submitOutputTool,
   raiseClarificationTool, answerClarificationTool, commentTool, ALL_TOOLS,
 } from '../../src/mcp/tools';
 
@@ -45,9 +45,16 @@ describe('MCP write tools', () => {
     expect(getTask(db, p.id)!.state).toBe('executing');
   });
 
-  it('ALL_TOOLS 含全部 8 个工具', () => {
+  it('submit_plan 写计划(agent 规划者也要有写计划的通道, 不能只有 Web 界面能写)', () => {
+    const { db, service } = svc();
+    const t = service.createTask({ title: 't' });
+    submitPlanTool.handler(service, { task_id: t.id, by_actor: 'x', plan_md: '- [ ] 先建表' });
+    expect(getTask(db, t.id)!.inputsMd).toBe('- [ ] 先建表');
+  });
+
+  it('ALL_TOOLS 含全部 9 个工具', () => {
     expect(ALL_TOOLS.map((t) => t.name).sort()).toEqual(
-      ['answer_clarification', 'claim', 'comment', 'get_task', 'handoff', 'list_my_tasks', 'raise_clarification', 'submit_output'],
+      ['answer_clarification', 'claim', 'comment', 'get_task', 'handoff', 'list_my_tasks', 'raise_clarification', 'submit_output', 'submit_plan'],
     );
   });
 });

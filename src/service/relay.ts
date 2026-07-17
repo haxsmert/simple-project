@@ -164,6 +164,15 @@ export class RelayService {
     return t;
   }
 
+  // 计划是规划者的交付物, 落在 inputsMd(它是下一棒执行的输入)。
+  // 没有这个通道, "提交计划"就是一句空话 —— 界面和 agent 都无处把计划写进来。
+  submitPlan(taskId: string, byActor: string, planMd: string): Task {
+    const t = updateTask(this.db, taskId, { inputsMd: planMd });
+    appendEvent(this.db, { taskId, actorId: byActor, kind: 'plan' });
+    this.mirror(taskId);
+    return t;
+  }
+
   submitOutput(
     taskId: string,
     byActor: string,

@@ -5,7 +5,7 @@ import { Board } from './components/Board';
 import { Tree } from './components/Tree';
 import { TaskDetail } from './components/TaskDetail';
 import { ProjectPicker } from './components/ProjectPicker';
-import type { TaskAction } from './actions';
+import type { TaskAction, ActInput } from './actions';
 
 type NavNode = { id: string; title: string };
 // "全部任务"作为伪节点占据路径第一格: 与真实项目同构, 面包屑/上溯/加载全走同一套机制, 不开特例分支
@@ -140,11 +140,14 @@ export function App() {
   // 执行一个「下一步」动作。返回是否成功 —— 失败时 NextActions 不该抹掉人家写的说明。
   // 成功后关抽屉: 你在这条任务上的事已了, 回到看板才看得见那张卡挪去了哪(高亮就在那儿),
   // 否则遮罩+抽屉正好盖住看板, 高亮亮给空气看。
-  const onAct = useCallback(async (input: { taskId: string; toActor: string; toRole: string; toState: string; note: string }, action: TaskAction) => {
+  const onAct = useCallback(async (input: ActInput, action: TaskAction) => {
     let ok = false;
     await guard(async () => {
       const you = actors.find((a) => a.type === 'human')?.id ?? 'you';
-      await api.handoff({ ...input, byActor: you });
+      // 动作携带的内容先落库再转交: 转交失败(状态被并发改了等)时计划/产出也已保存, 不丢人家写的字
+      if (input.planMd !== undefined) await api.plan(input.taskId, { byActor: you, planMd: input.planMd });
+      if (input.outputs) await api.output(input.taskId, { byActor: you, outputsMd: input.outputs.outputsMd, summary: input.outputs.summary });
+      await api.handoff({ taskId: input.taskId, toActor: input.toActor, toRole: input.toRole, toState: input.toState, note: input.note, byActor: you });
       await reloadCurrent();
       const who = actorsById[input.toActor]?.name;
       const suffix = action.keepActor || !who ? '' : ` · 交给 ${who}`;

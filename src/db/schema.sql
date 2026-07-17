@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS events (
   id         TEXT PRIMARY KEY,
   task_id    TEXT NOT NULL REFERENCES tasks(id),
   actor_id   TEXT NOT NULL REFERENCES actors(id),
-  kind       TEXT NOT NULL CHECK (kind IN ('handoff','comment','output','clarify','decide','claim')),
+  kind       TEXT NOT NULL CHECK (kind IN ('handoff','comment','output','clarify','decide','claim','plan')),
   role_from  TEXT,
   role_to    TEXT,
   to_actor   TEXT REFERENCES actors(id),  -- 交给了谁(actor_id 只是"谁发起的", 不含接手人)

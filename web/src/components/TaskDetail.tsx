@@ -5,14 +5,14 @@ import { RoleChip } from './RoleChip';
 import { EdgeChip } from './EdgeChip';
 import { STATE_NAME, STATE_COLOR } from '../states';
 import { NextActions } from './NextActions';
-import { NEXT_ACTIONS, type TaskAction } from '../actions';
+import { NEXT_ACTIONS, type TaskAction, type ActInput } from '../actions';
 
 const STATE_PILL: Record<TaskState, string> = { planning: 'plan', awaiting_confirm: 'confirm', executing: 'exec', awaiting_decision: 'decide', testing: 'test', done: 'done' };
 const ROLE_NAME: Record<Role, string> = { planner: '规划', executor: '执行', tester: '测试', questioner: '提问', decider: '决策' };
 // 「经过」要回答"谁在什么时候做了什么", 就必须说出**宾语和变化**。
 // 之前只有一张动词表, 于是四次换手长得一模一样: "你 交给了下一个人" ×4 —— 等于没说。
 const KIND_VERB: Record<string, string> = {
-  handoff: '转交', comment: '留言', output: '交了产出', clarify: '提了个问题等人决定', decide: '拍了板', claim: '接手',
+  handoff: '转交', comment: '留言', output: '交了产出', clarify: '提了个问题等人决定', decide: '拍了板', claim: '接手', plan: '写了计划',
 };
 
 // 把一条事件说成一句人话: 谁 + 做了什么 + 给谁 + 状态怎么变
@@ -134,6 +134,29 @@ function parseOptions(goal: string | null): { letter: string; text: string }[] {
   return opts;
 }
 
+// 计划正文(自由行 + 只读清单): 拍板槽和「任务内容」共用同一渲染 —— 拍板的依据必须和批准按钮同址,
+// 不能让人"往下翻到别的槽位去找计划"(识别优于回忆)
+function PlanBlock({ plan }: { plan: ReturnType<typeof parsePlan> }) {
+  return (
+    <>
+      {plan.plain.map((l, i) => <p key={i}>{l}</p>)}
+      {plan.items.length > 0 && (
+        // 只读: 用 ✓/素圆点 表示完成与否, 不用复选框
+        // ——勾选框会承诺一个不存在的操作(完成与否由状态机决定, 不是这里能勾的)
+        <ul className="plan">
+          {plan.items.map((it, i) => (
+            <li key={i} className={it.done ? 'done' : ''}>
+              {/* ✓ 是 aria-hidden、圆点是 CSS ::before、删除线读屏不播报 → 必须补一句隐藏文本, 否则"已完成/未完成"对读屏毫无区别 */}
+              <span className="pmark">{it.done ? <IconCheck /> : null}<span className="sr-only">{it.done ? '已完成' : '未完成'}</span></span>
+              <span className="ptext">{it.text}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
 // 交互记录时间人性化: 裸 UTC ISO(…T…Z)→ 本地时区「MM-DD HH:mm」; 纯日期或无法解析则原样返回
 // (存的是 UTC, 对使用者所在时区直接展示 UTC 会差几个小时, 故按本地时间显示)
 export function fmtTime(s: string): string {
@@ -192,7 +215,7 @@ function CommentBox({ taskId, onComment }: { taskId: string; onComment: (taskId:
 export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpenTask, routing, onClose }: {
   pkg: TaskPackage; actorsById: Record<string, Actor>;
   onAnswer: (clarId: string, answer: string) => void;
-  onAct: (input: { taskId: string; toActor: string; toRole: Role; toState: TaskState; note: string }, action: TaskAction) => Promise<boolean>;
+  onAct: (input: ActInput, action: TaskAction) => Promise<boolean>;
   onComment: (taskId: string, body: string) => void;
   onOpenTask: (id: string) => void; // 任务引用(面包屑/子任务/关系边/依赖)跳到那个任务的详情
   routing: Record<string, { actorId: string | null; basis: 'history' | 'fallback' }>; // 角色→{默认派给谁, 依据}
@@ -223,13 +246,20 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
   // 「下一步」面板 —— 同一个机制(状态机允许的去向翻成大白话动作), 只是摆放位置随"轮不轮到你"变:
   // 待确认(计划等你拍板)时提到最顶当主角; 其余状态放在底部当收尾动作。
   const nextActions = (
-    <NextActions key={t.id} taskId={t.id} state={t.state} currentActor={t.currentActor} actorsById={actorsById} routing={routing} onAct={onAct} />
+    <NextActions key={t.id} taskId={t.id} state={t.state} currentActor={t.currentActor} actorsById={actorsById} routing={routing}
+      content={{ inputsMd: pkg.inputs.inputsMd, outputsMd: pkg.outputs.outputsMd, summary: pkg.outputs.summary }} onAct={onAct} />
   );
+  // 拍板槽自带拍板依据: 目标 + 计划正文就在批准/打回按钮上方 —— 依据和动作分居两个槽位,
+  // 人就得"往下翻找计划再翻回来点批准", 这正是"计划罗列不直观"的病根
+  const hasPlanText = inputPlan.plain.length > 0 || inputPlan.items.length > 0;
   const confirmSlot = t.state === 'awaiting_confirm' && (
     <div className="slot">
       <SlotHead icon={<IconWarnTriangle />} tint="warn" title="等你拍板" tag="计划已就绪, 开工前过你这关" />
       <div className="slot-body">
-        <p className="confirm-hint">{hasInputs ? '下面「任务内容」是它打算怎么做。你说行就开工。' : '上一步没留下计划详情。你说行就开工。'}</p>
+        {pkg.inputs.goal && <div className="goal"><b>目标:</b> {pkg.inputs.goal}</div>}
+        {hasPlanText
+          ? <PlanBlock plan={inputPlan} />
+          : <p className="confirm-hint">上一步没留下计划详情 —— 可以打回要一份, 也可以直接拍板。</p>}
         {nextActions}
       </div>
     </div>
@@ -310,24 +340,16 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
       {confirmSlot}
       {openClarCount > 0 && clarSlot}
 
-      {hasInputs && (
+      {/* 待确认时目标+计划已亮在拍板槽的按钮旁, 这里不再重复(同屏两份同一计划是噪音), 只剩依赖时保留依赖 */}
+      {(t.state === 'awaiting_confirm' ? pkg.inputs.depOutputs.length > 0 : hasInputs) && (
       <div className="slot">
         <SlotHead icon={<IconFile />} tint="human" title="任务内容" tag="要做的事和计划" />
         <div className="slot-body">
-          {pkg.inputs.goal && <div className="goal"><b>目标:</b> {pkg.inputs.goal}</div>}
-          {inputPlan.plain.map((l, i) => <p key={i}>{l}</p>)}
-          {inputPlan.items.length > 0 && (
-            // 上一棒交付的计划记录, 只读: 用 ✓/素圆点 表示完成与否, 不用复选框
-            // ——勾选框会承诺一个不存在的操作(完成与否由状态机决定, 不是这里能勾的)
-            <ul className="plan">
-              {inputPlan.items.map((it, i) => (
-                <li key={i} className={it.done ? 'done' : ''}>
-                  {/* ✓ 是 aria-hidden、圆点是 CSS ::before、删除线读屏不播报 → 必须补一句隐藏文本, 否则"已完成/未完成"对读屏毫无区别 */}
-                  <span className="pmark">{it.done ? <IconCheck /> : null}<span className="sr-only">{it.done ? '已完成' : '未完成'}</span></span>
-                  <span className="ptext">{it.text}</span>
-                </li>
-              ))}
-            </ul>
+          {t.state !== 'awaiting_confirm' && (
+            <>
+              {pkg.inputs.goal && <div className="goal"><b>目标:</b> {pkg.inputs.goal}</div>}
+              <PlanBlock plan={inputPlan} />
+            </>
           )}
           {pkg.inputs.depOutputs.map((d) => (
             <div key={d.taskId} className="dep-row">

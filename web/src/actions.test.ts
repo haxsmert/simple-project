@@ -50,6 +50,18 @@ describe('「下一步」动作表', () => {
     }
   });
 
+  it('要交东西的动作带内容面板: 提交计划必填计划, 交测试必填产出, 打回带理由(光转交不交东西是空话)', () => {
+    const submit = NEXT_ACTIONS.planning.find((a) => a.key === 'submit')!;
+    expect(submit.form?.kind, '"提交计划"必须有地方写计划').toBe('plan');
+    expect(submit.form?.required, '空计划提交 = "提交了计划但没有计划"的自相矛盾').toBe(true);
+    const toTest = NEXT_ACTIONS.executing.find((a) => a.key === 'toTest')!;
+    expect(toTest.form?.kind, '"做完了"必须有地方说做出了什么').toBe('output');
+    expect(toTest.form?.required).toBe(true);
+    for (const a of [NEXT_ACTIONS.awaiting_confirm.find((x) => x.key === 'bounce')!, NEXT_ACTIONS.testing.find((x) => x.key === 'fail')!]) {
+      expect(a.form?.kind, `「${a.label}」不说哪里不行, 接手的人只能猜`).toBe('reason');
+    }
+  });
+
   it('每个状态最多一个主动作(一屏一个主 CTA)', () => {
     for (const from of ALL) {
       expect(NEXT_ACTIONS[from].filter((a) => a.primary).length, `${from} 的主动作不止一个`).toBeLessThanOrEqual(1);

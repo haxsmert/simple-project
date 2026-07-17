@@ -58,6 +58,15 @@ export const handoffTool = {
   },
 };
 
+export const submitPlanTool = {
+  name: 'submit_plan',
+  description: '写入/更新任务计划(Markdown, 落在「任务内容」作为执行的输入; 「- [ ] 事项」行会按清单展示)',
+  schema: { task_id: z.string(), by_actor: z.string(), plan_md: z.string() },
+  handler(service: RelayService, args: { task_id: string; by_actor: string; plan_md: string }): ToolResult {
+    return ok(service.submitPlan(args.task_id, args.by_actor, args.plan_md));
+  },
+};
+
 export const submitOutputTool = {
   name: 'submit_output',
   description: '提交任务产出(产物 Markdown / 一句话摘要)',
@@ -104,5 +113,5 @@ export const commentTool = {
 
 export const ALL_TOOLS = [
   listMyTasksTool, getTaskTool, claimTool, handoffTool,
-  submitOutputTool, raiseClarificationTool, answerClarificationTool, commentTool,
+  submitPlanTool, submitOutputTool, raiseClarificationTool, answerClarificationTool, commentTool,
 ];

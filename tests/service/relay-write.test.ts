@@ -31,6 +31,17 @@ describe('RelayService writes (part A)', () => {
     expect(listEvents(db, t.id).at(-1)!.kind).toBe('claim');
   });
 
+  it('submitPlan 写计划到 inputsMd 并留 plan 事件("提交计划"要有真通道, 不能是句空话)', () => {
+    const { db, service } = svc();
+    service.registerActor({ id: 'p', name: 'P', type: 'agent' });
+    const t = service.createTask({ title: 't', inputsMd: '旧计划' });
+    service.submitPlan(t.id, 'p', '- [ ] 第一步\n- [ ] 第二步');
+    expect(getTask(db, t.id)!.inputsMd).toBe('- [ ] 第一步\n- [ ] 第二步');
+    const ev = listEvents(db, t.id).at(-1)!;
+    expect(ev.kind).toBe('plan');
+    expect(ev.actorId).toBe('p');
+  });
+
   it('submitOutput 只更新给定字段并留 output 事件', () => {
     const { db, service } = svc();
     service.registerActor({ id: 'a', name: 'A', type: 'agent' });

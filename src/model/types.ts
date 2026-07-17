@@ -4,7 +4,7 @@ export type TaskState =
   | 'planning' | 'awaiting_confirm' | 'executing'
   | 'awaiting_decision' | 'testing' | 'done';
 export type EdgeType = 'blocks' | 'depends_on' | 'clarifies' | 'spawns';
-export type EventKind = 'handoff' | 'comment' | 'output' | 'clarify' | 'decide' | 'claim';
+export type EventKind = 'handoff' | 'comment' | 'output' | 'clarify' | 'decide' | 'claim' | 'plan';
 export type Priority = 'hi' | 'mid' | 'lo';
 
 export interface Actor {

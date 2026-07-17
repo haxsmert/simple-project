@@ -29,6 +29,7 @@ export function buildApp(service: RelayService): FastifyInstance {
   app.post('/api/actors', wrap((req) => service.registerActor(req.body)));
   app.post('/api/tasks', wrap((req) => service.createTask(req.body)));
   app.post('/api/tasks/:id/claim', wrap((req) => service.claim(req.params.id, req.body.actor, req.body.role)));
+  app.post('/api/tasks/:id/plan', wrap((req) => service.submitPlan(req.params.id, req.body.byActor, req.body.planMd)));
   app.post('/api/tasks/:id/output', wrap((req) =>
     service.submitOutput(req.params.id, req.body.byActor, { outputsMd: req.body.outputsMd, summary: req.body.summary })));
   app.post('/api/tasks/:id/comment', wrap((req) => service.comment(req.params.id, req.body.actor, req.body.body)));

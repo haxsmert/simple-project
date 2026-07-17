@@ -89,6 +89,7 @@ export function seed(db: DB, dir: string): { taskCount: number; files: string[] 
     goal: '注册与鉴权草案',
     inputsMd: '打算这么做:\n- [ ] handle 唯一性校验\n- [ ] 能力声明(能担任哪些角色)\n- [ ] 最小权限的工具白名单',
   });
+  appendEvent(db, { taskId: 'R-10', actorId: planP.id, kind: 'plan' }); // 「经过」讲全: 先写了计划, 再交给你拍板
   handoffEvent('R-10', planP.id, you.id, 'decider', 'planning', 'awaiting_confirm', '计划写完了, 你看下能不能开工');
 
   // ── 项目 3: 看板体验打磨 ───────────────────────────────────────

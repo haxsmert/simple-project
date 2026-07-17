@@ -79,7 +79,7 @@ describe('TaskDetail', () => {
     expect(onAnswer).toHaveBeenCalledWith('R-148', 'A. 含全部');
   });
 
-  it('待确认: 顶部出现「等你拍板」, 批准→执行中/执行者, 打回→待规划/规划者, 说明随动作带上', async () => {
+  it('待确认: 顶部出现「等你拍板」, 批准→执行中/执行者; 打回先要一句理由, 理由随动作记进「经过」', async () => {
     const onAct = vi.fn().mockResolvedValue(true);
     const confirmPkg: TaskPackage = { ...pkg, task: { ...pkg.task, state: 'awaiting_confirm' }, clarifications: [] };
     const { container } = render(<TaskDetail pkg={confirmPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={onAct} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
@@ -90,9 +90,47 @@ describe('TaskDetail', () => {
     await waitFor(() => expect(onAct).toHaveBeenCalledWith(
       expect.objectContaining({ taskId: 'R-142', toState: 'executing', toRole: 'executor', note: '注意并发' }),
       expect.objectContaining({ key: 'approve' })));
+    // 打回是两步: 点开出理由输入(不说哪里不行, 重规划的人只能猜), 确认才走
     fireEvent.click(screen.getByRole('button', { name: /打回重规划/ }));
+    fireEvent.change(screen.getByPlaceholderText(/给接手的人指路/), { target: { value: '缺依赖分析' } });
+    fireEvent.click(screen.getByRole('button', { name: '打回重规划' }));
     await waitFor(() => expect(onAct).toHaveBeenCalledWith(
-      expect.objectContaining({ toState: 'planning', toRole: 'planner' }), expect.objectContaining({ key: 'bounce' })));
+      expect.objectContaining({ toState: 'planning', toRole: 'planner', note: '缺依赖分析' }),
+      expect.objectContaining({ key: 'bounce' })));
+  });
+
+  it('拍板依据就在拍板处: 目标+计划渲染在「等你拍板」槽内(和批准按钮同址), 「任务内容」不再重复一份', () => {
+    const confirmPkg: TaskPackage = {
+      ...pkg,
+      task: { ...pkg.task, state: 'awaiting_confirm' }, clarifications: [],
+      inputs: { ...pkg.inputs, inputsMd: '- [ ] 建表\n- [ ] 加索引' },
+    };
+    const { container } = render(<TaskDetail pkg={confirmPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    const confirmSlot = container.querySelectorAll('.slot')[0] as HTMLElement; // 「等你拍板」在最顶
+    expect(within(confirmSlot).getByText('建表')).toBeInTheDocument();       // 计划本体
+    expect(within(confirmSlot).getByText(/建三张表/)).toBeInTheDocument();   // 目标
+    expect(within(confirmSlot).getByText('批准开工')).toBeInTheDocument();   // 依据和动作同一屏
+    expect(screen.getAllByText('建表').length).toBe(1); // 全抽屉只有一份计划, 不在「任务内容」再摆一份
+  });
+
+  it('「提交计划」就地写计划: 预填现有内容, 空计划不给提交, 提交时计划随动作带走', async () => {
+    const onAct = vi.fn().mockResolvedValue(true);
+    const planPkg: TaskPackage = {
+      ...pkg,
+      task: { ...pkg.task, state: 'planning' }, clarifications: [],
+      inputs: { ...pkg.inputs, inputsMd: '- [ ] 老一步' },
+    };
+    render(<TaskDetail pkg={planPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={onAct} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /提交计划/ }));
+    const ta = screen.getByPlaceholderText(/第一步/) as HTMLTextAreaElement;
+    expect(ta.value).toBe('- [ ] 老一步'); // 预填已有计划, 不让人从零重打
+    fireEvent.change(ta, { target: { value: '   ' } });
+    expect(screen.getByRole('button', { name: '提交计划, 等我确认' })).toBeDisabled(); // 空计划 = 自相矛盾
+    fireEvent.change(ta, { target: { value: '- [ ] 新一步' } });
+    fireEvent.click(screen.getByRole('button', { name: '提交计划, 等我确认' }));
+    await waitFor(() => expect(onAct).toHaveBeenCalledWith(
+      expect.objectContaining({ planMd: '- [ ] 新一步', toState: 'awaiting_confirm', toActor: 'you' }),
+      expect.objectContaining({ key: 'submit' })));
   });
 
   it('诚实性: 计划清单与子任务都不渲染复选框(勾不动的东西不许长成复选框)', () => {
@@ -150,7 +188,7 @@ describe('TaskDetail', () => {
     expect(heads).toEqual(['下一步', '说点什么']); // 只剩你能采取的动作
   });
 
-  it('执行中: 只给合法的那一条, 且默认按路由自动派给测试者并写明交给谁(不用每次手选)', async () => {
+  it('执行中: 只给合法的那一条, 默认按路由派给测试者; 「做完了」先就地写产出(预填已有的), 产出随动作带走', async () => {
     const onAct = vi.fn().mockResolvedValue(true);
     const execPkg: TaskPackage = { ...pkg, task: { ...pkg.task, state: 'executing' }, clarifications: [] };
     render(<TaskDetail pkg={execPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={onAct} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
@@ -159,8 +197,15 @@ describe('TaskDetail', () => {
     expect(screen.getByText(/交给 测试T/)).toBeInTheDocument();
     expect(screen.queryByText('交给')).toBeNull(); // 不再有常驻的哑下拉
     fireEvent.click(screen.getByRole('button', { name: /交去测试/ }));
+    // 面板预填已写过的产出/摘要(不让人重打), 确认才转交
+    expect((screen.getByPlaceholderText(/产物文件/) as HTMLTextAreaElement).value).toBe('产物 schema.sql');
+    fireEvent.change(screen.getByPlaceholderText(/一句话摘要/), { target: { value: '三张表已建好' } });
+    fireEvent.click(screen.getByRole('button', { name: '做完了, 交去测试' }));
     await waitFor(() => expect(onAct).toHaveBeenCalledWith(
-      expect.objectContaining({ toState: 'testing', toRole: 'tester', toActor: 't' }), // 按路由派给测试者, 不是瞎给第一个 agent
+      expect.objectContaining({
+        toState: 'testing', toRole: 'tester', toActor: 't', // 按路由派给测试者, 不是瞎给第一个 agent
+        outputs: { outputsMd: '产物 schema.sql', summary: '三张表已建好' },
+      }),
       expect.objectContaining({ key: 'toTest' })));
   });
 
