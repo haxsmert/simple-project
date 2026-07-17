@@ -300,15 +300,32 @@ select { cursor:pointer; }
 .inline-create { display:inline-flex; align-items:center; gap:6px; }
 .inline-create input { min-width:180px; }
 
-/* ── 手机(≤640px): 同一套信息架构, 小屏重排 —— 不做删减版 ──
-   看板 = 一屏一列 + 横滑吸附翻列(下一列露一条边, 提示还能滑);
-   抽屉全屏; 边距收紧。拖拽调序依赖 HTML5 drag, 触屏暂不可用(已知限制)。 */
+/* ── 手机(≤640px): 按手机的框架重排, 不是把桌面塞小屏(范式取自 contest-v2 数据站) ──
+   · 手机 = 纵向信息流, **单屏零横滑是架构级保证**(数据站铁律): 看板从"横滑四列"退成
+     "按主干顺序纵向堆叠的分组列表"(计划→执行→测试→完成), 整页只有纵向滚动
+   · 阶段头 sticky: 长列表滚动中始终知道身在哪一站
+   · 纵向单列里"卡片等高"失去意义(那是多列并排的对齐需求) → 卡高随内容, 屏幕留给信息
+   · 触控目标 ≥44px; 抽屉全屏; 动作按钮竖排全宽
+   已知限制: 拖拽调序走 HTML5 drag, 触屏不触发(调序留后续)。 */
 @media (max-width: 640px) {
-  .app { padding: 10px 12px 40px; }
-  .board { grid-auto-columns: 84vw; scroll-snap-type: x mandatory; scroll-padding-left: 5px; }
-  .col { scroll-snap-align: start; }
+  html, body { overflow-x: hidden; } /* 零横滑架构级保底 */
+  .app { padding: 8px 12px 40px; }
+  .topbar { gap: 8px; margin-bottom: 10px; }
+  /* 看板 → 纵向分组列表 */
+  .board { display: block; overflow-x: visible; padding: 0; margin: 0; }
+  .col + .col { margin-top: 20px; }
+  .col-head { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 8px 2px; }
+  .cards { gap: 10px; }
+  .card { min-height: 0; }
+  .card-title { min-height: 30px; } /* 触控目标兜底(卡片整体可点, 标题按钮是键盘/读屏入口) */
+  .col-empty { padding: 10px; }
+  /* 抽屉全屏 */
   .drawer { width: 100vw; border-left: none; padding: 16px 14px; }
-  .topbar { gap: 8px; margin-bottom: 12px; }
+  /* 动作按钮竖排全宽, 拇指好点 */
   .act-list { flex-direction: column; }
-  .act { width: 100%; align-items: flex-start; }
+  .act { width: 100%; align-items: flex-start; min-height: 48px; }
+  .btn { min-height: 40px; }
+  /* 任务树行: 窄屏让标题弹性收缩省略, 状态/负责人不挤破行 */
+  .trow { flex-wrap: wrap; row-gap: 2px; min-height: 44px; }
+  .ttitle { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
