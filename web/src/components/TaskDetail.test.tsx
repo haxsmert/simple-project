@@ -13,7 +13,9 @@ const pkg: TaskPackage = {
   subtasks: [{ id: 'R-143', title: 'tasks 表', state: 'done', currentActor: null, currentRole: null, parentId: 'R-142', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null }],
   edges: { out: [{ id: 'x', fromTask: 'R-142', toTask: 'R-140', type: 'depends_on' }], in: [] },
 };
-const actors = { a: { id: 'a', name: '执行A', type: 'agent' as const, handle: null }, you: { id: 'you', name: '你', type: 'human' as const, handle: null } };
+const actors = { a: { id: 'a', name: '执行A', type: 'agent' as const, handle: null }, t: { id: 't', name: '测试T', type: 'agent' as const, handle: null }, you: { id: 'you', name: '你', type: 'human' as const, handle: null } };
+// 默认路由表(后端按"最近谁在扮演该角色"推出): 界面据此预填交给谁
+const routing = { planner: 'a', executor: 'a', tester: 't', questioner: 'a', decider: 'you' };
 
 describe('fmtTime', () => {
   it('裸 UTC ISO → 「MM-DD HH:mm」本地时间, 不再显示机器味的 T/Z/毫秒', () => {
@@ -33,7 +35,7 @@ describe('fmtTime', () => {
 describe('TaskDetail', () => {
   it('渲染各槽位并能答复等你决定的问题', () => {
     const onAnswer = vi.fn();
-    render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={onAnswer} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    render(<TaskDetail pkg={pkg} actorsById={actors} routing={routing} onAnswer={onAnswer} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     expect(screen.getByText('搭建数据层')).toBeInTheDocument();
     expect(screen.getByText('建三张表')).toBeInTheDocument();          // 输入
     expect(screen.getByText(/schema.sql/)).toBeInTheDocument();        // 产出
@@ -45,7 +47,7 @@ describe('TaskDetail', () => {
   });
 
   it('决策优先: 「等你决定」排在「任务内容」之上, 「下一步」降到「经过」之下', () => {
-    const { container } = render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    const { container } = render(<TaskDetail pkg={pkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     const heads = Array.from(container.querySelectorAll('.slot-head h4')).map((h) => h.textContent);
     expect(heads.indexOf('等你决定')).toBe(0); // 轮到你 → 提到最顶
     expect(heads.indexOf('等你决定')).toBeLessThan(heads.indexOf('任务内容'));
@@ -60,7 +62,7 @@ describe('TaskDetail', () => {
       task: { ...pkg.task, state: 'executing' },
       clarifications: [{ id: 'R-148', title: '待确认: 富文本?', state: 'done', currentActor: 'you', currentRole: 'decider', parentId: 'R-142', goal: '富文本?', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }],
     };
-    const { container } = render(<TaskDetail pkg={resolvedPkg} actorsById={actors} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    const { container } = render(<TaskDetail pkg={resolvedPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     const heads = Array.from(container.querySelectorAll('.slot-head h4')).map((h) => h.textContent);
     expect(heads.indexOf('等你决定')).toBeGreaterThan(heads.indexOf('任务内容')); // 已决定=历史, 让位给内容
   });
@@ -71,7 +73,7 @@ describe('TaskDetail', () => {
       ...pkg,
       clarifications: [{ id: 'R-148', title: '待确认: 导出范围?', state: 'awaiting_decision', currentActor: 'you', currentRole: 'decider', parentId: 'R-142', goal: '导出范围?\n- A. 含全部\n- B. 仅未完成', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }],
     };
-    render(<TaskDetail pkg={optPkg} actorsById={actors} onAnswer={onAnswer} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    render(<TaskDetail pkg={optPkg} actorsById={actors} routing={routing} onAnswer={onAnswer} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: /A\. 含全部/ }));
     expect(onAnswer).toHaveBeenCalledWith('R-148', 'A. 含全部');
   });
@@ -79,7 +81,7 @@ describe('TaskDetail', () => {
   it('待确认: 顶部出现「等你拍板」, 批准→执行中/执行者, 打回→待规划/规划者, 说明随动作带上', async () => {
     const onAct = vi.fn().mockResolvedValue(true);
     const confirmPkg: TaskPackage = { ...pkg, task: { ...pkg.task, state: 'awaiting_confirm' }, clarifications: [] };
-    const { container } = render(<TaskDetail pkg={confirmPkg} actorsById={actors} onAnswer={() => {}} onAct={onAct} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    const { container } = render(<TaskDetail pkg={confirmPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={onAct} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     const heads = Array.from(container.querySelectorAll('.slot-head h4')).map((h) => h.textContent);
     expect(heads.indexOf('等你拍板')).toBe(0); // 轮到你时提到最顶
     fireEvent.change(screen.getByPlaceholderText(/附一句说明/), { target: { value: '注意并发' } });
@@ -94,7 +96,7 @@ describe('TaskDetail', () => {
 
   it('诚实性: 计划清单与子任务都不渲染复选框(勾不动的东西不许长成复选框)', () => {
     const planPkg: TaskPackage = { ...pkg, inputs: { ...pkg.inputs, inputsMd: '- [x] 令牌桶\n- [ ] 每 actor 配额' } };
-    const { container } = render(<TaskDetail pkg={planPkg} actorsById={actors} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    const { container } = render(<TaskDetail pkg={planPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     expect(container.querySelector('input[type="checkbox"]')).toBeNull();
     expect(container.querySelector('ul.plan .ck')).toBeNull();
     expect(container.querySelector('.sub .cb')).toBeNull();
@@ -104,7 +106,7 @@ describe('TaskDetail', () => {
 
   it('任务引用都是真链接: 子任务行 / 关系边+依赖 / 面包屑 点了都跳到该任务详情', () => {
     const onOpenTask = vi.fn();
-    render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={onOpenTask} onClose={() => {}} />);
+    render(<TaskDetail pkg={pkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={onOpenTask} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: /tasks 表/ })); // 子任务行(R-143)
     expect(onOpenTask).toHaveBeenCalledWith('R-143');
     // R-140 既是依赖又是关系边目标: 两处都可跳, 且可及名各自说清关系(不能都叫裸 "R-140")
@@ -117,15 +119,15 @@ describe('TaskDetail', () => {
 
   it('完成与否对读屏可感知(✓/圆点都是视觉的, 必须配隐藏文本)', () => {
     const planPkg: TaskPackage = { ...pkg, inputs: { ...pkg.inputs, inputsMd: '- [x] 令牌桶\n- [ ] 每 actor 配额' } };
-    render(<TaskDetail pkg={planPkg} actorsById={actors} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    render(<TaskDetail pkg={planPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     expect(screen.getByText('已完成')).toBeInTheDocument();
     expect(screen.getByText('未完成')).toBeInTheDocument();
   });
 
   it('抽屉内跳转后焦点落到新任务标题, 不掉回 body(键盘不断链)', () => {
-    const { rerender, container } = render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    const { rerender, container } = render(<TaskDetail pkg={pkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     const next: TaskPackage = { ...pkg, task: { ...pkg.task, id: 'R-143', title: '跳过去的任务', state: 'executing' }, clarifications: [] };
-    rerender(<TaskDetail pkg={next} actorsById={actors} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    rerender(<TaskDetail pkg={next} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     const h2 = container.querySelector('h2') as HTMLElement;
     expect(h2.textContent).toBe('跳过去的任务');
     expect(document.activeElement).toBe(h2);
@@ -139,7 +141,7 @@ describe('TaskDetail', () => {
       outputs: { outputsMd: null, summary: null },
       clarifications: [], thread: [], subtasks: [], edges: { out: [], in: [] },
     };
-    const { container } = render(<TaskDetail pkg={bare} actorsById={actors} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    const { container } = render(<TaskDetail pkg={bare} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     const heads = Array.from(container.querySelectorAll('.slot-head h4')).map((h) => h.textContent);
     expect(heads).not.toContain('任务内容');
     expect(heads).not.toContain('做出了什么');
@@ -147,20 +149,36 @@ describe('TaskDetail', () => {
     expect(heads).toEqual(['下一步', '说点什么']); // 只剩你能采取的动作
   });
 
-  it('执行中的任务: 「下一步」只给状态机允许的那一条(交去测试), 且「交给」有可见标签', async () => {
+  it('执行中: 只给合法的那一条, 且默认按路由自动派给测试者并写明交给谁(不用每次手选)', async () => {
     const onAct = vi.fn().mockResolvedValue(true);
     const execPkg: TaskPackage = { ...pkg, task: { ...pkg.task, state: 'executing' }, clarifications: [] };
-    render(<TaskDetail pkg={execPkg} actorsById={actors} onAnswer={() => {}} onAct={onAct} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
-    expect(screen.getByText('交给')).toBeInTheDocument();          // 可见标签, 不再是哑下拉
+    render(<TaskDetail pkg={execPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={onAct} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     expect(screen.queryByRole('button', { name: /验收通过/ })).toBeNull(); // 非法去向不给
+    // 默认交给谁, 直接写在按钮上 —— 默认可见才叫"默认规则", 否则是黑箱
+    expect(screen.getByText(/交给 测试T/)).toBeInTheDocument();
+    expect(screen.queryByText('交给')).toBeNull(); // 不再有常驻的哑下拉
     fireEvent.click(screen.getByRole('button', { name: /交去测试/ }));
     await waitFor(() => expect(onAct).toHaveBeenCalledWith(
-      expect.objectContaining({ toState: 'testing', toRole: 'tester' }), expect.objectContaining({ key: 'toTest' })));
+      expect.objectContaining({ toState: 'testing', toRole: 'tester', toActor: 't' }), // 按路由派给测试者, 不是瞎给第一个 agent
+      expect.objectContaining({ key: 'toTest' })));
+  });
+
+  it('「换个人做」才是手动改人的入口: 点开出选择器, 且不含当前行动者', async () => {
+    const onAct = vi.fn().mockResolvedValue(true);
+    const execPkg: TaskPackage = { ...pkg, task: { ...pkg.task, state: 'executing', currentActor: 'a' }, clarifications: [] };
+    render(<TaskDetail pkg={execPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={onAct} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: '换个人做' }));
+    const sel = screen.getByRole('combobox');
+    expect([...sel.querySelectorAll('option')].map((o) => o.textContent)).not.toContain('执行A'); // 当前的人不该在"换成谁"里
+    fireEvent.click(screen.getByRole('button', { name: '确定' }));
+    await waitFor(() => expect(onAct).toHaveBeenCalledWith(
+      expect.objectContaining({ toState: 'executing', toActor: 't' }), // 阶段不变, 只换人
+      expect.objectContaining({ key: 'reassign' })));
   });
 
   it('评论控件调用 onComment', () => {
     const onComment = vi.fn();
-    render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={() => {}} onAct={async () => true} onComment={onComment} onOpenTask={() => {}} onClose={() => {}} />);
+    render(<TaskDetail pkg={pkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={onComment} onOpenTask={() => {}} onClose={() => {}} />);
     fireEvent.change(screen.getByPlaceholderText('写条评论…'), { target: { value: '看这里' } });
     fireEvent.click(screen.getByRole('button', { name: '评论' }));
     expect(onComment).toHaveBeenCalledWith('R-142', '看这里');
@@ -174,7 +192,7 @@ describe('TaskDetail', () => {
         { id: 'e2', taskId: 'R-142', actorId: 'a', kind: 'output', roleFrom: 'executor', roleTo: null, body: '交了产物', createdAt: '2026-07-16T03:00:00' },
       ],
     };
-    render(<TaskDetail pkg={outputPkg} actorsById={actors} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    render(<TaskDetail pkg={outputPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     expect(screen.getByText(/交了产出/)).toBeInTheDocument();
     expect(screen.queryByText(/^output/)).toBeNull();
   });
@@ -192,7 +210,7 @@ describe('TaskDetail', () => {
       ],
     };
     const multiActors = { ...actors, b: { id: 'b', name: '执行B', type: 'agent' as const, handle: null } };
-    const { container } = render(<TaskDetail pkg={multiPkg} actorsById={multiActors} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    const { container } = render(<TaskDetail pkg={multiPkg} actorsById={multiActors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
     const clarCards = container.querySelectorAll('.clar');
     expect(clarCards.length).toBe(2);
     expect(within(clarCards[0] as HTMLElement).getByText('执行A')).toBeInTheDocument();

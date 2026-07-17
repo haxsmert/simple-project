@@ -18,6 +18,7 @@ export const api = {
   allTasks: () => j<BoardColumn[]>('/api/tasks-board'),
   tree: () => j<TaskNode[]>('/api/tree'),
   actors: () => j<Actor[]>('/api/actors'),
+  routing: () => j<Record<string, string | null>>('/api/routing'),
   task: (id: string) => j<TaskPackage>(`/api/tasks/${id}`),
   createTask: (body: { title: string; goal?: string; parentId?: string }) => post<Task>('/api/tasks', body),
   handoff: (body: { taskId: string; byActor: string; toActor: string; toRole: string; toState?: string; note?: string }) => post<Task>('/api/handoff', body),

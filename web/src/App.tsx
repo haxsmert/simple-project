@@ -20,6 +20,7 @@ export function App() {
   const [taskCols, setTaskCols] = useState<BoardColumn[]>([]);
   const [tree, setTree] = useState<TaskNode[]>([]);
   const [actors, setActors] = useState<Actor[]>([]);
+  const [routing, setRouting] = useState<Record<string, string | null>>({}); // 角色→默认派给谁(后端按最近实际分工推出)
   const [detail, setDetail] = useState<TaskPackage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false); // 首屏数据是否已到 —— 未到前不渲染空态, 避免误报"还没有项目"
@@ -47,8 +48,8 @@ export function App() {
   }, []);
 
   const refresh = useCallback(async () => {
-    const [p, t, a] = await Promise.all([api.projects(), api.tree(), api.actors()]);
-    setProjectCols(p); setTree(t); setActors(a);
+    const [p, t, a, r] = await Promise.all([api.projects(), api.tree(), api.actors(), api.routing()]);
+    setProjectCols(p); setTree(t); setActors(a); setRouting(r);
   }, []);
   // 首屏无论成败都置 loaded: 成功→出看板, 失败→出错误横幅+可导航的空看板, 绝不因失败卡死在"加载中…"
   useEffect(() => { guard(refresh).finally(() => setLoaded(true)); }, [refresh, guard]);
@@ -256,7 +257,7 @@ export function App() {
       {detail && (
         <>
           <div className="drawer-backdrop" onClick={closeDetail} aria-hidden="true" />
-          <TaskDetail pkg={detail} actorsById={actorsById} onAnswer={onAnswer} onAct={onAct} onComment={onComment} onOpenTask={openTask} onClose={closeDetail} />
+          <TaskDetail pkg={detail} actorsById={actorsById} onAnswer={onAnswer} onAct={onAct} onComment={onComment} onOpenTask={openTask} routing={routing} onClose={closeDetail} />
         </>
       )}
     </div>

@@ -22,6 +22,8 @@ export function buildApp(service: RelayService): FastifyInstance {
   app.get('/api/tasks-board', wrap(() => service.allTasksBoard()));
   app.get('/api/tree', wrap(() => service.tree()));
   app.get('/api/actors', wrap(() => service.listActors()));
+  // 默认路由表: 角色 → 默认派给谁(界面据此预填"交给谁", 不必每次手选)
+  app.get('/api/routing', wrap(() => service.routing()));
   app.get('/api/tasks/:id', wrap((req) => service.getPackage(req.params.id)));
 
   app.post('/api/actors', wrap((req) => service.registerActor(req.body)));

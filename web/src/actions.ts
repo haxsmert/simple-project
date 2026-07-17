@@ -26,7 +26,7 @@ export type TaskAction = {
 // 纯改派(同态换手): 状态不动, 只换人。canTransition 首行 from===to 就是允许它的,
 // 旧换手表单的默认行为正是这个 —— 执行者卡住/下线时要能转给别人, 不能只剩"推到下一阶段"这一条路。
 const reassign = (state: TaskState, role: Role): TaskAction => ({
-  key: 'reassign', label: '换个人做', hint: '阶段不变, 换个行动者接手', done: '已改派', toState: state, toRole: role,
+  key: 'reassign', label: '换个人做', hint: '阶段不变, 只换人', done: '已改派', toState: state, toRole: role,
 });
 
 export const NEXT_ACTIONS: Record<TaskState, TaskAction[]> = {
@@ -36,11 +36,11 @@ export const NEXT_ACTIONS: Record<TaskState, TaskAction[]> = {
     reassign('planning', 'planner'),
   ],
   awaiting_confirm: [
-    { key: 'approve', label: '批准开工', hint: '计划通过, 交给执行者去做', done: '已批准, 开工了', toState: 'executing', toRole: 'executor', primary: true },
+    { key: 'approve', label: '批准开工', hint: '计划通过, 马上开做', done: '已批准, 开工了', toState: 'executing', toRole: 'executor', primary: true },
     { key: 'bounce', label: '打回重规划', hint: '计划不行, 退回去重写', done: '已打回, 等重新规划', toState: 'planning', toRole: 'planner', danger: true },
   ],
   executing: [
-    { key: 'toTest', label: '做完了, 交去测试', hint: '交给测试者验收', done: '已送去测试', toState: 'testing', toRole: 'tester', primary: true },
+    { key: 'toTest', label: '做完了, 交去测试', hint: '送去验收', done: '已送去测试', toState: 'testing', toRole: 'tester', primary: true },
     reassign('executing', 'executor'),
   ],
   // 待决策的唯一出路是"答复它的问题"(答复后状态机自动解冻回执行中), 所以这里刻意为空。
@@ -50,7 +50,7 @@ export const NEXT_ACTIONS: Record<TaskState, TaskAction[]> = {
   awaiting_decision: [],
   testing: [
     { key: 'pass', label: '验收通过', hint: '标记为完成', done: '已验收通过, 完成', toState: 'done', toRole: 'tester', primary: true, keepActor: true },
-    { key: 'fail', label: '打回返工', hint: '没通过, 退回执行者重做', done: '没通过, 已退回去重做', toState: 'executing', toRole: 'executor', danger: true },
+    { key: 'fail', label: '打回返工', hint: '没通过, 退回去重做', done: '没通过, 已退回去重做', toState: 'executing', toRole: 'executor', danger: true },
     reassign('testing', 'tester'),
   ],
   done: [],
