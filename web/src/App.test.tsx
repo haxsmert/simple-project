@@ -38,6 +38,39 @@ beforeEach(() => {
 });
 
 describe('App shell', () => {
+  it('打回请求把 toHold 真发到后端(传输层守护: 显式列举转发曾静默丢字段, 打回被误拦 —— 实锤)', async () => {
+    const confirmPkg = {
+      ...pkg,
+      task: { ...taskCard, state: 'planning', hold: 'confirm', currentActor: 'admin', currentRole: 'decider' },
+      inputs: { goal: null, planMd: '- [ ] 一步', depOutputs: [] },
+    };
+    const humanActors = [...actors, { id: 'admin', name: 'admin', type: 'human' }];
+    (fetch as any).mockImplementation(async (url: string, opts?: RequestInit) => ({
+      ok: true,
+      json: async () =>
+        url.includes('/api/handoff') ? confirmPkg.task :
+        url.includes('/api/projects/') && url.includes('/board') ? taskBoard :
+        url.includes('/api/tasks-board') ? allTasksBoard :
+        url.includes('/api/projects') ? projectBoard :
+        url.includes('/api/actors') ? humanActors :
+        url.includes('/api/tree') ? [] :
+        confirmPkg,
+    }));
+    render(<App />);
+    fireEvent.click(await screen.findByText('演示项目'));
+    fireEvent.click(await screen.findByText('演示任务')); // 打开抽屉(mock 返回等确认包)
+    fireEvent.click(await screen.findByRole('button', { name: /打回重规划/ })); // 展开理由面板
+    fireEvent.click(screen.getByRole('button', { name: '打回重规划' }));        // 确认
+    await waitFor(() => {
+      const call = (fetch as any).mock.calls.find(([u]: [string]) => u.includes('/api/handoff'));
+      expect(call, '没有发出 handoff 请求').toBeTruthy();
+      const body = JSON.parse(call[1].body);
+      expect(body.toHold, '打回必须携带 toHold=null(解除挂起), 丢了会被"原地改派"闸误拦').toBeNull();
+      expect(body.toState).toBe('planning');
+      expect(body.toRole).toBe('planner');
+    });
+  });
+
   it('项目总览点项目 → 钻进任务看板, 面包屑第一格(picker)显示该项目', async () => {
     render(<App />);
     fireEvent.click(await screen.findByText('演示项目'));

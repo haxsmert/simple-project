@@ -26,6 +26,9 @@ describe('stateMachine', () => {
     expect(canMove(at('planning', 'confirm'), at('executing'))).toBe(true);  // 批准 → 前进一步
     expect(canMove(at('planning', 'confirm'), at('planning'))).toBe(true);   // 打回 → 原地解除
     expect(canMove(at('planning', 'confirm'), at('testing'))).toBe(false);   // 批准也不能跳站
+    // 挂着 confirm 不动、阶段却前进 → 会造出"执行中却还挂着等确认"的矛盾位(实锤漏洞, 钉死)
+    expect(canMove(at('planning', 'confirm'), at('executing', 'confirm'))).toBe(false);
+    expect(canMove(at('executing', 'confirm'), at('testing', 'confirm'))).toBe(false);
   });
 
   it('决策挂起由 clarification 专管: handoff 层面设/解一律拒(问题挂着任务不能跑)', () => {

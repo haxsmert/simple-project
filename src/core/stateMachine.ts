@@ -34,7 +34,9 @@ export function canMove(from: Position, to: Position): boolean {
   if (from.hold === 'confirm' && to.hold === null) {
     return to.state === NEXT_STAGE[from.state] || to.state === from.state;
   }
-  return STAGE_EDGES[from.state].includes(to.state);
+  // 主干推进只在**双方挂起均为空**时合法 —— 少了这个限定, "confirm 保持不动 + 阶段前进"
+  // 会从这里漏过去, 造出"执行中却还挂着等确认"的矛盾位(实锤: 前端丢 toHold 时批准被误放行)
+  return from.hold === null && to.hold === null && STAGE_EDGES[from.state].includes(to.state);
 }
 
 const DEFAULT_NEXT: Record<TaskState, { state: TaskState; role: Role } | null> = {

@@ -147,7 +147,8 @@ export function App() {
       // 动作携带的内容先落库再转交: 转交失败(状态被并发改了等)时计划/产出也已保存, 不丢人家写的字
       if (input.planMd !== undefined) await api.plan(input.taskId, { byActor: you, planMd: input.planMd });
       if (input.outputs) await api.output(input.taskId, { byActor: you, outputsMd: input.outputs.outputsMd, summary: input.outputs.summary });
-      await api.handoff({ taskId: input.taskId, toActor: input.toActor, toRole: input.toRole, toState: input.toState, note: input.note, byActor: you });
+      // 全量转发去向字段 —— 显式列举曾在 ActInput 扩展 toHold 时静默丢字段(打回被误当"保持挂起的原地改派"拦下, 实锤)
+      await api.handoff({ taskId: input.taskId, toActor: input.toActor, toRole: input.toRole, toState: input.toState, toHold: input.toHold, note: input.note, byActor: you });
       await reloadCurrent();
       const who = actorsById[input.toActor]?.name;
       const suffix = action.keepActor || !who ? '' : ` · 交给 ${who}`;
