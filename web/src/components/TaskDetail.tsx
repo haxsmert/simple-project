@@ -204,8 +204,8 @@ function ConfirmBox({ taskId, actorsById, onHandoff }: {
       <input className="confirm-note" placeholder="补充意见(可选, 随批准/打回记入交互记录)…"
         value={note} onChange={(e) => setNote(e.target.value)} />
       <div className="confirm-actions">
-        <button className="btn primary" onClick={approve}>✓ 批准开工</button>
-        <button className="btn" onClick={bounce}>↩ 打回重规划</button>
+        <button className="btn primary" onClick={approve} disabled={!target}>✓ 批准开工</button>
+        <button className="btn" onClick={bounce} disabled={!target}>↩ 打回重规划</button>
       </div>
     </div>
   );
