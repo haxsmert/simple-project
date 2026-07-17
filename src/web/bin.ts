@@ -13,13 +13,15 @@ export function buildStaticApp(service: RelayService, distDir: string): FastifyI
   return app;
 }
 
-// CLI 入口
+// CLI 入口。数据位置可配(RELAY_DB / RELAY_MIRROR): 多实例/演练/测试环境不共用一个库
 if (import.meta.url === `file://${process.argv[1]}`) {
   const here = dirname(fileURLToPath(import.meta.url));
   const dist = join(here, '..', '..', 'web', 'dist');
-  mkdirSync('data', { recursive: true });
-  const db = openDb('data/relay.db');
-  const service = new RelayService(db, 'data/tasks');
+  const dbPath = process.env.RELAY_DB ?? 'data/relay.db';
+  const mirrorDir = process.env.RELAY_MIRROR ?? 'data/tasks';
+  mkdirSync(dirname(dbPath), { recursive: true });
+  const db = openDb(dbPath);
+  const service = new RelayService(db, mirrorDir);
   const app = buildStaticApp(service, dist);
   const port = Number(process.env.PORT ?? 3000);
   app.listen({ port, host: '127.0.0.1' }).then(() => console.log(`✅ Relay Web 已启动: http://127.0.0.1:${port}`))

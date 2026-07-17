@@ -22,7 +22,7 @@ describe('mirror-affected set', () => {
     service.handoff({ taskId: child.id, byActor: 'x', toActor: 'y', toRole: 'tester', toState: 'testing' });
     service.handoff({ taskId: child.id, byActor: 'y', toActor: 'y', toRole: 'tester', toState: 'done' });
     const parentMd = readFileSync(join(dir, `${parent.id}.md`), 'utf8');
-    expect(parentMd).toContain(`[x] ${child.id}`); // 父 .md 里子任务已勾选=done, 非陈旧
+    expect(parentMd).toMatch(new RegExp(`\\[x\\].*\\(${child.id}\\)`)); // 父 .md 里子任务已勾选=done(新格式: 标题(编码)·状态), 非陈旧
   });
 
   it('改依赖任务摘要后, 依赖者的 .md 反映新摘要', () => {
