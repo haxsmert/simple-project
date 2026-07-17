@@ -134,12 +134,17 @@ export function NextActions({ taskId, state, currentActor, actorsById, routing, 
               </div>
             );
           }
+          // onlyIfMissing 表单 = 入门守卫: 内容已有就一键直走, 缺了才展开要求写(如"开始执行"的计划)
+          const guardPassed = a.form?.onlyIfMissing && (
+            a.form.kind === 'plan' ? !!content.inputsMd?.trim()
+              : a.form.kind === 'output' ? !!(content.outputsMd?.trim() || content.summary?.trim())
+                : true);
           return (
             // 可及名只取 label: label+hint 会糊成"提交计划, 等我确认先过你这关再开工"这种病句
             <button key={a.key} type="button" aria-label={a.label}
               className={`btn act${a.primary ? ' primary' : ''}${a.danger ? ' danger' : ''}`}
               disabled={!!busy} onClick={() => {
-                if (isPick || a.form) openPanel(a); // 带面板的动作: 点开才展开(常见路径保持一键)
+                if (isPick || (a.form && !guardPassed)) openPanel(a); // 带面板的动作: 点开才展开(常见路径保持一键)
                 else run(a);
               }}>
               <span className="act-label" aria-hidden="true">{busy === a.key ? '处理中…' : a.label}</span>

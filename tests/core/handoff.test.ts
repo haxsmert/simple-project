@@ -39,4 +39,25 @@ describe('handoff', () => {
       taskId: t.id, byActor: 'exec', toActor: 'exec', toRole: 'tester', toState: 'done',
     })).toThrow(/非法状态流转/);
   });
+
+  // 产品约定: 确认关可以跳过, 但计划不能跳过 —— 从待规划推进(去执行或去确认)前必须有计划
+  it('从待规划推进必须有计划: 两条路(直接开工/先过确认)都拦, 同态改派不拦, 写了计划就放行', () => {
+    const db = openDb(':memory:');
+    createActor(db, { id: 'p', name: 'P', type: 'agent' });
+    const bare = createTask(db, { title: '没计划', state: 'planning', currentActor: 'p', currentRole: 'planner' });
+    expect(() => handoff(db, { taskId: bare.id, byActor: 'p', toActor: 'p', toRole: 'executor', toState: 'executing' }))
+      .toThrow(/还没有计划/);
+    expect(() => handoff(db, { taskId: bare.id, byActor: 'p', toActor: 'p', toRole: 'decider', toState: 'awaiting_confirm' }))
+      .toThrow(/还没有计划/);
+    // 同态改派(planning→planning)不是推进, 不该被计划守卫拦下 —— 换人接手规划正是常见路径
+    createActor(db, { id: 'q', name: 'Q', type: 'agent' });
+    expect(() => handoff(db, { taskId: bare.id, byActor: 'p', toActor: 'q', toRole: 'planner' })).not.toThrow();
+    // 空白字符不算计划
+    const blank = createTask(db, { title: '空白计划', state: 'planning', currentActor: 'p', currentRole: 'planner', inputsMd: '  \n ' });
+    expect(() => handoff(db, { taskId: blank.id, byActor: 'p', toActor: 'p', toRole: 'executor', toState: 'executing' }))
+      .toThrow(/还没有计划/);
+    const planned = createTask(db, { title: '有计划', state: 'planning', currentActor: 'p', currentRole: 'planner', inputsMd: '- [ ] 第一步' });
+    expect(handoff(db, { taskId: planned.id, byActor: 'p', toActor: 'p', toRole: 'executor', toState: 'executing' }).state)
+      .toBe('executing');
+  });
 });

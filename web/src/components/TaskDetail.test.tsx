@@ -113,6 +113,37 @@ describe('TaskDetail', () => {
     expect(screen.getAllByText('建表').length).toBe(1); // 全抽屉只有一份计划, 不在「任务内容」再摆一份
   });
 
+  it('「开始执行」是计划守卫: 没计划先要求写(随动作带走), 有计划一键直走不打断', async () => {
+    const onAct = vi.fn().mockResolvedValue(true);
+    const barePkg: TaskPackage = {
+      ...pkg,
+      task: { ...pkg.task, state: 'planning' }, clarifications: [],
+      inputs: { goal: null, inputsMd: null, depOutputs: [] },
+    };
+    const { unmount } = render(<TaskDetail pkg={barePkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={onAct} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: '开始执行' }));
+    expect(onAct).not.toHaveBeenCalled(); // 没计划不放行, 先展开要求写
+    fireEvent.change(screen.getByPlaceholderText(/第一步/), { target: { value: '- [ ] 先搭骨架' } });
+    fireEvent.click(screen.getByRole('button', { name: '开始执行' }));
+    await waitFor(() => expect(onAct).toHaveBeenCalledWith(
+      expect.objectContaining({ planMd: '- [ ] 先搭骨架', toState: 'executing' }),
+      expect.objectContaining({ key: 'start' })));
+    unmount();
+
+    // 已有计划: 一键直走, 不再弹面板(守卫不是打断)
+    const onAct2 = vi.fn().mockResolvedValue(true);
+    const plannedPkg: TaskPackage = {
+      ...pkg,
+      task: { ...pkg.task, state: 'planning' }, clarifications: [],
+      inputs: { ...pkg.inputs, inputsMd: '- [ ] 已有计划' },
+    };
+    render(<TaskDetail pkg={plannedPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={onAct2} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: '开始执行' }));
+    await waitFor(() => expect(onAct2).toHaveBeenCalledWith(
+      expect.objectContaining({ toState: 'executing' }), expect.objectContaining({ key: 'start' })));
+    expect((onAct2.mock.calls[0][0] as { planMd?: string }).planMd).toBeUndefined(); // 计划已在库里, 不重写
+  });
+
   it('「提交计划」就地写计划: 预填现有内容, 空计划不给提交, 提交时计划随动作带走', async () => {
     const onAct = vi.fn().mockResolvedValue(true);
     const planPkg: TaskPackage = {

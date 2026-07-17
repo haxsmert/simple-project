@@ -54,6 +54,11 @@ describe('「下一步」动作表', () => {
     const submit = NEXT_ACTIONS.planning.find((a) => a.key === 'submit')!;
     expect(submit.form?.kind, '"提交计划"必须有地方写计划').toBe('plan');
     expect(submit.form?.required, '空计划提交 = "提交了计划但没有计划"的自相矛盾').toBe(true);
+    // 确认关可以跳过, 计划不能跳过: 直接开工这条路同样必须有计划(已有则一键直走, 是守卫不是打断)
+    const start = NEXT_ACTIONS.planning.find((a) => a.key === 'start')!;
+    expect(start.form?.kind, '"开始执行"跳过的是确认, 不是计划').toBe('plan');
+    expect(start.form?.required).toBe(true);
+    expect(start.form?.onlyIfMissing, '有计划时应一键直走, 守卫不该变成每次打断').toBe(true);
     const toTest = NEXT_ACTIONS.executing.find((a) => a.key === 'toTest')!;
     expect(toTest.form?.kind, '"做完了"必须有地方说做出了什么').toBe('output');
     expect(toTest.form?.required).toBe(true);

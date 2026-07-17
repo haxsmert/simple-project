@@ -34,6 +34,7 @@ export type ActionForm = {
   title: string;        // 面板标题
   hint?: string;        // 面板说明(格式提示/写给谁看)
   required?: boolean;   // 内容必填: 空着提交会造出"提交了计划但没有计划"的自相矛盾
+  onlyIfMissing?: boolean; // 内容已有时不展开、一键直走 —— 入门守卫(没有就得先写), 不是每次都打断
 };
 
 // 纯改派(同态换手): 状态不动, 只换人。canTransition 首行 from===to 就是允许它的,
@@ -43,8 +44,11 @@ const reassign = (state: TaskState, role: Role): TaskAction => ({
 });
 
 export const NEXT_ACTIONS: Record<TaskState, TaskAction[]> = {
+  // 主干是 计划→执行→测试→完成; 待确认/待决策是跳出的关卡。确认关可跳过, 但计划不可跳过:
+  // 两条推进路(直接开工 / 先过确认)都必须有计划 —— 后端 handoff 同样把着这道门(src/core/handoff.ts)。
   planning: [
-    { key: 'start', label: '开始执行', hint: '计划够了, 直接开工', done: '已开工', toState: 'executing', toRole: 'executor', primary: true },
+    { key: 'start', label: '开始执行', hint: '不用等确认, 有计划就开工', done: '已开工', toState: 'executing', toRole: 'executor', primary: true,
+      form: { kind: 'plan', title: '计划(开工前必须有)', hint: '执行前必须有计划; 每行一条, 写成「- [ ] 事项」的行会按清单展示', required: true, onlyIfMissing: true } },
     { key: 'submit', label: '提交计划, 等我确认', hint: '写下计划, 先过你这关再开工', done: '计划已提交, 等你确认', toState: 'awaiting_confirm', toRole: 'decider', toHuman: true,
       form: { kind: 'plan', title: '计划(打算怎么做)', hint: '每行一条; 写成「- [ ] 事项」的行会按清单展示', required: true } },
     reassign('planning', 'planner'),
