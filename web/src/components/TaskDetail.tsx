@@ -134,6 +134,17 @@ function parseOptions(goal: string | null): { letter: string; text: string }[] {
   return opts;
 }
 
+// 任务引用三件套: 标题(人话)+ 编码(小字)+ 跳转。编码保留但不许独自出场 ——
+// "依赖 R-20"这种裸编码, 不点进去没人知道是什么, 等于强迫人跳转一次才能读懂本页。
+// 可及名用"关系 + 标题"(读屏用户更不需要编码)。
+function TaskRef({ title, id, label, onOpen }: { title: string; id: string; label: string; onOpen: (id: string) => void }) {
+  return (
+    <button type="button" className="task-link" aria-label={label} onClick={() => onOpen(id)}>
+      {title}<span className="tl-id" aria-hidden="true">{id}</span>
+    </button>
+  );
+}
+
 // 计划正文(自由行 + 只读清单): 拍板槽和「任务内容」共用同一渲染 —— 拍板的依据必须和批准按钮同址,
 // 不能让人"往下翻到别的槽位去找计划"(识别优于回忆)
 function PlanBlock({ plan }: { plan: ReturnType<typeof parsePlan> }) {
@@ -353,7 +364,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
           )}
           {pkg.inputs.depOutputs.map((d) => (
             <div key={d.taskId} className="dep-row">
-              依赖 <button type="button" className="task-link" aria-label={`打开依赖的任务 ${d.taskId}`} onClick={() => onOpenTask(d.taskId)}>{d.taskId}</button>
+              依赖 <TaskRef title={d.title} id={d.taskId} label={`打开依赖的任务 ${d.title}`} onOpen={onOpenTask} />
               <span className="dep-sum">: {d.summary ?? '—'}</span>
             </div>
           ))}
@@ -400,14 +411,14 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
           <SlotHead icon={<IconLink />} tint="neutral" title="相关任务" />
           <div className="slot-body">
             <div className="edges-list">
-              {/* 边指向的都是真任务: id 做成链接可跳过去, 不再是死文字 */}
+              {/* 边指向的都是真任务: 标题+编码做成链接可跳过去 —— 编码不许独自出场, 光秃秃的 R-20 没人知道是什么 */}
               {pkg.edges.out.map((e) => (
                 <div key={e.id} className="erow"><EdgeChip type={e.type} /><span className="to">→</span>
-                  <button type="button" className="task-link" aria-label={`打开本任务指向的 ${e.toTask}`} onClick={() => onOpenTask(e.toTask)}>{e.toTask}</button></div>
+                  <TaskRef title={e.peerTitle} id={e.toTask} label={`打开本任务指向的 ${e.peerTitle}`} onOpen={onOpenTask} /></div>
               ))}
               {pkg.edges.in.map((e) => (
                 <div key={e.id} className="erow"><EdgeChip type={e.type} />
-                  <button type="button" className="task-link" aria-label={`打开指向本任务的 ${e.fromTask}`} onClick={() => onOpenTask(e.fromTask)}>{e.fromTask}</button>
+                  <TaskRef title={e.peerTitle} id={e.fromTask} label={`打开指向本任务的 ${e.peerTitle}`} onOpen={onOpenTask} />
                   <span className="to">→ 本任务</span></div>
               ))}
             </div>

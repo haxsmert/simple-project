@@ -11,7 +11,7 @@ const pkg: TaskPackage = {
   clarifications: [{ id: 'R-148', title: '待确认: 富文本?', state: 'awaiting_decision', currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: '富文本?', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }],
   thread: [{ id: 'e1', taskId: 'R-142', actorId: 'a', kind: 'clarify', roleFrom: 'executor', roleTo: 'decider', toActor: null, stateFrom: null, stateTo: null, body: '富文本?', createdAt: '2026-07-16' }],
   subtasks: [{ id: 'R-143', title: 'tasks 表', state: 'done', currentActor: null, currentRole: null, parentId: 'R-142', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null }],
-  edges: { out: [{ id: 'x', fromTask: 'R-142', toTask: 'R-140', type: 'depends_on' }], in: [] },
+  edges: { out: [{ id: 'x', fromTask: 'R-142', toTask: 'R-140', type: 'depends_on', peerTitle: 'MCP接口' }], in: [] },
 };
 const actors = { a: { id: 'a', name: '执行A', type: 'agent' as const, handle: null }, t: { id: 't', name: '测试T', type: 'agent' as const, handle: null }, admin: { id: 'admin', name: 'admin', type: 'human' as const, handle: null } };
 // 默认路由表(后端按"最近谁在扮演该角色"推出): 界面据此预填交给谁
@@ -148,12 +148,22 @@ describe('TaskDetail', () => {
     render(<TaskDetail pkg={pkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={onOpenTask} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: /tasks 表/ })); // 子任务行(R-143)
     expect(onOpenTask).toHaveBeenCalledWith('R-143');
-    // R-140 既是依赖又是关系边目标: 两处都可跳, 且可及名各自说清关系(不能都叫裸 "R-140")
-    fireEvent.click(screen.getByRole('button', { name: '打开依赖的任务 R-140' }));
-    fireEvent.click(screen.getByRole('button', { name: '打开本任务指向的 R-140' }));
+    // R-140 既是依赖又是关系边目标: 两处都可跳, 且可及名各自说清"关系 + 标题"(不能都叫裸 "R-140")
+    fireEvent.click(screen.getByRole('button', { name: '打开依赖的任务 MCP接口' }));
+    fireEvent.click(screen.getByRole('button', { name: '打开本任务指向的 MCP接口' }));
     expect(onOpenTask).toHaveBeenCalledWith('R-140');
     fireEvent.click(screen.getByRole('button', { name: '项目' })); // 面包屑祖先
     expect(onOpenTask).toHaveBeenCalledWith('R-1');
+  });
+
+  it('引用不许裸编码: 依赖行和关系边的链接文本是"标题+编码", 不点进去也知道 R-140 是什么', () => {
+    const { container } = render(<TaskDetail pkg={pkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    const links = [...container.querySelectorAll('.task-link')].map((l) => l.textContent);
+    expect(links.length).toBe(2); // 依赖行 + 出边
+    for (const text of links) {
+      expect(text).toContain('MCP接口'); // 标题在场
+      expect(text).toContain('R-140');   // 编码保留(检索/对账用), 但不独自出场
+    }
   });
 
   it('完成与否对读屏可感知(✓/圆点都是视觉的, 必须配隐藏文本)', () => {

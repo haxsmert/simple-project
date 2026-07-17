@@ -11,6 +11,10 @@ export interface DepOutput {
   outputsMd: string | null;
 }
 
+// 关系边带上对端任务标题: 界面上的引用不能只给编码 —— "依赖 R-20"没人知道是什么,
+// 必须"标题 + 编码"同示(编码保留, 但不许独自出场)
+export type EdgeRef = Edge & { peerTitle: string };
+
 export interface TaskPackage {
   task: Task;
   breadcrumb: Task[];
@@ -19,7 +23,7 @@ export interface TaskPackage {
   clarifications: Task[];
   thread: TaskEvent[];
   subtasks: Task[];
-  edges: { out: Edge[]; in: Edge[] };
+  edges: { out: EdgeRef[]; in: EdgeRef[] };
 }
 
 export function assemblePackage(db: DB, id: string): TaskPackage {
@@ -46,6 +50,9 @@ export function assemblePackage(db: DB, id: string): TaskPackage {
     .map((e) => getTask(db, e.fromTask))
     .filter((t): t is Task => t !== null);
 
+  // 对端标题: out 边的对端是 toTask, in 边的对端是 fromTask; 对端不存在时退回编码(不编造)
+  const ref = (e: Edge, peer: string): EdgeRef => ({ ...e, peerTitle: getTask(db, peer)?.title ?? peer });
+
   return {
     task,
     breadcrumb: ancestors(db, id),
@@ -54,6 +61,6 @@ export function assemblePackage(db: DB, id: string): TaskPackage {
     clarifications,
     thread: listEvents(db, id),
     subtasks: listChildren(db, id),
-    edges: { out, in: incoming },
+    edges: { out: out.map((e) => ref(e, e.toTask)), in: incoming.map((e) => ref(e, e.fromTask)) },
   };
 }

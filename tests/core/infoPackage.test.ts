@@ -34,5 +34,9 @@ describe('assemblePackage', () => {
     expect(pkg.clarifications).toHaveLength(1);
     expect(pkg.subtasks.map((t) => t.title)).toContain('子任务1');
     expect(pkg.thread.length).toBeGreaterThanOrEqual(1); // clarify 事件
+    // 关系边带对端标题: 界面上"依赖 R-20"这种裸编码没人读得懂, 必须标题+编码同示
+    expect(pkg.edges.out[0].peerTitle).toBe('MCP 接口');
+    const depPkg = assemblePackage(db, dep.id);
+    expect(depPkg.edges.in[0].peerTitle).toBe('搭建数据层'); // 入边的对端是 fromTask
   });
 });

@@ -12,6 +12,8 @@ export interface Task {
 }
 export interface Actor { id: string; name: string; type: ActorType; handle: string | null; }
 export interface Edge { id: string; fromTask: string; toTask: string; type: EdgeType; }
+// 详情里的关系边带对端标题: 引用不许只给编码("依赖 R-20"没人知道是什么)
+export interface EdgeRef extends Edge { peerTitle: string; }
 export interface BoardCard extends Task {
   subtaskCount?: number;
   doneSubtaskCount?: number;
@@ -32,5 +34,5 @@ export interface TaskPackage {
   inputs: { goal: string | null; inputsMd: string | null; depOutputs: Array<{ taskId: string; title: string; summary: string | null; outputsMd: string | null }> };
   outputs: { outputsMd: string | null; summary: string | null };
   clarifications: Task[]; thread: TaskEvent[]; subtasks: Task[];
-  edges: { out: Edge[]; in: Edge[] };
+  edges: { out: EdgeRef[]; in: EdgeRef[] };
 }

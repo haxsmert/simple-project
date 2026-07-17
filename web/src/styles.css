@@ -244,7 +244,9 @@ ul.plan li.done .ptext { color:var(--text-faint); text-decoration:line-through; 
 .erow { display:flex; align-items:center; gap:7px; font-size:12px; }
 .erow .to { font-family:var(--font-mono); font-size:11.5px; color:var(--text-faint); }
 /* 任务引用链接(子任务/关系边/依赖/面包屑指向的都是真任务) */
-.task-link { font-family:var(--font-mono); font-size:11.5px; font-weight:600; color:var(--human); background:none; border:none; padding:1px 3px; border-radius:4px; cursor:pointer; }
+/* 任务引用: 标题当链接文本(人话), 编码退居小字 —— 编码不许独自出场 */
+.task-link { font-size:12px; font-weight:550; color:var(--human); background:none; border:none; padding:1px 3px; border-radius:4px; cursor:pointer; }
+.task-link .tl-id { font-family:var(--font-mono); font-size:10.5px; font-weight:400; color:var(--text-faint); margin-left:5px; }
 .task-link:hover { background:var(--human-soft); text-decoration:underline; }
 .task-link:focus-visible { outline:2px solid var(--human); outline-offset:1px; }
 .dep-row { font-size:12px; color:var(--text-dim); margin-top:4px; display:flex; align-items:center; gap:2px; flex-wrap:wrap; }
