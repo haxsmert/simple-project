@@ -97,6 +97,19 @@ describe('App shell', () => {
     expect(screen.getByText('全部任务')).toBeInTheDocument(); // picker 显示"全部任务"伪节点
   });
 
+  it('未提交的追加任务草稿随导航废弃(防止建到错误父级)', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByText('演示项目')); // 钻进项目
+    fireEvent.click(await screen.findByRole('button', { name: '+ 追加任务' }));
+    const input = await screen.findByPlaceholderText('任务标题…');
+    fireEvent.change(input, { target: { value: '半截草稿' } });
+    fireEvent.click(screen.getByRole('button', { name: '返回上一层' })); // 导航离开
+    await waitFor(() => expect(screen.queryByPlaceholderText('任务标题…')).not.toBeInTheDocument());
+    fireEvent.click(await screen.findByText('演示项目')); // 再钻回来
+    await waitFor(() => expect(screen.getByRole('button', { name: '+ 追加任务' })).toBeInTheDocument());
+    expect(screen.queryByDisplayValue('半截草稿')).toBeNull(); // 草稿不残留
+  });
+
   it('新建项目改为内联输入, 不再弹 window.prompt', async () => {
     const promptSpy = vi.spyOn(window, 'prompt');
     const calls: Array<{ url: string; opts?: RequestInit }> = [];

@@ -47,6 +47,9 @@ export function App() {
   // 首屏无论成败都置 loaded: 成功→出看板, 失败→出错误横幅+可导航的空看板, 绝不因失败卡死在"加载中…"
   useEffect(() => { guard(refresh).finally(() => setLoaded(true)); }, [refresh, guard]);
 
+  // 导航/视图一变就废弃未提交的新建草稿 —— 否则在项目 A 开的表单跳到项目 B 后提交, 会把任务建到 B 下
+  useEffect(() => { setDraft(null); }, [path, view]);
+
   useEffect(() => {
     if (!detail) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeDetail(); };
@@ -93,10 +96,11 @@ export function App() {
     return guard(async () => { setDetail(await api.task(id)); });
   }, [guard]);
 
+  // 不按 view 门控: 树视图里的操作(答复/换手)也要刷新 taskCols, 否则切回看板是过期数据
   const reloadCurrent = useCallback(async () => {
     await refresh();
-    if (view === 'board' && currentId) await loadBoard(currentId);
-  }, [refresh, view, loadBoard, currentId]);
+    if (currentId) await loadBoard(currentId);
+  }, [refresh, loadBoard, currentId]);
 
   const submitDraft = useCallback(() => guard(async () => {
     if (!draft || !draft.title.trim()) { setDraft(null); return; }

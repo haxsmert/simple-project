@@ -2,8 +2,9 @@
   --bg:#eef1f5; --panel:#f7f9fb; --surface:#fff; --surface-2:#f0f3f7;
   --border:#dde3ea; --border-2:#cdd6e0; --text:#1b2433; --text-dim:#596576; --text-faint:#8593a4;
   --human:#2f6fe0; --human-soft:#e7eefc; --agent:#0c9683; --agent-soft:#daf3ee;
-  --warn:#b9741a; --warn-soft:#fbeed6; --done:#2c8f5b; --done-soft:#e0f2e7; --danger:#cc4a3a; --danger-soft:#fbe6e2;
-  /* 状态色令牌 · 全站单一来源(看板条纹/树点/状态 pill/角色点都引它); 深值保证作文字对比 ≥5:1(WCAG AA) */
+  /* --warn 琥珀 = "轮到你"语言(待确认+待决策), 深值 #8f5a10 实测 vs bg 5.10 / vs soft 5.03 / 白字其上 5.77, 全面 AA */
+  --warn:#8f5a10; --warn-soft:#fbeed6; --done:#2c8f5b; --done-soft:#e0f2e7; --danger:#cc4a3a; --danger-soft:#fbe6e2;
+  /* 状态色令牌 · 全站单一来源; 待确认状态已并入琥珀"轮到你"语言(--confirm 现仅规划角色点在用), --testing=测试中 */
   --confirm:#634fb0; --testing:#1e6a75;
   --font-ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI","PingFang SC",system-ui,sans-serif;
   --font-mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
@@ -31,7 +32,8 @@ body { margin:0; background:var(--bg); color:var(--text); font-family:var(--font
 .edge.dep,.edge.spawn{ color:var(--text-dim); background:var(--surface-2); border:1px solid var(--border); }
 
 /* 待决策 attention 标记: 项目卡角标 chip + 顶栏全局 pill */
-.attn-chip { font-size:10.5px; font-weight:600; color:var(--warn); background:var(--warn-soft); border-radius:6px; padding:2px 6px; display:inline-flex; align-items:center; gap:4px; }
+.attn-chip { font-size:10.5px; font-weight:600; color:var(--warn); background:var(--warn-soft); border:1px solid color-mix(in srgb,var(--warn) 35%,transparent); border-radius:6px; padding:2px 6px; display:inline-flex; align-items:center; gap:4px; }
+.card.blocked .attn-chip { background:var(--surface); } /* 琥珀底卡上换白底, 不融底 */
 .attn-pill { font-size:12.5px; font-weight:600; color:var(--warn); background:var(--warn-soft); border:1px solid color-mix(in srgb, var(--warn) 40%, var(--border)); border-radius:20px; padding:4px 12px; cursor:pointer; }
 .attn-pill:hover { background:color-mix(in srgb, var(--warn) 18%, var(--surface)); }
 
@@ -109,9 +111,9 @@ body { margin:0; background:var(--bg); color:var(--text); font-family:var(--font
 .status-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:20px; }
 .pill { font-size:12px; font-weight:600; border-radius:20px; padding:3px 11px 3px 9px; display:inline-flex; gap:6px; align-items:center; background:var(--surface-2); color:var(--text-dim); }
 .pill .d { width:7px; height:7px; border-radius:50%; background:var(--text-faint); }
-/* 状态 pill 与看板 STRIPE / 角色点 / 边 chip 同一状态同一色(#1 一致性): 待确认=紫, 待决策=琥珀, 测试=teal */
+/* 状态 pill 与看板 STRIPE / 树点 同一状态同一色(#1 一致性): 待确认/待决策="轮到你"琥珀, 测试=teal */
 .pill.exec { color:var(--human); background:var(--human-soft); } .pill.exec .d { background:var(--human); }
-.pill.confirm { color:var(--confirm); background:color-mix(in srgb,var(--confirm) 15%,transparent); } .pill.confirm .d { background:var(--confirm); }
+.pill.confirm { color:var(--warn); background:var(--warn-soft); } .pill.confirm .d { background:var(--warn); }
 .pill.decide { color:var(--warn); background:var(--warn-soft); } .pill.decide .d { background:var(--warn); }
 .pill.test { color:var(--testing); background:color-mix(in srgb,var(--testing) 15%,transparent); } .pill.test .d { background:var(--testing); }
 .pill.done { color:var(--done); background:var(--done-soft); } .pill.done .d { background:var(--done); }
