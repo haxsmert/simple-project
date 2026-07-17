@@ -147,6 +147,49 @@ export class RelayService {
     return role ? all.filter((t) => t.currentRole === role) : all;
   }
 
+  // 全局任务过滤 —— 轮询式协作的"发现面": agent 定期来找活, 不能只看"已分给我的"(list_my_tasks),
+  // 还要能发现"没人认领的 / 某阶段的 / 挂起中的"任务, 否则"领取任务"无从谈起(只能瞎猜 id)。
+  listTasks(filter?: { state?: TaskState; hold?: 'confirm' | 'decision' | 'none' | 'any'; unassigned?: boolean }): Task[] {
+    let all = (this.db.prepare('SELECT id FROM tasks').all() as { id: string }[])
+      .map((r) => getTask(this.db, r.id))
+      .filter((t): t is Task => t !== null);
+    if (filter?.state) all = all.filter((t) => t.state === filter.state);
+    if (filter?.hold === 'any') all = all.filter((t) => t.hold !== null);
+    else if (filter?.hold === 'none') all = all.filter((t) => t.hold === null);
+    else if (filter?.hold) all = all.filter((t) => t.hold === filter.hold);
+    if (filter?.unassigned) all = all.filter((t) => !t.currentActor);
+    return all;
+  }
+
+  // "轮到某人处理"的结构化清单 —— IM 集成(飞书/Hermes 机器人)的关键接口:
+  // 推送卡片需要"问题文本 + 结构化选项 + 上下文", 不能让集成方自己扒看板逐任务拼。
+  // confirms = 等他拍板的任务(附计划全文); decisions = 等他答复的问题卡(附问题/选项/所属任务)。
+  pendingFor(actorId: string): {
+    confirms: Array<{ task: Task; plan: string | null }>;
+    decisions: Array<{ question: Task; questionText: string; options: Array<{ key: string; text: string }>; parent: Task | null }>;
+  } {
+    const mine = this.listByActor(actorId);
+    const confirms = mine.filter((t) => t.hold === 'confirm').map((t) => ({ task: t, plan: t.inputsMd }));
+    const decisions = mine
+      .filter((t) => t.hold === 'decision' && t.state !== 'done')
+      .flatMap((q) => {
+        const clarEdge = edgesFrom(this.db, q.id).find((e) => e.type === 'clarifies');
+        if (!clarEdge) return []; // 非问题卡(被挂起的父任务, 决策者不是它的 currentActor)不进清单
+        const options: Array<{ key: string; text: string }> = [];
+        for (const raw of (q.goal ?? '').split('\n')) {
+          const m = /^- ([A-Z])\.\s*(.*)$/.exec(raw.trim());
+          if (m) options.push({ key: m[1], text: m[2] });
+        }
+        return [{
+          question: q,
+          questionText: q.title.replace(/^待确认:\s*/, ''),
+          options,
+          parent: getTask(this.db, clarEdge.toTask),
+        }];
+      });
+    return { confirms, decisions };
+  }
+
   registerActor(input: { id: string; name: string; type: ActorType; handle?: string | null }): Actor {
     return createActor(this.db, input);
   }

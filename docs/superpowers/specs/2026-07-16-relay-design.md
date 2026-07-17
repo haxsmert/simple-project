@@ -145,6 +145,8 @@ agent 不猜文件格式, 走干净的 MCP 工具集:
 | 工具 | 作用 |
 |---|---|
 | `list_my_tasks(actor, role?)` | 我此刻手上有哪些接力棒 |
+| `list_tasks(state?, hold?, unassigned?)` | 发现面: 找没人认领的 / 某阶段 / 挂起中的任务(找活入口) |
+| `list_pending(actor)` | "轮到某人处理"的结构化清单(等拍板附计划 / 等答复附问题+选项), 供 IM 机器人推卡片 |
 | `get_task(id)` | 取完整信息包(输入/产出/待确认/记录/子任务/边) |
 | `claim(task_id)` | 领取任务 |
 | `handoff(task_id, to_role, to_actor?, note)` | 换手 |

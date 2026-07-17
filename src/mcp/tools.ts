@@ -20,6 +20,32 @@ export const listMyTasksTool = {
   },
 };
 
+export const listTasksTool = {
+  name: 'list_tasks',
+  description:
+    '按条件发现任务(找活的入口): state=主干阶段过滤; hold=挂起过滤(confirm/decision/none/any); ' +
+    'unassigned=true 只列没人认领的(可用 claim 领取)。不带条件则列全部。',
+  schema: {
+    state: z.enum(['planning', 'executing', 'testing', 'done']).optional(),
+    hold: z.enum(['confirm', 'decision', 'none', 'any']).optional(),
+    unassigned: z.boolean().optional(),
+  },
+  handler(service: RelayService, args: { state?: 'planning' | 'executing' | 'testing' | 'done'; hold?: 'confirm' | 'decision' | 'none' | 'any'; unassigned?: boolean }): ToolResult {
+    return ok(service.listTasks(args));
+  },
+};
+
+export const listPendingTool = {
+  name: 'list_pending',
+  description:
+    '列出"轮到某人处理"的结构化清单: confirms=等他拍板的任务(附计划全文), ' +
+    'decisions=等他答复的问题卡(附问题文本/结构化选项/所属任务)。答复用 answer_clarification, 批准/打回用 handoff。',
+  schema: { actor: z.string() },
+  handler(service: RelayService, args: { actor: string }): ToolResult {
+    return ok(service.pendingFor(args.actor));
+  },
+};
+
 export const getTaskTool = {
   name: 'get_task',
   description: '取某个任务的完整信息包(输入/产出/待确认/交互记录/子任务/关系边)',
@@ -120,6 +146,6 @@ export const commentTool = {
 };
 
 export const ALL_TOOLS = [
-  listMyTasksTool, getTaskTool, claimTool, handoffTool,
+  listMyTasksTool, listTasksTool, listPendingTool, getTaskTool, claimTool, handoffTool,
   submitPlanTool, submitOutputTool, raiseClarificationTool, answerClarificationTool, commentTool,
 ];

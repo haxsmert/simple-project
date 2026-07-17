@@ -24,6 +24,13 @@ export function buildApp(service: RelayService): FastifyInstance {
   app.get('/api/actors', wrap(() => service.listActors()));
   // 默认路由表: 角色 → 默认派给谁(界面据此预填"交给谁", 不必每次手选)
   app.get('/api/routing', wrap(() => service.routing()));
+  // 全局任务过滤(发现面): ?state= &hold=confirm|decision|none|any &unassigned=1
+  app.get('/api/tasks', wrap((req) => service.listTasks({
+    state: req.query.state, hold: req.query.hold,
+    unassigned: req.query.unassigned === '1' || req.query.unassigned === 'true',
+  })));
+  // "轮到某人处理"的结构化清单(IM/机器人集成的推送数据源): 等拍板附计划, 等答复附问题+选项+所属任务
+  app.get('/api/pending/:actorId', wrap((req) => service.pendingFor(req.params.actorId)));
   app.get('/api/tasks/:id', wrap((req) => service.getPackage(req.params.id)));
 
   app.post('/api/actors', wrap((req) => service.registerActor(req.body)));

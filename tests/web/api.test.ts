@@ -44,6 +44,28 @@ describe('web api', () => {
     expect(ans.json().parent.state).toBe('executing');
   });
 
+  it('GET /api/tasks 过滤发现面 + GET /api/pending/:actorId 待处理清单(IM 集成两大入口)', async () => {
+    const { service, app } = mk();
+    service.registerActor({ id: 'x', name: 'X', type: 'agent' });
+    service.registerActor({ id: 'admin', name: 'admin', type: 'human' });
+    service.createTask({ title: '没人认领', state: 'planning' });
+    const parent = service.createTask({ title: '执行中', state: 'executing', currentActor: 'x', currentRole: 'executor' });
+    service.raiseClarification({ parentId: parent.id, byActor: 'x', question: '怎么选?', options: ['方案甲'], toDecider: 'admin' });
+
+    const unassigned = await app.inject({ method: 'GET', url: '/api/tasks?unassigned=1' });
+    expect(unassigned.json().map((t: any) => t.title)).toEqual(['没人认领']);
+    const held = await app.inject({ method: 'GET', url: '/api/tasks?hold=any' });
+    expect(held.json().length).toBe(2); // 挂起的父任务 + 问题卡
+
+    const pending = await app.inject({ method: 'GET', url: '/api/pending/admin' });
+    expect(pending.statusCode).toBe(200);
+    const p = pending.json();
+    expect(p.decisions).toHaveLength(1);
+    expect(p.decisions[0].questionText).toBe('怎么选?');
+    expect(p.decisions[0].options).toEqual([{ key: 'A', text: '方案甲' }]);
+    expect(p.decisions[0].parent.title).toBe('执行中');
+  });
+
   it('GET /api/projects 返回主干四阶段分组的顶层任务', async () => {
     const { service, app } = mk();
     const project = service.createTask({ title: '项目', state: 'executing' });

@@ -179,6 +179,42 @@ describe('RelayService reads', () => {
     expect(allCard.attention).toBeUndefined();
   });
 
+  it('listTasks 发现面: 按 未认领/阶段/挂起 过滤 —— agent 找活不能只看"已分给我的"', () => {
+    const { db, service } = svc();
+    service.registerActor({ id: 'x', name: 'X', type: 'agent' });
+    createTask(db, { id: 'R-50', title: '没人认领', state: 'planning' });
+    createTask(db, { id: 'R-51', title: '在做', state: 'executing', currentActor: 'x', currentRole: 'executor' });
+    createTask(db, { id: 'R-52', title: '等确认', state: 'planning', hold: 'confirm', currentActor: 'x', currentRole: 'decider' });
+    expect(service.listTasks({ unassigned: true }).map((t) => t.id)).toEqual(['R-50']);
+    expect(service.listTasks({ state: 'executing' }).map((t) => t.id)).toEqual(['R-51']);
+    expect(service.listTasks({ hold: 'any' }).map((t) => t.id)).toEqual(['R-52']);
+    expect(service.listTasks({ hold: 'none', state: 'planning' }).map((t) => t.id)).toEqual(['R-50']);
+    expect(service.listTasks().length).toBe(3);
+  });
+
+  it('pendingFor 是 IM 推送的数据源: 等拍板附计划全文, 等答复附问题/结构化选项/所属任务; 被挂起的父任务不混进来', () => {
+    const { db, service } = svc();
+    service.registerActor({ id: 'x', name: 'X', type: 'agent' });
+    service.registerActor({ id: 'admin', name: 'admin', type: 'human' });
+    // 等拍板: 计划站挂 confirm, 交到 admin 手里
+    createTask(db, { id: 'R-60', title: '注册流程', state: 'planning', hold: 'confirm', currentActor: 'admin', currentRole: 'decider', inputsMd: '- [ ] 第一步' });
+    // 等答复: x 在 R-61 上提问给 admin → 生成问题卡(admin 持有), 父任务挂起(x 仍持有)
+    createTask(db, { id: 'R-61', title: '导出报告', state: 'executing', currentActor: 'x', currentRole: 'executor' });
+    service.raiseClarification({ parentId: 'R-61', byActor: 'x', question: '含已完成的吗?', options: ['含全部', '仅未完成'], toDecider: 'admin' });
+
+    const p = service.pendingFor('admin');
+    expect(p.confirms.map((c) => c.task.id)).toEqual(['R-60']);
+    expect(p.confirms[0].plan).toBe('- [ ] 第一步'); // 拍板依据直接带上, 机器人不用再取一次
+    expect(p.decisions).toHaveLength(1);
+    expect(p.decisions[0].questionText).toBe('含已完成的吗?');
+    expect(p.decisions[0].options).toEqual([{ key: 'A', text: '含全部' }, { key: 'B', text: '仅未完成' }]); // IM 卡片可直接出按钮
+    expect(p.decisions[0].parent?.id).toBe('R-61'); // 上下文: 问题属于哪个任务
+    // 被挂起的父任务 R-61 持有人是 x, 不在 admin 清单里; x 的清单里它也不算"待处理"(它在等别人)
+    const px = service.pendingFor('x');
+    expect(px.confirms).toHaveLength(0);
+    expect(px.decisions).toHaveLength(0); // R-61 挂着但不是问题卡 → 不进决策清单
+  });
+
   it('列是队列, 位置即优先级: 未手动排序(rank null)时按 priority 落位(hi>mid>lo>无), 手动排过的服从人的排列', () => {
     const { db, service } = svc();
     createTask(db, { id: 'R-100', title: '父' });
