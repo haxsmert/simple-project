@@ -1,6 +1,7 @@
 import type { DB } from '../db/connection';
 import type { Task, Role, TaskState, Hold } from '../model/types';
 import { getTask, updateTask, listChildren } from '../repo/tasks';
+import { getActor } from '../repo/actors';
 import { appendEvent, listEvents } from '../repo/events';
 import { canMove } from './stateMachine';
 
@@ -17,6 +18,9 @@ export interface HandoffInput {
 export function handoff(db: DB, input: HandoffInput): Task {
   const task = getTask(db, input.taskId);
   if (!task) throw new Error(`任务不存在: ${input.taskId}`);
+  for (const a of [input.byActor, input.toActor]) {
+    if (!getActor(db, a)) throw new Error(`行动者不存在: ${a}(先注册: register_actor / POST /api/actors)`);
+  }
   const toState = input.toState ?? task.state;
   const toHold = input.toHold === undefined ? task.hold : input.toHold;
   if (!canMove({ state: task.state, hold: task.hold }, { state: toState, hold: toHold })) {

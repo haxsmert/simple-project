@@ -1,6 +1,7 @@
 import type { DB } from '../db/connection';
 import type { Task } from '../model/types';
 import { getTask, updateTask, createTask } from '../repo/tasks';
+import { getActor } from '../repo/actors';
 import { createEdge, edgesFrom, edgesTo } from '../repo/edges';
 import { appendEvent } from '../repo/events';
 
@@ -23,6 +24,9 @@ export function raiseClarification(
 ): { clarTask: Task; parent: Task } {
   const parent = getTask(db, input.parentId);
   if (!parent) throw new Error(`任务不存在: ${input.parentId}`);
+  for (const a of [input.byActor, input.toDecider].filter((x): x is string => !!x)) {
+    if (!getActor(db, a)) throw new Error(`行动者不存在: ${a}(先注册: register_actor / POST /api/actors)`);
+  }
   if (parent.state === 'done') throw new Error('已完成的任务没有可提问的下一步');
   // decision 挂起中允许追加提问(并发多问, 全答完才解冻); confirm 挂起要先批准/打回, 两种挂起不叠加
   if (parent.hold === 'confirm') throw new Error('任务挂在等确认上, 先批准或打回再提问');

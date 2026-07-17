@@ -1,7 +1,7 @@
 import type { DB } from '../db/connection';
 import type { Actor, ActorType, Task, TaskState, Role, TaskEvent, Edge, EdgeType, Priority } from '../model/types';
 import { getTask, listChildren, listRoots, createTask, updateTask, removeTask, setRank, type CreateTaskInput, type TaskPatch } from '../repo/tasks';
-import { listActors, createActor } from '../repo/actors';
+import { listActors, createActor, getActor } from '../repo/actors';
 import { assemblePackage, type TaskPackage } from '../core/infoPackage';
 import { mirrorTask } from '../mirror/writer';
 import { rmSync } from 'node:fs';
@@ -55,6 +55,14 @@ export class RelayService {
       // 扩展失败则退回到只镜像直接传入的任务
     }
     for (const id of affected) this.mirrorOne(id);
+  }
+
+  // 前置校验(FK 约束的报错是 "FOREIGN KEY constraint failed" 这种黑话 —— 拦在前面, 说人话)
+  private mustActor(id: string): void {
+    if (!getActor(this.db, id)) throw new Error(`行动者不存在: ${id}(先注册: register_actor / POST /api/actors)`);
+  }
+  private mustTask(id: string): void {
+    if (!getTask(this.db, id)) throw new Error(`任务不存在: ${id}`);
   }
 
   getPackage(id: string): TaskPackage {
@@ -192,11 +200,19 @@ export class RelayService {
     return { confirms, decisions };
   }
 
-  registerActor(input: { id: string; name: string; type: ActorType; handle?: string | null }): Actor {
+  // 幂等注册: agent 每次启动都会自报家门, 重复注册不该炸 UNIQUE —— 已存在则更新名字返回
+  registerActor(input: { id: string; name: string; type: ActorType }): Actor {
+    const existing = getActor(this.db, input.id);
+    if (existing) {
+      if (existing.name !== input.name) this.db.prepare('UPDATE actors SET name=? WHERE id=?').run(input.name, input.id);
+      return { ...existing, name: input.name };
+    }
     return createActor(this.db, input);
   }
 
   createTask(input: CreateTaskInput): Task {
+    if (input.parentId) this.mustTask(input.parentId);
+    if (input.currentActor) this.mustActor(input.currentActor);
     const t = createTask(this.db, input);
     this.mirror(t.id);
     return t;
@@ -210,6 +226,7 @@ export class RelayService {
     if (before.hold !== null) {
       throw new Error(`任务挂起中(${before.hold === 'confirm' ? '等确认' : '等决策'}), 不可领取: 等它解除, 或走 handoff 改派`);
     }
+    this.mustActor(actorId);
     const patch: TaskPatch = { currentActor: actorId };
     if (role) patch.currentRole = role;
     const t = updateTask(this.db, taskId, patch);
@@ -224,7 +241,10 @@ export class RelayService {
     if (!before) throw new Error(`任务不存在: ${taskId}`);
     const changed: string[] = [];
     const p: TaskPatch = {};
-    if (patch.title !== undefined && patch.title !== before.title) { p.title = patch.title; changed.push(`标题: ${before.title} → ${patch.title}`); }
+    if (patch.title !== undefined && patch.title !== before.title) {
+      if (!patch.title.trim()) throw new Error('标题不能为空');
+      p.title = patch.title; changed.push(`标题: ${before.title} → ${patch.title}`);
+    }
     if (patch.goal !== undefined && patch.goal !== before.goal) { p.goal = patch.goal; changed.push('目标'); }
     if (patch.priority !== undefined && patch.priority !== before.priority) { p.priority = patch.priority; changed.push('优先级'); }
     if (changed.length === 0) return before;
@@ -287,6 +307,7 @@ export class RelayService {
     byActor: string,
     out: { outputsMd?: string | null; summary?: string | null },
   ): Task {
+    this.mustActor(byActor);
     const patch: TaskPatch = {};
     if (out.outputsMd !== undefined) patch.outputsMd = out.outputsMd;
     if (out.summary !== undefined) patch.summary = out.summary;
@@ -297,6 +318,8 @@ export class RelayService {
   }
 
   comment(taskId: string, actorId: string, body: string): TaskEvent {
+    this.mustTask(taskId);
+    this.mustActor(actorId);
     const ev = appendEvent(this.db, { taskId, actorId, kind: 'comment', body });
     this.mirror(taskId);
     return ev;
@@ -321,6 +344,12 @@ export class RelayService {
   }
 
   linkEdge(input: { fromTask: string; toTask: string; type: EdgeType }): Edge {
+    if (input.fromTask === input.toTask) throw new Error('任务不能和自己建关系');
+    this.mustTask(input.fromTask);
+    this.mustTask(input.toTask);
+    // 幂等: 同款边已存在直接返回它(agent 重试不该堆出重复边)
+    const dup = edgesFrom(this.db, input.fromTask).find((e) => e.toTask === input.toTask && e.type === input.type);
+    if (dup) return dup;
     const e = createEdge(this.db, input);
     this.mirror(input.fromTask, input.toTask);
     return e;

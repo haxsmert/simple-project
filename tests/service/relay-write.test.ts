@@ -101,6 +101,37 @@ describe('RelayService writes (part A)', () => {
     expect(listEvents(db, p2.id).at(-1)!.body).toContain('撤回了提问');
   });
 
+  it('坏输入说人话(对抗演练沉淀): 空标题拒 / 不存在的行动者与父任务拒且不吐 FK 黑话', () => {
+    const { service } = svc();
+    service.registerActor({ id: 'a', name: 'A', type: 'agent' });
+    expect(() => service.createTask({ title: '   ' })).toThrow(/标题不能为空/);
+    expect(() => service.createTask({ title: 'x', parentId: 'R-999' })).toThrow(/任务不存在/);
+    expect(() => service.createTask({ title: 'x', currentActor: 'ghost' })).toThrow(/行动者不存在/);
+    const t = service.createTask({ title: 't' });
+    expect(() => service.claim(t.id, 'ghost')).toThrow(/行动者不存在/);
+    expect(() => service.comment(t.id, 'ghost', 'hi')).toThrow(/行动者不存在/);
+    expect(() => service.handoff({ taskId: t.id, byActor: 'a', toActor: 'ghost', toRole: 'planner' })).toThrow(/行动者不存在/);
+    expect(() => service.updateTaskInfo(t.id, 'a', { title: ' ' })).toThrow(/标题不能为空/);
+  });
+
+  it('linkEdge: 自环拒; 重复建边幂等返回已有(agent 重试不堆重复边)', () => {
+    const { service } = svc();
+    const a = service.createTask({ title: 'A' });
+    const b = service.createTask({ title: 'B' });
+    expect(() => service.linkEdge({ fromTask: a.id, toTask: a.id, type: 'depends_on' })).toThrow(/不能和自己/);
+    const e1 = service.linkEdge({ fromTask: a.id, toTask: b.id, type: 'depends_on' });
+    const e2 = service.linkEdge({ fromTask: a.id, toTask: b.id, type: 'depends_on' });
+    expect(e2.id).toBe(e1.id); // 同一条, 不重复
+  });
+
+  it('registerActor 幂等: agent 每次启动自报家门不炸 UNIQUE, 改名生效', () => {
+    const { service } = svc();
+    service.registerActor({ id: 'cc', name: '旧名', type: 'agent' });
+    const again = service.registerActor({ id: 'cc', name: '新名', type: 'agent' });
+    expect(again.name).toBe('新名');
+    expect(service.listActors().filter((x) => x.id === 'cc').length).toBe(1);
+  });
+
   it('comment 追加评论事件', () => {
     const { db, service } = svc();
     service.registerActor({ id: 'a', name: 'A', type: 'agent' });

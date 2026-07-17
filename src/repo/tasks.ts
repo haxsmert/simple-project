@@ -33,6 +33,7 @@ export interface CreateTaskInput {
 }
 
 export function createTask(db: DB, input: CreateTaskInput): Task {
+  if (!input.title.trim()) throw new Error('标题不能为空');
   const id = input.id ?? nextTaskId(db);
   const ts = now();
   const row: TaskRow = {
