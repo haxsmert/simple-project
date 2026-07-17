@@ -144,7 +144,7 @@ ul.plan .pmark svg { width:11px; height:11px; }
 ul.plan li:not(.done) .pmark::before { content:""; width:5px; height:5px; border-radius:50%; background:var(--border-2); }
 /* 只弱化文字本身 —— 早先写的是 li.done span, 特异度(0-2-3)悄悄盖掉 .pmark 的绿(0-2-1), ✓ 被渲染成灰:
    渲染结果与代码意图不符。改为只命中 .ptext, 让 ✓ 保持 --done 绿。 */
-ul.plan li.done .ptext { color:var(--text-faint); text-decoration:line-through; text-decoration-color:var(--border-2); }
+ul.plan li.done .ptext { color:var(--text-faint); text-decoration:line-through; text-decoration-color:var(--text-dim); text-decoration-thickness:1.5px; }
 
 /* 产出 · 产物行 */
 /* 产物是记录不是控件: 去掉圆角边框(那是按钮/输入框的相), 只留代码底衬 */
@@ -246,7 +246,7 @@ ul.plan li.done .ptext { color:var(--text-faint); text-decoration:line-through; 
 .sub:hover { background:var(--surface-2); }
 .sub:focus-visible { outline:2px solid var(--human); outline-offset:-1px; }
 .sub .sdot { width:7px; height:7px; border-radius:50%; flex:none; }
-.sub.done .t { color:var(--text-faint); text-decoration:line-through; text-decoration-color:var(--border-2); }
+.sub.done .t { color:var(--text-faint); text-decoration:line-through; text-decoration-color:var(--text-dim); text-decoration-thickness:1.5px; }
 .sub .t { flex:1; color:var(--text); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .sub .sstate { font-size:11px; color:var(--text-dim); flex:none; }
 .sub .id { font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint); flex:none; }
