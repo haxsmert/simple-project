@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, createEvent } from '@testing-library/react';
 import { Board, reorderIds } from './Board';
 import type { BoardColumn } from '../types';
 
@@ -164,6 +164,28 @@ describe('Board', () => {
     expect(reorderIds(['a', 'b', 'c'], 'a', 'c')).toEqual(['b', 'a', 'c']); // 拖 a 到 c 之前
     expect(reorderIds(['a', 'b', 'c'], 'c', 'a')).toEqual(['c', 'a', 'b']); // 拖 c 到 a 之前
     expect(reorderIds(['a', 'b', 'c'], 'b', null)).toEqual(['a', 'c', 'b']); // 拖 b 到列尾
+  });
+
+  it('reorderIds after=true: 插到目标之后(向下拖的正确语义, 修复"下拉不生效"+可移到末位)', () => {
+    expect(reorderIds(['a', 'b', 'c'], 'a', 'b', true)).toEqual(['b', 'a', 'c']);  // a 落到 b 下半 → a 移到 b 之后
+    expect(reorderIds(['a', 'b', 'c'], 'a', 'c', true)).toEqual(['b', 'c', 'a']);  // a 落到末卡 c 下半 → a 移到末位
+    expect(reorderIds(['a', 'b', 'c'], 'a', 'b', false)).toEqual(['a', 'b', 'c']); // a 落到 b 上半 → 之前 = 原位, 不动
+  });
+
+  it('向下拖到卡片下半部分: 插到该卡之后(修复"下拉不生效"), 可把卡移到列末位', () => {
+    const onReorder = vi.fn();
+    const { container } = render(<Board columns={dragColumns} actorsById={actors} onOpen={vi.fn()} onReorder={onReorder} />);
+    const cards = container.querySelectorAll('.card');
+    // jsdom 无真实布局, 手工给末卡 R-3 一个几何: 中线在 y=220
+    (cards[2] as HTMLElement).getBoundingClientRect = () =>
+      ({ top: 200, height: 40, bottom: 240, left: 0, right: 0, width: 0, x: 0, y: 200, toJSON() {} }) as DOMRect;
+    fireEvent.dragStart(cards[0]); // 拖起 R-1
+    fireEvent.dragOver(cards[2]);
+    // fireEvent 对 drop 事件不透传 clientY, 手工建事件并显式挂 clientY(落在 R-3 下半, 230 > 中线 220)
+    const dropEvt = createEvent.drop(cards[2]);
+    Object.defineProperty(dropEvt, 'clientY', { value: 230 });
+    fireEvent(cards[2], dropEvt); // → R-1 插到 R-3 之后 = 末位
+    expect(onReorder).toHaveBeenCalledWith(['R-2', 'R-3', 'R-1']);
   });
 });
 
