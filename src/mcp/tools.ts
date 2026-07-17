@@ -38,22 +38,30 @@ export const claimTool = {
   },
 };
 
-const stateEnum = z.enum(['planning', 'awaiting_confirm', 'executing', 'awaiting_decision', 'testing', 'done']);
+// 主干四阶段; 挂起(等确认/等决策)是平行字段 to_hold, 不是阶段
+const stateEnum = z.enum(['planning', 'executing', 'testing', 'done']);
+const holdEnum = z.enum(['confirm', 'none']);
 
 export const handoffTool = {
   name: 'handoff',
-  description: '把任务换手给另一个行动者/角色(经状态机校验)',
+  description:
+    '把任务换手给另一个行动者/角色(经状态机校验)。to_state=主干阶段(计划/执行/测试/完成); ' +
+    'to_hold=挂起变更: "confirm"=提交本阶段产出等决策者批准(批准后 to_state 前进一步), "none"=解除确认挂起(批准或打回), ' +
+    '缺省=挂起不动。等决策(decision)挂起由 raise/answer_clarification 专管, 不走本工具。',
   schema: {
     task_id: z.string(), by_actor: z.string(), to_actor: z.string(),
-    to_role: roleEnum, to_state: stateEnum.optional(), note: z.string().optional(),
+    to_role: roleEnum, to_state: stateEnum.optional(), to_hold: holdEnum.optional(), note: z.string().optional(),
   },
   handler(service: RelayService, args: {
     task_id: string; by_actor: string; to_actor: string;
-    to_role: z.infer<typeof roleEnum>; to_state?: z.infer<typeof stateEnum>; note?: string;
+    to_role: z.infer<typeof roleEnum>; to_state?: z.infer<typeof stateEnum>;
+    to_hold?: z.infer<typeof holdEnum>; note?: string;
   }): ToolResult {
     return ok(service.handoff({
       taskId: args.task_id, byActor: args.by_actor, toActor: args.to_actor,
-      toRole: args.to_role, toState: args.to_state, note: args.note,
+      toRole: args.to_role, toState: args.to_state,
+      toHold: args.to_hold === undefined ? undefined : (args.to_hold === 'none' ? null : args.to_hold),
+      note: args.note,
     }));
   },
 };

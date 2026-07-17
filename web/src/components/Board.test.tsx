@@ -3,33 +3,36 @@ import { render, screen, fireEvent, within, createEvent } from '@testing-library
 import { Board, reorderIds } from './Board';
 import type { BoardColumn } from '../types';
 
+// 主干四阶段即四列; 挂起的任务留在自己的阶段列"原地举手"(整卡琥珀 + 挂起徽标), 不搬列
 const columns: BoardColumn[] = [
-  { state: 'executing', tasks: [{ id: 'R-1', title: '搭建数据层', state: 'executing', currentActor: 'a', currentRole: 'executor', parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }] },
-  { state: 'awaiting_decision', tasks: [{ id: 'R-2', title: '要不要富文本', state: 'awaiting_decision', currentActor: 'admin', currentRole: 'decider', parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }] },
-  { state: 'planning', tasks: [] }, { state: 'awaiting_confirm', tasks: [] }, { state: 'testing', tasks: [] }, { state: 'done', tasks: [] },
+  { state: 'planning', tasks: [] },
+  {
+    state: 'executing',
+    tasks: [
+      { id: 'R-1', title: '搭建数据层', state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor', parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi' },
+      { id: 'R-2', title: '要不要富文本', state: 'executing', hold: 'decision', currentActor: 'admin', currentRole: 'decider', parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi' },
+    ],
+  },
+  { state: 'testing', tasks: [] },
+  { state: 'done', tasks: [] },
 ];
 const actors = { a: { id: 'a', name: '执行A', type: 'agent' as const, handle: null }, admin: { id: 'admin', name: 'admin', type: 'human' as const, handle: null } };
 
+const fourCols = (tasks: BoardColumn['tasks'], at: BoardColumn['state'] = 'executing'): BoardColumn[] =>
+  (['planning', 'executing', 'testing', 'done'] as const).map((state) => ({ state, tasks: state === at ? tasks : [] }));
+
 // 同一列(executing)下 3 张卡片, 专供拖拽排序测试使用
-const dragColumns: BoardColumn[] = [
-  {
-    state: 'executing',
-    tasks: (['R-1', 'R-2', 'R-3'] as const).map((id, i) => ({
-      id, title: `任务${i + 1}`, state: 'executing', currentActor: 'a', currentRole: 'executor',
-      parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi',
-    })),
-  },
-  { state: 'awaiting_decision', tasks: [] }, { state: 'planning', tasks: [] },
-  { state: 'awaiting_confirm', tasks: [] }, { state: 'testing', tasks: [] }, { state: 'done', tasks: [] },
-];
+const dragColumns: BoardColumn[] = fourCols((['R-1', 'R-2', 'R-3'] as const).map((id, i) => ({
+  id, title: `任务${i + 1}`, state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor',
+  parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi',
+})));
 
 describe('Board', () => {
-  it('渲染卡片, 待决策列高亮, 点击回调', () => {
+  it('渲染卡片, 挂起的卡原地高亮, 点击回调', () => {
     const onOpen = vi.fn();
     const { container } = render(<Board columns={columns} actorsById={actors} onOpen={onOpen} />);
     expect(screen.getByText('搭建数据层')).toBeInTheDocument();
-    expect(container.querySelector('.col.attn')).toBeTruthy(); // 待决策列
-    expect(container.querySelector('.card.blocked')).toBeTruthy(); // R-2 卡
+    expect(container.querySelector('.card.blocked')).toBeTruthy(); // R-2: 挂起卡琥珀
     fireEvent.click(screen.getByText('搭建数据层'));
     expect(onOpen).toHaveBeenCalledWith('R-1');
   });
@@ -46,19 +49,12 @@ describe('Board', () => {
   });
 
   it('卡面降噪: 优先级「高」保留红徽标, 子任务进度保留, 关系边/角色/状态 chip 一律不上卡面(归详情与列头)', () => {
-    const richColumns: BoardColumn[] = [
-      {
-        state: 'executing',
-        tasks: [{
-          id: 'R-20', title: '带富化信息的卡片', state: 'executing', currentActor: 'a', currentRole: 'executor',
-          parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi',
-          subtaskCount: 5, doneSubtaskCount: 3,
-          edges: { out: [{ id: 'e1', fromTask: 'R-20', toTask: 'R-30', type: 'depends_on' }], in: [] },
-        }],
-      },
-      { state: 'awaiting_decision', tasks: [] }, { state: 'planning', tasks: [] },
-      { state: 'awaiting_confirm', tasks: [] }, { state: 'testing', tasks: [] }, { state: 'done', tasks: [] },
-    ];
+    const richColumns = fourCols([{
+      id: 'R-20', title: '带富化信息的卡片', state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor',
+      parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi',
+      subtaskCount: 5, doneSubtaskCount: 3,
+      edges: { out: [{ id: 'e1', fromTask: 'R-20', toTask: 'R-30', type: 'depends_on' }], in: [] },
+    }]);
     const { container } = render(<Board columns={richColumns} actorsById={actors} onOpen={vi.fn()} />);
     expect(container.querySelector('.prio.hi')).toBeTruthy(); // 优先级标记
     expect(screen.getByText('高')).toBeInTheDocument(); // 用文字承载优先级, 不靠颜色单独传意
@@ -68,45 +64,28 @@ describe('Board', () => {
     expect(container.querySelector('.role')).toBeNull(); // 角色 chip 不再上卡面
   });
 
-  it('"轮到你"的卡(待决策/待确认)整卡琥珀底色, 状态由列头承载, 卡面无状态 chip; 读屏 aria-label 保留状态', () => {
-    const clarColumns: BoardColumn[] = [
-      {
-        state: 'awaiting_decision',
-        tasks: [{
-          id: 'R-148', title: '要不要富文本?', state: 'awaiting_decision', currentActor: 'admin', currentRole: 'decider',
-          parentId: 'R-142', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi',
-        }],
-      },
-      {
-        state: 'awaiting_confirm',
-        tasks: [{
-          id: 'R-149', title: '计划待确认的任务', state: 'awaiting_confirm', currentActor: 'admin', currentRole: 'decider',
-          parentId: 'R-142', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null,
-        }],
-      },
+  it('挂起的卡"原地举手": 留在自己的阶段列, 整卡琥珀 + 「待你决策/待你确认」徽标; 读屏 aria-label 同样带上', () => {
+    const holdColumns: BoardColumn[] = [
+      { state: 'planning', tasks: [{ id: 'R-149', title: '计划待确认的任务', state: 'planning', hold: 'confirm', currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null }] },
+      { state: 'executing', tasks: [{ id: 'R-148', title: '要不要富文本?', state: 'executing', hold: 'decision', currentActor: 'admin', currentRole: 'decider', parentId: 'R-142', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }] },
+      { state: 'testing', tasks: [] }, { state: 'done', tasks: [] },
     ];
-    const { container } = render(<Board columns={clarColumns} actorsById={actors} onOpen={vi.fn()} />);
+    const { container } = render(<Board columns={holdColumns} actorsById={actors} onOpen={vi.fn()} />);
     const cards = container.querySelectorAll('.card');
-    expect(cards[0].className).toContain('blocked'); // 待决策卡琥珀
-    expect(cards[1].className).toContain('blocked'); // 待确认卡也琥珀("轮到你"同语言)
-    expect(container.querySelectorAll('.col.attn').length).toBe(2); // 两列列头都亮琥珀
-    expect(within(cards[0] as HTMLElement).queryByText('待决策')).toBeNull(); // 卡面不重复列头状态
-    expect(within(cards[0] as HTMLElement).getByRole('button', { name: /待决策/ })).toBeInTheDocument(); // 读屏可及名保留状态
+    expect(cards[0].className).toContain('blocked'); // 等确认卡琥珀
+    expect(cards[1].className).toContain('blocked'); // 等决策卡也琥珀("轮到你"同语言)
+    // 挂起不再是列 —— 列头没法替它说话, 卡面必须自己说
+    expect(within(cards[0] as HTMLElement).getByText('待你确认')).toBeInTheDocument();
+    expect(within(cards[1] as HTMLElement).getByText('待你决策')).toBeInTheDocument();
+    expect(within(cards[1] as HTMLElement).getByRole('button', { name: /待你决策/ })).toBeInTheDocument(); // 读屏可及名保留
   });
 
   it('项目名只在跨项目视图(showProject)显示; 单项目视图里不重复渲染同一项目名', () => {
-    const projTitleColumns: BoardColumn[] = [
-      {
-        state: 'executing',
-        tasks: [{
-          id: 'R-80', title: '带项目名的任务', state: 'executing', currentActor: 'a', currentRole: 'executor',
-          parentId: 'R-79', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi',
-          parentTitle: '演示项目',
-        }],
-      },
-      { state: 'awaiting_decision', tasks: [] }, { state: 'planning', tasks: [] },
-      { state: 'awaiting_confirm', tasks: [] }, { state: 'testing', tasks: [] }, { state: 'done', tasks: [] },
-    ];
+    const projTitleColumns = fourCols([{
+      id: 'R-80', title: '带项目名的任务', state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor',
+      parentId: 'R-79', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: 'hi',
+      parentTitle: '演示项目',
+    }]);
     const { container: withProj } = render(<Board columns={projTitleColumns} actorsById={actors} onOpen={vi.fn()} showProject />);
     expect(withProj.querySelector('.card-project')?.textContent).toBe('演示项目'); // 全部任务视图: 显示
     const { container: withoutProj } = render(<Board columns={projTitleColumns} actorsById={actors} onOpen={vi.fn()} />);
@@ -115,10 +94,7 @@ describe('Board', () => {
 
   it('提供 onDescend 时「子任务 N/M」变成"钻入"入口, 点击调用 onDescend 且不触发 onOpen(详情)', () => {
     const onOpen = vi.fn(); const onDescend = vi.fn();
-    const cols: BoardColumn[] = [
-      { state: 'executing', tasks: [{ id: 'R-20', title: '有子任务的任务', state: 'executing', currentActor: 'a', currentRole: 'executor', parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null, subtaskCount: 3, doneSubtaskCount: 1 }] },
-      { state: 'awaiting_confirm', tasks: [] }, { state: 'awaiting_decision', tasks: [] }, { state: 'planning', tasks: [] }, { state: 'testing', tasks: [] }, { state: 'done', tasks: [] },
-    ];
+    const cols = fourCols([{ id: 'R-20', title: '有子任务的任务', state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor', parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null, subtaskCount: 3, doneSubtaskCount: 1 }]);
     render(<Board columns={cols} actorsById={actors} onOpen={onOpen} onDescend={onDescend} />);
     fireEvent.click(screen.getByTitle('钻入子任务'));
     expect(onDescend).toHaveBeenCalledWith('R-20');
@@ -126,28 +102,21 @@ describe('Board', () => {
   });
 
   it('不提供 onDescend 时「子任务 N/M」是纯展示(无钻入按钮)', () => {
-    const cols: BoardColumn[] = [
-      { state: 'executing', tasks: [{ id: 'R-20', title: '有子任务的任务', state: 'executing', currentActor: 'a', currentRole: 'executor', parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null, subtaskCount: 3, doneSubtaskCount: 1 }] },
-      { state: 'awaiting_confirm', tasks: [] }, { state: 'awaiting_decision', tasks: [] }, { state: 'planning', tasks: [] }, { state: 'testing', tasks: [] }, { state: 'done', tasks: [] },
-    ];
+    const cols = fourCols([{ id: 'R-20', title: '有子任务的任务', state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor', parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null, subtaskCount: 3, doneSubtaskCount: 1 }]);
     render(<Board columns={cols} actorsById={actors} onOpen={vi.fn()} />);
     expect(screen.queryByTitle('钻入子任务')).toBeNull();
     expect(screen.getByText(/子任务 1\/3/)).toBeInTheDocument();
   });
 
   it('项目卡 attention 渲染「N 待处理」聚合角标(唯一上卡面的 chip)', () => {
-    const cols: BoardColumn[] = [
-      { state: 'planning', tasks: [{ id: 'R-1', title: '项目A', state: 'planning', currentActor: null, currentRole: null, parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null, attention: 2 }] },
-      { state: 'awaiting_confirm', tasks: [] }, { state: 'awaiting_decision', tasks: [] }, { state: 'executing', tasks: [] }, { state: 'testing', tasks: [] }, { state: 'done', tasks: [] },
-    ];
+    const cols = fourCols([{ id: 'R-1', title: '项目A', state: 'planning', hold: null, currentActor: null, currentRole: null, parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null, attention: 2 }], 'planning');
     render(<Board columns={cols} actorsById={actors} onOpen={vi.fn()} />);
     expect(screen.getByText('2 待处理')).toBeInTheDocument(); // 聚合信号非重复信息, 保留
   });
 
   it('全空看板渲染 board-empty 与提示文案', () => {
-    const emptyColumns: BoardColumn[] = ALL_STATES_EMPTY();
     const { container } = render(
-      <Board columns={emptyColumns} actorsById={actors} onOpen={vi.fn()}
+      <Board columns={fourCols([])} actorsById={actors} onOpen={vi.fn()}
         emptyHint={<><b>还没有任务</b><div>去追加一个吧</div></>} />
     );
     expect(container.querySelector('.board-empty')).toBeTruthy();
@@ -156,12 +125,11 @@ describe('Board', () => {
     expect(container.querySelector('.board')).toBeFalsy();
   });
 
-  it('部分列为空时, 空列渲染 col-empty 占位', () => {
+  it('部分列为空时, 空列渲染 col-empty 占位; 主干四阶段即四列', () => {
     const { container } = render(<Board columns={columns} actorsById={actors} onOpen={vi.fn()} />);
-    const cols = container.querySelectorAll('.col');
-    // planning/awaiting_confirm/testing/done 列在 fixture 里没有任务
-    expect(container.querySelectorAll('.col-empty').length).toBe(4);
-    expect(cols.length).toBe(6);
+    expect(container.querySelectorAll('.col').length).toBe(4);
+    // planning/testing/done 列在 fixture 里没有任务
+    expect(container.querySelectorAll('.col-empty').length).toBe(3);
   });
 
   it('传入 onReorder 时卡片可拖拽(draggable=true); 不传时卡片不可拖拽', () => {
@@ -186,9 +154,9 @@ describe('Board', () => {
     const onReorder = vi.fn();
     const { container } = render(<Board columns={dragColumns} actorsById={actors} onOpen={vi.fn()} onReorder={onReorder} />);
     const cards = container.querySelectorAll('.card');
-    const cardsContainer = container.querySelector('.cards') as HTMLElement;
-    fireEvent.dragStart(cards[0]); // 拖起 R-1
-    fireEvent.drop(cardsContainer); // 松手在列的空白容器上(未命中任何卡片)
+    const colEls = container.querySelectorAll('.cards');
+    fireEvent.dragStart(cards[0]); // 拖起 R-1(在 executing 列)
+    fireEvent.drop(colEls[1]); // 松手在该列的空白容器上(未命中任何卡片)
     expect(onReorder).toHaveBeenCalledWith(['R-2', 'R-3', 'R-1']);
   });
 
@@ -220,9 +188,3 @@ describe('Board', () => {
     expect(onReorder).toHaveBeenCalledWith(['R-2', 'R-3', 'R-1']);
   });
 });
-
-function ALL_STATES_EMPTY(): BoardColumn[] {
-  return ['planning', 'awaiting_confirm', 'executing', 'awaiting_decision', 'testing', 'done'].map((state) => ({
-    state: state as BoardColumn['state'], tasks: [],
-  }));
-}

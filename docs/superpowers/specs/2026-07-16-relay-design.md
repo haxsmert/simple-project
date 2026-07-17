@@ -31,15 +31,20 @@
 | **Task 任务** | 唯一的结构单位。**递归**——一个够大的任务就是"项目", 不存在独立的"项目/子任务"概念。 |
 | **Edge 关系边** | 任务之间的有向关系: `阻塞 blocks`、`依赖 depends_on`、`待确认 clarifies`、`引出 spawns`。 |
 
-### 2.1 状态机(约定俗成的固定骨架)
+### 2.1 状态机(约定俗成的固定骨架 · 2026-07-17 改版: 阶段与挂起正交)
 
 ```
-待规划 planning → 待确认 awaiting_confirm → 执行中 executing
-      → 待决策 awaiting_decision(卡住时) → 测试中 testing → 完成 done
+主干阶段 state: 待规划 planning → 执行中 executing → 测试中 testing → 完成 done
+挂起 hold(平行字段, 类似"锁定/中断"):
+  confirm  等确认 —— 本阶段产出已提交, 等决策者批准前进一步; 打回 = 原地解除
+  decision 等决策 —— 卡住提问, 全部答复后原地继续
 ```
 
+- **挂起不是阶段**: 任务永远处在主干某一站, 挂起是"原地举手", 不是搬到另一站。
+  除「完成」外任何阶段都可能被中断, 且可中断多次(答复后可再问; decision 中可追加并发提问)。
+- 确认关可以跳过, 但**计划不能跳过**: 从计划阶段推进(直接开工或提交等确认)必须先有 inputs_md。
 - **固定、不做可配置**(改动场景少, 不为可配置而可配置, 不做成花哨的工作流引擎)。
-- 允许**跳步 / 手动换手**; 系统按模板给**默认路由**建议, 但不强制。
+- 允许**跳过确认 / 手动换手**; 系统按行为推断给**默认路由**建议, 但不强制。
 - 这是设计里刻意"轻"的部分: 机制是对的, 落地不僵硬。
 
 ### 2.2 数据表草案(SQLite, 真相源)
@@ -59,7 +64,8 @@ tasks(
   id            TEXT PRIMARY KEY,    -- 'R-142'
   title         TEXT NOT NULL,
   parent_id     TEXT REFERENCES tasks(id),   -- NULL = 顶层("项目"只是 parent 为空的大任务)
-  state         TEXT NOT NULL,       -- planning|awaiting_confirm|executing|awaiting_decision|testing|done
+  state         TEXT NOT NULL,       -- 主干阶段: planning|executing|testing|done
+  hold          TEXT,                -- 挂起(平行字段): confirm|decision|NULL
   current_actor TEXT REFERENCES actors(id),  -- 接力棒此刻在谁手上
   current_role  TEXT,                -- planner|executor|tester|questioner|decider
   goal          TEXT,                -- 目标意图(输入槽)
@@ -85,7 +91,8 @@ events(
   id          TEXT PRIMARY KEY,
   task_id     TEXT NOT NULL REFERENCES tasks(id),
   actor_id    TEXT NOT NULL REFERENCES actors(id),
-  kind        TEXT NOT NULL,         -- handoff|comment|output|clarify|decide|claim
+  kind        TEXT NOT NULL,         -- handoff|comment|output|clarify|decide|claim|plan
+  to_actor    TEXT,                  -- 交给了谁; state_from/to + hold_from/to 记录位置变化(实现层已加)
   role_from   TEXT,                  -- 换手起始角色
   role_to     TEXT,                  -- 换手目标角色
   body        TEXT,                  -- markdown
@@ -110,14 +117,14 @@ events(
 
 1. `raise_clarification(question, options?, blocking=true)`
 2. 系统**新建一个子任务**(goal = 问题), 并连一条 `clarifies` 边指回父任务(同时可加 `spawns` 边表示"这个问题引出了它")。
-3. 父任务自动进入 `awaiting_decision`、挂起。
-4. 决策者答复 → 答案写入该澄清任务的 `outputs_md`/`summary` → 父任务解冻、续跑。
+3. 父任务自动挂起(`hold=decision`, **阶段原地不动**——挂起是举手, 不是搬站)。
+4. 决策者答复 → 答案写入该澄清任务的 `outputs_md`/`summary` → 全部答复后父任务解除挂起、**在原阶段续跑**。
 
 **全程是"任务 + 边 + 状态"的组合, 没有特例代码。** 这正是"机制统一、无补丁"的体现。
 
-**设计决策(状态机权威)**: 待确认的挂起/解冻也走六态状态机的 `canTransition` 校验——**状态机是状态变更的唯一权威**, 不存在"绕过校验直接改状态"的第二条路径。推论:
-- 待确认**仅可从 `executing` 触发**(`executing → awaiting_decision` 是合法边); 对非执行态任务触发会按状态机报错。
-- 一个父任务可挂多个待确认(第二次挂起是 `awaiting_decision → awaiting_decision` 同态, 合法); **仅当所有待确认都答复完毕, 父任务才解冻回 `executing`**。
+**设计决策(状态机权威 · 2026-07-17 改版)**: 位置(阶段×挂起)变更走 `canMove` 校验——**状态机是位置变更的唯一权威**, 不存在"绕过校验直接改状态"的第二条路径。推论:
+- 提问挂起**除「完成」外任何阶段可触发**, 且可多次; `decision` 的设/解只走 clarification 模块, handoff 一律拒——保住"问题挂着任务不能跑"的不变量。
+- 一个父任务可挂多个待确认(decision 挂起中允许追加提问); **仅当所有待确认都答复完毕, 父任务才解除挂起、在原阶段续跑**。
 
 ### 3.3 信息包的四槽位 ⟷ 机制映射
 
@@ -194,7 +201,7 @@ SQLite 开 **WAL 模式**: 多读 + 单写, 个人规模足够。better-sqlite3 
 ### 第一版做
 
 - 递归任务 + 四类关系边
-- 固定六态状态机 + 默认路由(可跳步/手动换手)
+- 固定四阶段主干 + 平行挂起字段 + 默认路由(可跳过确认/手动换手)
 - Actor(你 + 注册 agent), 人/agent 双色呈现
 - 四槽位信息包(输入/产出/待确认/交互记录)
 - Web UI: 看板 + 任务详情 + 任务树(默认展开两层)

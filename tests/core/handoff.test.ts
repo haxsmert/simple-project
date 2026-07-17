@@ -37,7 +37,7 @@ describe('handoff', () => {
     const t = createTask(db, { title: 'x', state: 'executing', currentActor: 'exec', currentRole: 'executor' });
     expect(() => handoff(db, {
       taskId: t.id, byActor: 'exec', toActor: 'exec', toRole: 'tester', toState: 'done',
-    })).toThrow(/非法状态流转/);
+    })).toThrow(/非法流转/);
   });
 
   // 产品约定: 确认关可以跳过, 但计划不能跳过 —— 从待规划推进(去执行或去确认)前必须有计划
@@ -47,7 +47,7 @@ describe('handoff', () => {
     const bare = createTask(db, { title: '没计划', state: 'planning', currentActor: 'p', currentRole: 'planner' });
     expect(() => handoff(db, { taskId: bare.id, byActor: 'p', toActor: 'p', toRole: 'executor', toState: 'executing' }))
       .toThrow(/还没有计划/);
-    expect(() => handoff(db, { taskId: bare.id, byActor: 'p', toActor: 'p', toRole: 'decider', toState: 'awaiting_confirm' }))
+    expect(() => handoff(db, { taskId: bare.id, byActor: 'p', toActor: 'p', toRole: 'decider', toHold: 'confirm' }))
       .toThrow(/还没有计划/);
     // 同态改派(planning→planning)不是推进, 不该被计划守卫拦下 —— 换人接手规划正是常见路径
     createActor(db, { id: 'q', name: 'Q', type: 'agent' });

@@ -2,17 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { App } from './App';
 
-const ALL_STATES = ['planning', 'awaiting_confirm', 'executing', 'awaiting_decision', 'testing', 'done'];
+const ALL_STATES = ['planning', 'executing', 'testing', 'done'];
 
 const projectCard = {
-  id: 'P-1', title: '演示项目', state: 'executing', currentActor: 'a', currentRole: 'executor',
+  id: 'P-1', title: '演示项目', state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor',
   parentId: null, goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null,
   subtaskCount: 1, doneSubtaskCount: 0, attention: 2,
 };
 const projectBoard = ALL_STATES.map((s) => ({ state: s, tasks: s === 'executing' ? [projectCard] : [] }));
 
 const taskCard = {
-  id: 'R-1', title: '演示任务', state: 'executing', currentActor: 'a', currentRole: 'executor',
+  id: 'R-1', title: '演示任务', state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor',
   parentId: 'P-1', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null,
 };
 const taskBoard = ALL_STATES.map((s) => ({ state: s, tasks: s === 'executing' ? [taskCard] : [] }));

@@ -13,13 +13,13 @@ function mk() {
 }
 
 describe('web api', () => {
-  it('GET /api/board 返回六态分组', async () => {
+  it('GET /api/board 返回主干四阶段分组', async () => {
     const { service, app } = mk();
     service.createTask({ title: 't', state: 'executing' });
     const res = await app.inject({ method: 'GET', url: '/api/board' });
     expect(res.statusCode).toBe(200);
     const board = res.json();
-    expect(board).toHaveLength(6);
+    expect(board).toHaveLength(4);
     expect(board.find((c: any) => c.state === 'executing').tasks[0].title).toBe('t');
   });
 
@@ -44,14 +44,14 @@ describe('web api', () => {
     expect(ans.json().parent.state).toBe('executing');
   });
 
-  it('GET /api/projects 返回六态分组的顶层任务', async () => {
+  it('GET /api/projects 返回主干四阶段分组的顶层任务', async () => {
     const { service, app } = mk();
     const project = service.createTask({ title: '项目', state: 'executing' });
     service.createTask({ title: '子任务', parentId: project.id, state: 'done' });
     const res = await app.inject({ method: 'GET', url: '/api/projects' });
     expect(res.statusCode).toBe(200);
     const board = res.json();
-    expect(board).toHaveLength(6);
+    expect(board).toHaveLength(4);
     const executing = board.find((c: any) => c.state === 'executing');
     expect(executing.tasks.map((t: any) => t.id)).toEqual([project.id]);
     const allIds = board.flatMap((c: any) => c.tasks.map((t: any) => t.id));
@@ -66,12 +66,12 @@ describe('web api', () => {
     const res = await app.inject({ method: 'GET', url: `/api/projects/${project.id}/board` });
     expect(res.statusCode).toBe(200);
     const board = res.json();
-    expect(board).toHaveLength(6);
+    expect(board).toHaveLength(4);
     const allIds = board.flatMap((c: any) => c.tasks.map((t: any) => t.id));
     expect(allIds).toEqual([task.id]);
   });
 
-  it('GET /api/tasks-board 返回六态分组的全部项目一层任务', async () => {
+  it('GET /api/tasks-board 返回主干四阶段分组的全部项目一层任务', async () => {
     const { service, app } = mk();
     const projectA = service.createTask({ title: '项目A', state: 'planning' });
     const taskA = service.createTask({ title: 'A-任务', parentId: projectA.id, state: 'executing' });
@@ -82,7 +82,7 @@ describe('web api', () => {
     const res = await app.inject({ method: 'GET', url: '/api/tasks-board' });
     expect(res.statusCode).toBe(200);
     const board = res.json();
-    expect(board).toHaveLength(6);
+    expect(board).toHaveLength(4);
     const allIds = board.flatMap((c: any) => c.tasks.map((t: any) => t.id));
     expect(allIds.sort()).toEqual([taskA.id, taskB.id].sort());
     expect(allIds).not.toContain(projectA.id);

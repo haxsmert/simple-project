@@ -10,9 +10,8 @@ import { raiseClarification, answerClarification, type RaiseInput, type AnswerIn
 import { createEdge, edgesFrom, edgesTo } from '../repo/edges';
 import { routingTable, type ActorSuggestion } from '../core/routing';
 
-export const STATE_ORDER: TaskState[] = [
-  'planning', 'awaiting_confirm', 'executing', 'awaiting_decision', 'testing', 'done',
-];
+// 主干四阶段即看板四列; 挂起(hold)不是列 —— 挂起的任务留在自己的阶段列里"原地举手"(卡片上亮挂起标)
+export const STATE_ORDER: TaskState[] = ['planning', 'executing', 'testing', 'done'];
 
 export interface TaskNode extends Task {
   children: TaskNode[];
@@ -101,13 +100,11 @@ export class RelayService {
     return this.groupByState(all);
   }
 
-  // 项目「直接任务(depth-1)」里"轮到你处理"的数量 —— 两个人类关卡: 待确认(确认计划)+ 待决策(答复澄清)。
-  // 刻意只数一层: 正是该项目任务看板「待确认」「待决策」两列里你会点开去处理的卡, 数字与看板一致、可对账。
-  // (更深的执行子任务是 agent 领地, 由其父任务的状态体现, 不重复计数。)
+  // 项目「直接任务(depth-1)」里"轮到你处理"的数量 = 挂起中的任务数(等确认 + 等决策)。
+  // 刻意只数一层: 正是该项目任务看板上亮着挂起标、你会点开去处理的卡, 数字与看板一致、可对账。
+  // (更深的执行子任务是 agent 领地, 由其父任务的挂起体现, 不重复计数。)
   private pendingAttention(rootId: string): number {
-    return listChildren(this.db, rootId).filter(
-      (t) => t.state === 'awaiting_confirm' || t.state === 'awaiting_decision',
-    ).length;
+    return listChildren(this.db, rootId).filter((t) => t.hold !== null).length;
   }
 
   // 项目 = 顶层任务(parentId null); 项目卡额外带 attention(直接任务里"待你处理"的数量, 人类最高价值信号)

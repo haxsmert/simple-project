@@ -1,15 +1,15 @@
 import type { TaskNode, TaskState, Actor } from '../types';
 import { ActorBadge } from './ActorBadge';
-import { STATE_NAME, STATE_COLOR } from '../states';
+import { STATE_NAME, STATE_COLOR, HOLD_FLAG } from '../states';
 
 
 export function Tree({ nodes, onOpen, actorsById = {} }: { nodes: TaskNode[]; onOpen: (id: string) => void; actorsById?: Record<string, Actor> }) {
   return (
     <div className="tree">
       {nodes.map((n) => {
-        // 两个"轮到你"的关卡: 待确认(确认计划)/ 待决策(答复澄清) —— 整行琥珀高亮 + 标记, 状态点仍按各自状态色
-        const needsYou = n.state === 'awaiting_confirm' || n.state === 'awaiting_decision';
-        const flag = n.state === 'awaiting_decision' ? '待你决策' : '待你确认';
+        // 挂起(等确认/等决策) = "轮到你" —— 整行琥珀高亮 + 标记; 阶段点仍按阶段色(挂起是平行信息, 由文字承载)
+        const needsYou = n.hold !== null;
+        const flag = n.hold ? HOLD_FLAG[n.hold] : '';
         const actor = n.currentActor ? actorsById[n.currentActor] ?? null : null;
         return (
           <div key={n.id} className="tree-node">

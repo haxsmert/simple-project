@@ -29,7 +29,7 @@ describe('RelayService flow', () => {
     service.registerActor({ id: 'admin', name: 'admin', type: 'human' });
     const p = service.createTask({ title: 'p', state: 'executing', currentActor: 'x', currentRole: 'executor' });
     const { clarTask } = service.raiseClarification({ parentId: p.id, byActor: 'x', question: '附件?', toDecider: 'admin' });
-    expect(getTask(db, p.id)!.state).toBe('awaiting_decision');
+    expect(getTask(db, p.id)!.hold).toBe('decision'); // 原地挂起, 阶段不动
     service.answerClarification({ clarTaskId: clarTask.id, byActor: 'admin', answer: '方案A' });
     expect(getTask(db, p.id)!.state).toBe('executing');
   });

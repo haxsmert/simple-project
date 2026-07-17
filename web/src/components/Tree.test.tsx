@@ -4,15 +4,15 @@ import { Tree } from './Tree';
 import type { TaskNode } from '../types';
 
 const mk = (over: Partial<TaskNode>): TaskNode => ({
-  id: 'R-1', title: 't', parentId: null, state: 'planning', currentActor: null, currentRole: null,
+  id: 'R-1', title: 't', parentId: null, state: 'planning', hold: null, currentActor: null, currentRole: null,
   goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null, children: [], ...over,
 });
 
 const nodes: TaskNode[] = [
   mk({
-    id: 'R-1', title: '项目A', state: 'executing', currentActor: 'admin',
+    id: 'R-1', title: '项目A', state: 'executing', hold: null, currentActor: 'admin',
     children: [
-      mk({ id: 'R-2', title: '要不要富文本', state: 'awaiting_decision', parentId: 'R-1', currentActor: 'a' }),
+      mk({ id: 'R-2', title: '要不要富文本', state: 'executing', hold: 'decision', parentId: 'R-1', currentActor: 'a' }),
     ],
   }),
 ];
@@ -33,7 +33,7 @@ describe('Tree', () => {
   });
 
   it('awaiting_confirm 节点带"待你确认"标记(确认关卡也在树里可见)', () => {
-    const cn: TaskNode[] = [mk({ id: 'R-3', title: '计划待确认', state: 'awaiting_confirm' })];
+    const cn: TaskNode[] = [mk({ id: 'R-3', title: '计划待确认', state: 'planning', hold: 'confirm' })];
     render(<Tree nodes={cn} onOpen={() => {}} actorsById={actors} />);
     expect(screen.getByText('待你确认')).toBeInTheDocument();
   });

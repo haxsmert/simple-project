@@ -1,23 +1,45 @@
-import type { TaskState, Role } from '../model/types';
+import type { TaskState, Hold, Role } from '../model/types';
 
-export const TRANSITIONS: Record<TaskState, TaskState[]> = {
-  planning: ['awaiting_confirm', 'executing'],
-  awaiting_confirm: ['executing', 'planning'],
-  executing: ['awaiting_decision', 'testing'],
-  awaiting_decision: ['executing'],
-  testing: ['done', 'executing'],
+// 模型(2026-07-17 用户定调): 主干四阶段 计划→执行→测试→完成 是一条线;
+// 挂起(hold)是与主干**平行**的中断字段, 不是阶段 —— 挂起 = 原地举手, 解除 = 原地继续或前进。
+// 除「完成」外任何阶段都可能被中断, 且可中断多次。
+
+// 主干推进边(hold 为空时可走的阶段流转): 前进一步 + 测试打回返工
+export const STAGE_EDGES: Record<TaskState, TaskState[]> = {
+  planning: ['executing'],
+  executing: ['testing'],
+  testing: ['executing', 'done'],
   done: [],
 };
 
-export function canTransition(from: TaskState, to: TaskState): boolean {
-  return from === to || TRANSITIONS[from].includes(to);
+// "往前走一步"到哪(批准确认时前进的那一步)
+export const NEXT_STAGE: Partial<Record<TaskState, TaskState>> = {
+  planning: 'executing', executing: 'testing', testing: 'done',
+};
+
+export interface Position { state: TaskState; hold: Hold; }
+
+// 位置变更规则表 —— 状态变更唯一权威(spec §3.2):
+// · 原地(同阶段同挂起): 允许 —— 纯改派
+// · decision 挂起的设/解不走这里(clarification 模块专管: 提问挂起 / 全部答复解除), 一律拒
+// · null→confirm: 同阶段提交把关(完成态无下一步, 不可挂)
+// · confirm→null: 批准(前进一步)或打回(留在原阶段)
+// · null→null: 走主干推进边
+export function canMove(from: Position, to: Position): boolean {
+  if (from.state === to.state && from.hold === to.hold) return true;
+  if (from.hold === 'decision' || to.hold === 'decision') return false;
+  if (from.hold === null && to.hold === 'confirm') {
+    return to.state === from.state && from.state !== 'done';
+  }
+  if (from.hold === 'confirm' && to.hold === null) {
+    return to.state === NEXT_STAGE[from.state] || to.state === from.state;
+  }
+  return STAGE_EDGES[from.state].includes(to.state);
 }
 
 const DEFAULT_NEXT: Record<TaskState, { state: TaskState; role: Role } | null> = {
-  planning: { state: 'awaiting_confirm', role: 'decider' },
-  awaiting_confirm: { state: 'executing', role: 'executor' },
+  planning: { state: 'executing', role: 'executor' },
   executing: { state: 'testing', role: 'tester' },
-  awaiting_decision: { state: 'executing', role: 'executor' },
   testing: { state: 'done', role: 'tester' },
   done: null,
 };

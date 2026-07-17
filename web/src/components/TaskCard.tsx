@@ -1,7 +1,7 @@
 import { useEffect, useRef, type DragEvent } from 'react';
 import type { BoardCard, Actor, TaskState } from '../types';
 import { ActorBadge } from './ActorBadge';
-import { STATE_NAME } from '../states';
+import { STATE_NAME, HOLD_FLAG } from '../states';
 
 // 卡面刻意克制(2026-07-17 去杂乱约定): 状态由所在列 + 琥珀底色承载, 不再挂状态 chip;
 // 角色/关系边归详情抽屉; 项目名只在跨项目的"全部任务"视图显示(单项目视图里每张卡重复同一项目名=纯噪声)。
@@ -17,8 +17,9 @@ export function TaskCard({ task, actor, onOpen, onDescend, showProject, flash, d
   onDragStart?: (e: DragEvent<HTMLDivElement>) => void; onDragOver?: (e: DragEvent<HTMLDivElement>) => void;
   onDrop?: (e: DragEvent<HTMLDivElement>) => void; onDragEnd?: (e: DragEvent<HTMLDivElement>) => void;
 }) {
-  // "轮到你"的两个关卡(计划待确认 / 执行卡壳待决策)整卡琥珀底色; 状态名由列头文字承载, 不靠颜色单独传意
-  const needsYou = task.state === 'awaiting_decision' || task.state === 'awaiting_confirm';
+  // 挂起 = 原地举手: 任务留在自己的阶段列, 靠整卡琥珀底 + 「待你确认/待你决策」徽标招手
+  // (挂起不再是列 —— 列头没法替它说话, 卡面必须自己说, 且不靠颜色单独传意)
+  const needsYou = task.hold !== null;
 
   const subtaskCount = task.subtaskCount ?? 0;
   const hasSubtasks = subtaskCount > 0;
@@ -33,6 +34,7 @@ export function TaskCard({ task, actor, onOpen, onDescend, showProject, flash, d
 
   const a11yLabel = [
     showProject ? task.parentTitle : null, task.title, STATE_NAME[task.state],
+    task.hold ? HOLD_FLAG[task.hold] : '',
     task.attention ? `${task.attention} 项待你处理` : '',
     task.priority ? `优先级${PRIO_LABEL[task.priority]}` : '',
     task.id,
@@ -42,8 +44,11 @@ export function TaskCard({ task, actor, onOpen, onDescend, showProject, flash, d
     <div className={`card${needsYou ? ' blocked' : ''}${dragging ? ' dragging' : ''}${flash ? ' flash' : ''}`} onClick={() => onOpen(task.id)}
       draggable={draggable} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} onDragEnd={onDragEnd}>
       {showProject && task.parentTitle && <div className="card-project">{task.parentTitle}</div>}
-      {!!task.attention && task.attention > 0 && (
-        <div className="card-top"><span className="attn-chip">{task.attention} 待处理</span></div>
+      {(task.hold || (!!task.attention && task.attention > 0)) && (
+        <div className="card-top">
+          {task.hold && <span className="attn-chip">{HOLD_FLAG[task.hold]}</span>}
+          {!!task.attention && task.attention > 0 && <span className="attn-chip">{task.attention} 待处理</span>}
+        </div>
       )}
       {/* 标题即"打开详情"按钮: 卡片本体是普通容器(鼠标点任意处也打开), 键盘/读屏走这个真按钮, 不嵌套交互 */}
       <button ref={titleRef} type="button" className="card-title" aria-label={a11yLabel} onClick={(e) => { e.stopPropagation(); onOpen(task.id); }}>{task.title}</button>

@@ -60,7 +60,7 @@ body { margin:0; background:var(--bg); color:var(--text); font-family:var(--font
 .board::-webkit-scrollbar-thumb:hover { background:var(--text-faint); }
 .board::-webkit-scrollbar-track { background:transparent; }
 .col-head { display:flex; align-items:center; gap:8px; padding:4px 6px 10px; }
-.col-head .name { font-size:12px; font-weight:640; } .col.attn .col-head .name{ color:var(--warn); }
+.col-head .name { font-size:12px; font-weight:640; }
 .col-head .cnt { font-family:var(--font-mono); font-size:11px; color:var(--text-faint); border:1px solid var(--border); border-radius:20px; padding:0 7px; }
 .col-head .stripe { width:7px; height:7px; border-radius:50%; }
 .cards { display:flex; flex-direction:column; gap:9px; }

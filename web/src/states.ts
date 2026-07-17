@@ -1,14 +1,15 @@
-import type { TaskState } from './types';
+import type { TaskState, Hold } from './types';
 
 // 状态语言的单一来源 —— 看板列头/条纹、任务树节点点、抽屉子任务点、卡片可及名全部引这里。
-// (此前 STATE_NAME/STATE_COLOR 在 Board/Tree/TaskCard/TaskDetail 各有一份字面拷贝, 注释却自称"同源"。)
+// 模型: 主干四阶段是列; 挂起(等确认/等决策)是平行字段, 用琥珀"轮到你"语言亮在卡片/行上, 不占列。
 export const STATE_NAME: Record<TaskState, string> = {
-  planning: '待规划', awaiting_confirm: '待确认', executing: '执行中',
-  awaiting_decision: '待决策', testing: '测试中', done: '完成',
+  planning: '待规划', executing: '执行中', testing: '测试中', done: '完成',
 };
 
-// 待确认与待决策同为"轮到你"的关卡 → 同用琥珀; 两者靠状态名文字区分, 不靠颜色单独传意
 export const STATE_COLOR: Record<TaskState, string> = {
-  planning: 'var(--text-faint)', awaiting_confirm: 'var(--warn)', executing: 'var(--human)',
-  awaiting_decision: 'var(--warn)', testing: 'var(--testing)', done: 'var(--done)',
+  planning: 'var(--text-faint)', executing: 'var(--human)', testing: 'var(--testing)', done: 'var(--done)',
 };
+
+// 挂起的两种叫法: 中性名(徽标/事件用)与"轮到你"名(卡片/树上招手用)
+export const HOLD_NAME: Record<Exclude<Hold, null>, string> = { confirm: '等确认', decision: '等决策' };
+export const HOLD_FLAG: Record<Exclude<Hold, null>, string> = { confirm: '待你确认', decision: '待你决策' };

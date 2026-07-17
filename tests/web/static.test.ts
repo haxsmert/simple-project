@@ -25,6 +25,6 @@ describe('static app', () => {
   it('/api/board 仍返回 JSON', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/board' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toHaveLength(6);
+    expect(res.json()).toHaveLength(4);
   });
 });

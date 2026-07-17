@@ -1,30 +1,33 @@
 import { useState, useEffect, useRef } from 'react';
-import type { TaskPackage, Actor, TaskState, Role, Task, TaskEvent } from '../types';
+import type { TaskPackage, Actor, Task, TaskEvent } from '../types';
 import { ActorBadge } from './ActorBadge';
 import { RoleChip } from './RoleChip';
 import { EdgeChip } from './EdgeChip';
-import { STATE_NAME, STATE_COLOR } from '../states';
+import { STATE_NAME, STATE_COLOR, HOLD_NAME } from '../states';
 import { NextActions } from './NextActions';
-import { NEXT_ACTIONS, type TaskAction, type ActInput } from '../actions';
+import { actionsFor, type TaskAction, type ActInput } from '../actions';
 
-const STATE_PILL: Record<TaskState, string> = { planning: 'plan', awaiting_confirm: 'confirm', executing: 'exec', awaiting_decision: 'decide', testing: 'test', done: 'done' };
-const ROLE_NAME: Record<Role, string> = { planner: '规划', executor: '执行', tester: '测试', questioner: '提问', decider: '决策' };
+const STATE_PILL = { planning: 'plan', executing: 'exec', testing: 'test', done: 'done' } as const;
+const HOLD_PILL = { confirm: 'confirm', decision: 'decide' } as const;
 // 「经过」要回答"谁在什么时候做了什么", 就必须说出**宾语和变化**。
 // 之前只有一张动词表, 于是四次换手长得一模一样: "你 交给了下一个人" ×4 —— 等于没说。
 const KIND_VERB: Record<string, string> = {
   handoff: '转交', comment: '留言', output: '交了产出', clarify: '提了个问题等人决定', decide: '拍了板', claim: '接手', plan: '写了计划',
 };
 
-// 把一条事件说成一句人话: 谁 + 做了什么 + 给谁 + 状态怎么变
+// 把一条事件说成一句人话: 谁 + 做了什么 + 给谁 + 阶段/挂起怎么变
 function eventText(ev: TaskEvent, nameOf: (id: string | null) => string | null): string {
   if (ev.kind !== 'handoff') return KIND_VERB[ev.kind] ?? ev.kind;
   const to = nameOf(ev.toActor);
   const moved = ev.stateFrom && ev.stateTo && ev.stateFrom !== ev.stateTo
     ? `${STATE_NAME[ev.stateFrom]} → ${STATE_NAME[ev.stateTo]}` : null;
-  if (to && moved) return `转交给 ${to} · ${moved}`;
-  if (to) return `转交给 ${to}`;      // 同态换手(纯改派): 阶段没变就别硬编一个变化
-  if (moved) return `推进到 ${moved}`; // 老事件没记 to_actor, 至少说出状态变化
-  return '转交';                       // 迁移前的老事件: 确实没记, 不编
+  // 挂起变化是动作的"名字": 提交等确认 / 批准(伴随阶段前进) / 打回(原地解除)
+  const holdVerb = ev.holdTo === 'confirm' && ev.holdFrom !== 'confirm' ? '提交等确认'
+    : ev.holdFrom === 'confirm' && !ev.holdTo ? (moved ? '批准通过' : '打回') : null;
+  const bits = [to ? `转交给 ${to}` : null, holdVerb, moved].filter(Boolean);
+  if (bits.length === 0) return '转交';           // 迁移前的老事件: 确实没记, 不编
+  if (!to && !holdVerb && moved) return `推进到 ${moved}`;
+  return bits.join(' · ');
 }
 
 // ——— 图标(照搬 mockup 的 inline SVG) ———
@@ -257,13 +260,13 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
   // 「下一步」面板 —— 同一个机制(状态机允许的去向翻成大白话动作), 只是摆放位置随"轮不轮到你"变:
   // 待确认(计划等你拍板)时提到最顶当主角; 其余状态放在底部当收尾动作。
   const nextActions = (
-    <NextActions key={t.id} taskId={t.id} state={t.state} currentActor={t.currentActor} actorsById={actorsById} routing={routing}
+    <NextActions key={t.id} taskId={t.id} state={t.state} hold={t.hold} currentActor={t.currentActor} actorsById={actorsById} routing={routing}
       content={{ inputsMd: pkg.inputs.inputsMd, outputsMd: pkg.outputs.outputsMd, summary: pkg.outputs.summary }} onAct={onAct} />
   );
   // 拍板槽自带拍板依据: 目标 + 计划正文就在批准/打回按钮上方 —— 依据和动作分居两个槽位,
   // 人就得"往下翻找计划再翻回来点批准", 这正是"计划罗列不直观"的病根
   const hasPlanText = inputPlan.plain.length > 0 || inputPlan.items.length > 0;
-  const confirmSlot = t.state === 'awaiting_confirm' && (
+  const confirmSlot = t.hold === 'confirm' && (
     <div className="slot">
       <SlotHead icon={<IconWarnTriangle />} tint="warn" title="等你拍板" tag="计划已就绪, 开工前过你这关" />
       <div className="slot-body">
@@ -344,6 +347,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
       <h2 ref={headingRef} tabIndex={-1}>{t.title}</h2>
       <div className="status-row">
         <span className={`pill ${STATE_PILL[t.state]}`}><span className="d" />{STATE_NAME[t.state]}</span>
+        {t.hold && <span className={`pill ${HOLD_PILL[t.hold]}`}><span className="d" />{HOLD_NAME[t.hold]}</span>}
         <ActorBadge actor={t.currentActor ? actorsById[t.currentActor] ?? null : null} />
         <RoleChip role={t.currentRole} />
       </div>
@@ -351,12 +355,12 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
       {confirmSlot}
       {openClarCount > 0 && clarSlot}
 
-      {/* 待确认时目标+计划已亮在拍板槽的按钮旁, 这里不再重复(同屏两份同一计划是噪音), 只剩依赖时保留依赖 */}
-      {(t.state === 'awaiting_confirm' ? pkg.inputs.depOutputs.length > 0 : hasInputs) && (
+      {/* 等确认时目标+计划已亮在拍板槽的按钮旁, 这里不再重复(同屏两份同一计划是噪音), 只剩依赖时保留依赖 */}
+      {(t.hold === 'confirm' ? pkg.inputs.depOutputs.length > 0 : hasInputs) && (
       <div className="slot">
         <SlotHead icon={<IconFile />} tint="human" title="任务内容" tag="要做的事和计划" />
         <div className="slot-body">
-          {t.state !== 'awaiting_confirm' && (
+          {t.hold !== 'confirm' && (
             <>
               {pkg.inputs.goal && <div className="goal"><b>目标:</b> {pkg.inputs.goal}</div>}
               <PlanBlock plan={inputPlan} />
@@ -398,7 +402,8 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
                 onClick={() => onOpenTask(s.id)}>
                 <span className="sdot" style={{ background: STATE_COLOR[s.state] }} />
                 <span className="t">{s.title}</span>
-                <span className="sstate">{STATE_NAME[s.state]}</span>
+                {/* 挂起中的子任务亮挂起(轮到人的信号), 比只报阶段有用 —— 问题卡显示"待规划"等于没说 */}
+                <span className="sstate">{s.hold ? HOLD_NAME[s.hold] : STATE_NAME[s.state]}</span>
                 <span className="id">{s.id}</span>
               </button>
             ))}
@@ -454,7 +459,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
 
       {/* 这张卡本身就是"待你拍板的问题"(澄清任务): 它自己没有「等你决定」块(那长在父任务上),
           也没有「下一步」(答复才是出路) —— 不给指路就是死胡同, 只能关掉, 界面还不说。 */}
-      {t.state === 'awaiting_decision' && pkg.clarifications.length === 0 && parentNode && (
+      {t.hold === 'decision' && pkg.clarifications.length === 0 && parentNode && (
         <div className="slot">
           <SlotHead icon={<IconQuestion />} tint="warn" title="等你决定" tag="这是一个等你拍板的问题" />
           <div className="slot-body">
@@ -466,8 +471,8 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
         </div>
       )}
 
-      {/* 待确认时「下一步」已在顶部当主角, 此处不重复 */}
-      {t.state !== 'awaiting_confirm' && NEXT_ACTIONS[t.state].length > 0 && (
+      {/* 等确认时「下一步」已在顶部当主角, 此处不重复 */}
+      {t.hold !== 'confirm' && actionsFor(t.state, t.hold).length > 0 && (
         <div className="slot">
           <SlotHead icon={<IconHandoff />} tint="human" title="下一步" tag="推进它, 或交给别人" />
           <div className="slot-body">{nextActions}</div>

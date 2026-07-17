@@ -10,7 +10,7 @@ import { mirrorTask } from './mirror/writer';
 
 // Demo 数据 —— 目标是把产品讲清楚, 不是随便塞几条:
 //  · 六态每列都有内容(看板不出现整列空白)
-//  · 两个"轮到你"的关卡: 计划等你拍板(awaiting_confirm) + agent 卡住提问(awaiting_decision) → 待你处理 = 2
+//  · 两个"轮到你"的挂起: 计划等你拍板(hold=confirm) + agent 卡住提问(hold=decision) → 待你处理 = 2
 //  · 多 agent 且**真实扮演过各自角色**(默认路由是行为性推断: 没有这些历史就只能兜底瞎猜, 规则等于没有)
 //  · 子任务(可钻入)、依赖边(可跳转)、优先级、产出与摘要
 //  · 「经过」有故事: 换手事件记全"谁交给了谁 / 状态怎么变的"
@@ -24,10 +24,11 @@ export function seed(db: DB, dir: string): { taskCount: number; files: string[] 
   // 换手事件: 记全"谁交给了谁 / 状态怎么变" —— 少了这些,「经过」只能吐"交给了下一个人"这种废话
   const handoffEvent = (
     taskId: string, by: string, to: string, roleTo: 'planner' | 'executor' | 'tester' | 'decider',
-    stateFrom: 'planning' | 'awaiting_confirm' | 'executing' | 'testing',
-    stateTo: 'awaiting_confirm' | 'executing' | 'testing' | 'done', note?: string,
+    stateFrom: 'planning' | 'executing' | 'testing', stateTo: 'planning' | 'executing' | 'testing' | 'done',
+    holds?: { from?: 'confirm' | null; to?: 'confirm' | null }, note?: string,
   ) => appendEvent(db, {
-    taskId, actorId: by, kind: 'handoff', roleTo, toActor: to, stateFrom, stateTo, body: note ?? null,
+    taskId, actorId: by, kind: 'handoff', roleTo, toActor: to, stateFrom, stateTo,
+    holdFrom: holds?.from ?? null, holdTo: holds?.to ?? null, body: note ?? null,
   });
 
   // ── 项目 1: Relay 平台化(主线) ──────────────────────────────────
@@ -46,7 +47,7 @@ export function seed(db: DB, dir: string): { taskCount: number; files: string[] 
   });
   createTask(db, { id: 'R-3', title: '令牌桶实现', parentId: t2.id, state: 'done', currentActor: execA.id, currentRole: 'executor' });
   createTask(db, { id: 'R-4', title: '每 actor 配额', parentId: t2.id, state: 'executing', currentActor: execA.id, currentRole: 'executor' });
-  handoffEvent(t2.id, admin.id, execA.id, 'executor', 'awaiting_confirm', 'executing', '先按 actor 维度限流, 工具维度以后再说');
+  handoffEvent(t2.id, admin.id, execA.id, 'executor', 'planning', 'executing', { from: 'confirm', to: null }, '先按 actor 维度限流, 工具维度以后再说');
   appendEvent(db, { taskId: t2.id, actorId: admin.id, kind: 'comment', body: '配额按 actor 还是按工具? 先按 actor。' });
 
   createTask(db, {
@@ -85,12 +86,12 @@ export function seed(db: DB, dir: string): { taskCount: number; files: string[] 
   // 轮到你 ②: 规划 agent 写完计划交回给你, 你说行才开工
   createTask(db, {
     id: 'R-10', title: '第三方 agent 注册流程', parentId: p2.id,
-    state: 'awaiting_confirm', currentActor: admin.id, currentRole: 'decider', priority: 'mid',
+    state: 'planning', hold: 'confirm', currentActor: admin.id, currentRole: 'decider', priority: 'mid',
     goal: '注册与鉴权草案',
     inputsMd: '打算这么做:\n- [ ] handle 唯一性校验\n- [ ] 能力声明(能担任哪些角色)\n- [ ] 最小权限的工具白名单',
   });
   appendEvent(db, { taskId: 'R-10', actorId: planP.id, kind: 'plan' }); // 「经过」讲全: 先写了计划, 再交给你拍板
-  handoffEvent('R-10', planP.id, admin.id, 'decider', 'planning', 'awaiting_confirm', '计划写完了, 你看下能不能开工');
+  handoffEvent('R-10', planP.id, admin.id, 'decider', 'planning', 'planning', { from: null, to: 'confirm' }, '计划写完了, 你看下能不能开工');
 
   // ── 项目 3: 看板体验打磨 ───────────────────────────────────────
   const p3 = createTask(db, {
@@ -114,7 +115,7 @@ export function seed(db: DB, dir: string): { taskCount: number; files: string[] 
     id: 'R-20', title: 'MCP 工具集接口设计', parentId: p4.id, state: 'done',
     currentActor: execA.id, currentRole: 'executor', summary: '锁定 claim/handoff/raise 的字段命名。',
   });
-  handoffEvent('R-16', admin.id, testT.id, 'tester', 'testing', 'done', '验收通过');
+  handoffEvent('R-16', admin.id, testT.id, 'tester', 'testing', 'done', undefined, '验收通过');
 
   // 关系边: R-2 依赖 R-20 的接口定义(抽屉「相关任务」里点得进去)
   createEdge(db, { fromTask: t2.id, toTask: dep.id, type: 'depends_on' });

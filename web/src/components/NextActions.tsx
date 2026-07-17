@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { Actor, TaskState, Role } from '../types';
-import { NEXT_ACTIONS, type TaskAction, type ActInput } from '../actions';
+import type { Actor, TaskState, Hold } from '../types';
+import { actionsFor, type TaskAction, type ActInput } from '../actions';
 
 // 「下一步」面板: 取代原来的「换手」三元组表单。
 // - 只列当前状态允许的去向, 每条是一句大白话 + 后果 → 拼不出非法组合
@@ -9,14 +9,14 @@ import { NEXT_ACTIONS, type TaskAction, type ActInput } from '../actions';
 // - **带内容的动作点开先展开输入区**(计划/产出/理由): 内容和动作同址 —— "提交计划"却没处写计划,
 //   动作就是空话。展开区预填现有内容, 改完一并提交。
 // - 主动作只有一个; 点击后禁用 + 「处理中…」防连点
-export function NextActions({ taskId, state, currentActor, actorsById, routing, content, onAct }: {
-  taskId: string; state: TaskState; currentActor: string | null;
+export function NextActions({ taskId, state, hold, currentActor, actorsById, routing, content, onAct }: {
+  taskId: string; state: TaskState; hold: Hold; currentActor: string | null;
   actorsById: Record<string, Actor>;
   routing: Record<string, { actorId: string | null; basis: 'history' | 'fallback' }>;
   content: { inputsMd: string | null; outputsMd: string | null; summary: string | null }; // 表单预填: 已写过的别让人重打
   onAct: (input: ActInput, action: TaskAction) => Promise<boolean>;
 }) {
-  const actions = NEXT_ACTIONS[state];
+  const actions = actionsFor(state, hold);
   const agents = Object.values(actorsById).filter((a) => a.type === 'agent');
   const human = Object.values(actorsById).find((a) => a.type === 'human');
   const fallback = agents[0]?.id ?? Object.keys(actorsById)[0] ?? '';
@@ -59,7 +59,7 @@ export function NextActions({ taskId, state, currentActor, actorsById, routing, 
     setBusy(a.key);
     try {
       const ok = await onAct({
-        taskId, toActor: extra?.toActor ?? targetOf(a), toRole: a.toRole, toState: a.toState,
+        taskId, toActor: extra?.toActor ?? targetOf(a), toRole: a.toRole, toState: a.toState, toHold: a.toHold,
         note: (extra?.note ?? note).trim(), planMd: extra?.planMd, outputs: extra?.outputs,
       }, a);
       if (ok) { setNote(''); setOpenFor(null); } // 失败别抹掉人家写好的内容

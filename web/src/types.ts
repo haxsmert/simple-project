@@ -1,10 +1,12 @@
-export type TaskState = 'planning' | 'awaiting_confirm' | 'executing' | 'awaiting_decision' | 'testing' | 'done';
+// 主干四阶段: 计划→执行→测试→完成。挂起(等确认/等决策)不是阶段, 是平行的 Hold 字段 —— 挂起 = 原地举手
+export type TaskState = 'planning' | 'executing' | 'testing' | 'done';
+export type Hold = 'confirm' | 'decision' | null;
 export type Role = 'planner' | 'executor' | 'tester' | 'questioner' | 'decider';
 export type ActorType = 'human' | 'agent';
 export type EdgeType = 'blocks' | 'depends_on' | 'clarifies' | 'spawns';
 
 export interface Task {
-  id: string; title: string; parentId: string | null; state: TaskState;
+  id: string; title: string; parentId: string | null; state: TaskState; hold: Hold;
   currentActor: string | null; currentRole: Role | null;
   goal: string | null; inputsMd: string | null; outputsMd: string | null; summary: string | null;
   priority: 'hi' | 'mid' | 'lo' | null;
@@ -26,6 +28,7 @@ export interface TaskEvent {
   id: string; taskId: string; actorId: string; kind: string;
   roleFrom: Role | null; roleTo: Role | null;
   toActor: string | null; stateFrom: TaskState | null; stateTo: TaskState | null;
+  holdFrom: Hold; holdTo: Hold;
   body: string | null; createdAt: string;
 }
 export interface TaskNode extends Task { children: TaskNode[]; }

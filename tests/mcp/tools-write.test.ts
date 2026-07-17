@@ -40,7 +40,7 @@ describe('MCP write tools', () => {
     const { db, service } = svc();
     const p = service.createTask({ title: 'p', state: 'executing', currentActor: 'x', currentRole: 'executor' });
     const raised = JSON.parse(raiseClarificationTool.handler(service, { parent_id: p.id, by_actor: 'x', question: 'Q', to_decider: 'admin' }).content[0].text);
-    expect(getTask(db, p.id)!.state).toBe('awaiting_decision');
+    expect(getTask(db, p.id)!.hold).toBe('decision'); // 原地挂起, 阶段不动
     answerClarificationTool.handler(service, { clar_task_id: raised.clarTask.id, by_actor: 'admin', answer: 'A' });
     expect(getTask(db, p.id)!.state).toBe('executing');
   });

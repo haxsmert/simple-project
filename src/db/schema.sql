@@ -10,8 +10,9 @@ CREATE TABLE IF NOT EXISTS tasks (
   id            TEXT PRIMARY KEY,
   title         TEXT NOT NULL,
   parent_id     TEXT REFERENCES tasks(id),
-  state         TEXT NOT NULL CHECK (state IN
-                  ('planning','awaiting_confirm','executing','awaiting_decision','testing','done')),
+  -- 主干四阶段; 挂起(待确认/待决策)是平行的 hold 字段, 不是阶段 —— 挂起 = 原地举手, 不是搬站
+  state         TEXT NOT NULL CHECK (state IN ('planning','executing','testing','done')),
+  hold          TEXT CHECK (hold IN ('confirm','decision')),
   current_actor TEXT REFERENCES actors(id),
   current_role  TEXT CHECK (current_role IN ('planner','executor','tester','questioner','decider')),
   goal          TEXT,
@@ -40,8 +41,10 @@ CREATE TABLE IF NOT EXISTS events (
   role_from  TEXT,
   role_to    TEXT,
   to_actor   TEXT REFERENCES actors(id),  -- 交给了谁(actor_id 只是"谁发起的", 不含接手人)
-  state_from TEXT,                        -- 状态怎么变的 —— 没有它, "经过"只能说"交给了下一个人"这种废话
+  state_from TEXT,                        -- 阶段怎么变的 —— 没有它, "经过"只能说"交给了下一个人"这种废话
   state_to   TEXT,
+  hold_from  TEXT,                        -- 挂起怎么变的(提交等确认/批准/打回 的证据)
+  hold_to    TEXT,
   body       TEXT,
   created_at TEXT NOT NULL
 );

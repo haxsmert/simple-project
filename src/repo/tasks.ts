@@ -1,16 +1,16 @@
 import type { DB } from '../db/connection';
-import type { Task, TaskState, Role, Priority } from '../model/types';
+import type { Task, TaskState, Hold, Role, Priority } from '../model/types';
 import { now } from '../util';
 
 interface TaskRow {
-  id: string; title: string; parent_id: string | null; state: string;
+  id: string; title: string; parent_id: string | null; state: string; hold: string | null;
   current_actor: string | null; current_role: string | null;
   goal: string | null; inputs_md: string | null; outputs_md: string | null;
   summary: string | null; priority: string | null; rank: number | null;
   created_at: string; updated_at: string;
 }
 const map = (r: TaskRow): Task => ({
-  id: r.id, title: r.title, parentId: r.parent_id, state: r.state as TaskState,
+  id: r.id, title: r.title, parentId: r.parent_id, state: r.state as TaskState, hold: (r.hold ?? null) as Hold,
   currentActor: r.current_actor, currentRole: r.current_role as Role | null,
   goal: r.goal, inputsMd: r.inputs_md, outputsMd: r.outputs_md, summary: r.summary,
   priority: r.priority as Priority | null, rank: r.rank, createdAt: r.created_at, updatedAt: r.updated_at,
@@ -26,7 +26,7 @@ export function nextTaskId(db: DB): string {
 }
 
 export interface CreateTaskInput {
-  title: string; id?: string; parentId?: string | null; state?: TaskState;
+  title: string; id?: string; parentId?: string | null; state?: TaskState; hold?: Hold;
   currentActor?: string | null; currentRole?: Role | null;
   goal?: string | null; inputsMd?: string | null; outputsMd?: string | null;
   summary?: string | null; priority?: Priority | null;
@@ -36,16 +36,16 @@ export function createTask(db: DB, input: CreateTaskInput): Task {
   const id = input.id ?? nextTaskId(db);
   const ts = now();
   const row: TaskRow = {
-    id, title: input.title, parent_id: input.parentId ?? null, state: input.state ?? 'planning',
+    id, title: input.title, parent_id: input.parentId ?? null, state: input.state ?? 'planning', hold: input.hold ?? null,
     current_actor: input.currentActor ?? null, current_role: input.currentRole ?? null,
     goal: input.goal ?? null, inputs_md: input.inputsMd ?? null, outputs_md: input.outputsMd ?? null,
     summary: input.summary ?? null, priority: input.priority ?? null, rank: null, created_at: ts, updated_at: ts,
   };
   db.prepare(
     `INSERT INTO tasks
-       (id,title,parent_id,state,current_actor,current_role,goal,inputs_md,outputs_md,summary,priority,rank,created_at,updated_at)
+       (id,title,parent_id,state,hold,current_actor,current_role,goal,inputs_md,outputs_md,summary,priority,rank,created_at,updated_at)
      VALUES
-       (@id,@title,@parent_id,@state,@current_actor,@current_role,@goal,@inputs_md,@outputs_md,@summary,@priority,@rank,@created_at,@updated_at)`,
+       (@id,@title,@parent_id,@state,@hold,@current_actor,@current_role,@goal,@inputs_md,@outputs_md,@summary,@priority,@rank,@created_at,@updated_at)`,
   ).run(row);
   return map(row);
 }
@@ -56,7 +56,7 @@ export function getTask(db: DB, id: string): Task | null {
 }
 
 export interface TaskPatch {
-  title?: string; state?: TaskState; currentActor?: string | null; currentRole?: Role | null;
+  title?: string; state?: TaskState; hold?: Hold; currentActor?: string | null; currentRole?: Role | null;
   goal?: string | null; inputsMd?: string | null; outputsMd?: string | null;
   summary?: string | null; priority?: Priority | null;
 }
@@ -64,7 +64,7 @@ export interface TaskPatch {
 export function updateTask(db: DB, id: string, patch: TaskPatch): Task {
   if (!getTask(db, id)) throw new Error(`任务不存在: ${id}`);
   const cols: Record<string, keyof TaskPatch> = {
-    title: 'title', state: 'state', current_actor: 'currentActor', current_role: 'currentRole',
+    title: 'title', state: 'state', hold: 'hold', current_actor: 'currentActor', current_role: 'currentRole',
     goal: 'goal', inputs_md: 'inputsMd', outputs_md: 'outputsMd', summary: 'summary', priority: 'priority',
   };
   const sets: string[] = [];

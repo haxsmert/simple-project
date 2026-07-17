@@ -41,7 +41,7 @@ export function Board({ columns, actorsById, onOpen, onDescend, onReorder, showP
   return (
     <div className="board">
       {columns.map((col) => (
-        <div key={col.state} className={`col${col.state === 'awaiting_decision' || col.state === 'awaiting_confirm' ? ' attn' : ''}`}>
+        <div key={col.state} className="col">
           <div className="col-head">
             <span className="stripe" style={{ background: STRIPE[col.state] }} />
             <span className="name">{NAME[col.state]}</span>
