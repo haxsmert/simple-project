@@ -20,7 +20,12 @@ export interface BoardCard extends Task {
   attention?: number;
 }
 export interface BoardColumn { state: TaskState; tasks: BoardCard[]; }
-export interface TaskEvent { id: string; taskId: string; actorId: string; kind: string; roleFrom: Role | null; roleTo: Role | null; body: string | null; createdAt: string; }
+export interface TaskEvent {
+  id: string; taskId: string; actorId: string; kind: string;
+  roleFrom: Role | null; roleTo: Role | null;
+  toActor: string | null; stateFrom: TaskState | null; stateTo: TaskState | null;
+  body: string | null; createdAt: string;
+}
 export interface TaskNode extends Task { children: TaskNode[]; }
 export interface TaskPackage {
   task: Task; breadcrumb: Task[];

@@ -15,5 +15,9 @@ export function openDb(path: string = ':memory:'): DB {
   // 安全迁移: 已存在的 db 文件不会被 CREATE TABLE IF NOT EXISTS 重建, 需手动补列
   const cols = db.prepare('PRAGMA table_info(tasks)').all() as { name: string }[];
   if (!cols.some((c) => c.name === 'rank')) db.exec('ALTER TABLE tasks ADD COLUMN rank REAL');
+  const ev = db.prepare('PRAGMA table_info(events)').all() as { name: string }[];
+  if (!ev.some((c) => c.name === 'to_actor')) db.exec('ALTER TABLE events ADD COLUMN to_actor TEXT REFERENCES actors(id)');
+  if (!ev.some((c) => c.name === 'state_from')) db.exec('ALTER TABLE events ADD COLUMN state_from TEXT');
+  if (!ev.some((c) => c.name === 'state_to')) db.exec('ALTER TABLE events ADD COLUMN state_to TEXT');
   return db;
 }

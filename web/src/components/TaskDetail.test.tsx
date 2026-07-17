@@ -9,7 +9,7 @@ const pkg: TaskPackage = {
   inputs: { goal: '建三张表', inputsMd: '计划…', depOutputs: [{ taskId: 'R-140', title: 'MCP接口', summary: '锁定字段', outputsMd: null }] },
   outputs: { outputsMd: '产物 schema.sql', summary: '进行中' },
   clarifications: [{ id: 'R-148', title: '待确认: 富文本?', state: 'awaiting_decision', currentActor: 'you', currentRole: 'decider', parentId: 'R-142', goal: '富文本?', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' }],
-  thread: [{ id: 'e1', taskId: 'R-142', actorId: 'a', kind: 'clarify', roleFrom: 'executor', roleTo: 'decider', body: '富文本?', createdAt: '2026-07-16' }],
+  thread: [{ id: 'e1', taskId: 'R-142', actorId: 'a', kind: 'clarify', roleFrom: 'executor', roleTo: 'decider', toActor: null, stateFrom: null, stateTo: null, body: '富文本?', createdAt: '2026-07-16' }],
   subtasks: [{ id: 'R-143', title: 'tasks 表', state: 'done', currentActor: null, currentRole: null, parentId: 'R-142', goal: null, inputsMd: null, outputsMd: null, summary: null, priority: null }],
   edges: { out: [{ id: 'x', fromTask: 'R-142', toTask: 'R-140', type: 'depends_on' }], in: [] },
 };
@@ -192,12 +192,44 @@ describe('TaskDetail', () => {
     expect(onComment).toHaveBeenCalledWith('R-142', '看这里');
   });
 
+  it('经过说清"谁交给了谁·状态怎么变": 多次换手不能长得一模一样', () => {
+    const histPkg: TaskPackage = {
+      ...pkg,
+      thread: [
+        { id: 'h1', taskId: 'R-142', actorId: 'you', kind: 'handoff', roleFrom: 'decider', roleTo: 'executor', toActor: 'a', stateFrom: 'awaiting_confirm', stateTo: 'executing', body: null, createdAt: '2026-07-17T08:49:00Z' },
+        { id: 'h2', taskId: 'R-142', actorId: 'you', kind: 'handoff', roleFrom: 'executor', roleTo: 'tester', toActor: 't', stateFrom: 'executing', stateTo: 'testing', body: null, createdAt: '2026-07-17T08:49:00Z' },
+        { id: 'h3', taskId: 'R-142', actorId: 'you', kind: 'handoff', roleFrom: 'tester', roleTo: 'tester', toActor: 'a', stateFrom: 'testing', stateTo: 'testing', body: null, createdAt: '2026-07-17T08:49:00Z' },
+      ],
+    };
+    const { container } = render(<TaskDetail pkg={histPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    const lines = [...container.querySelectorAll('.tline')].map((l) => l.textContent);
+    expect(lines[0]).toContain('转交给 执行A · 待确认 → 执行中');
+    expect(lines[1]).toContain('转交给 测试T · 执行中 → 测试中');
+    expect(lines[2]).toContain('转交给 执行A');     // 同态改派: 阶段没变就别硬编变化
+    expect(lines[2]).not.toContain('→');
+    expect(new Set(lines).size).toBe(3);            // 三条各不相同 —— 这正是"四条一模一样"要防的
+  });
+
+  it('老事件(迁移前没记 to_actor)不编造: 有状态变化就说变化, 都没有就只说"转交"', () => {
+    const oldPkg: TaskPackage = {
+      ...pkg,
+      thread: [
+        { id: 'o1', taskId: 'R-142', actorId: 'you', kind: 'handoff', roleFrom: null, roleTo: 'executor', toActor: null, stateFrom: 'planning', stateTo: 'executing', body: null, createdAt: '2026-07-17T08:49:00Z' },
+        { id: 'o2', taskId: 'R-142', actorId: 'you', kind: 'handoff', roleFrom: null, roleTo: 'executor', toActor: null, stateFrom: null, stateTo: null, body: null, createdAt: '2026-07-17T08:49:00Z' },
+      ],
+    };
+    const { container } = render(<TaskDetail pkg={oldPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    const lines = [...container.querySelectorAll('.tline')].map((l) => l.textContent);
+    expect(lines[0]).toContain('推进到 待规划 → 执行中');
+    expect(lines[1]).toContain('转交');
+  });
+
   it('经过里的动词说人话: output 渲染为"交了产出"而非原始英文 "output"', () => {
     const outputPkg: TaskPackage = {
       ...pkg,
       thread: [
         ...pkg.thread,
-        { id: 'e2', taskId: 'R-142', actorId: 'a', kind: 'output', roleFrom: 'executor', roleTo: null, body: '交了产物', createdAt: '2026-07-16T03:00:00' },
+        { id: 'e2', taskId: 'R-142', actorId: 'a', kind: 'output', roleFrom: 'executor', roleTo: null, toActor: null, stateFrom: null, stateTo: null, body: '交了产物', createdAt: '2026-07-16T03:00:00' },
       ],
     };
     render(<TaskDetail pkg={outputPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
@@ -213,8 +245,8 @@ describe('TaskDetail', () => {
         { id: 'R-149', title: '待确认: 要不要暗色模式?', state: 'awaiting_decision', currentActor: 'you', currentRole: 'decider', parentId: 'R-142', goal: '要不要暗色模式?', inputsMd: null, outputsMd: null, summary: null, priority: 'hi' },
       ],
       thread: [
-        { id: 'e1', taskId: 'R-142', actorId: 'a', kind: 'clarify', roleFrom: 'executor', roleTo: 'decider', body: '要不要富文本?', createdAt: '2026-07-16T01:00:00' },
-        { id: 'e2', taskId: 'R-142', actorId: 'b', kind: 'clarify', roleFrom: 'executor', roleTo: 'decider', body: '要不要暗色模式?', createdAt: '2026-07-16T02:00:00' },
+        { id: 'e1', taskId: 'R-142', actorId: 'a', kind: 'clarify', roleFrom: 'executor', roleTo: 'decider', toActor: null, stateFrom: null, stateTo: null, body: '要不要富文本?', createdAt: '2026-07-16T01:00:00' },
+        { id: 'e2', taskId: 'R-142', actorId: 'b', kind: 'clarify', roleFrom: 'executor', roleTo: 'decider', toActor: null, stateFrom: null, stateTo: null, body: '要不要暗色模式?', createdAt: '2026-07-16T02:00:00' },
       ],
     };
     const multiActors = { ...actors, b: { id: 'b', name: '执行B', type: 'agent' as const, handle: null } };

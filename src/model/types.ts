@@ -47,6 +47,9 @@ export interface TaskEvent {
   kind: EventKind;
   roleFrom: Role | null;
   roleTo: Role | null;
+  toActor: string | null;        // 交给了谁 —— actorId 只是"谁发起的"
+  stateFrom: TaskState | null;   // 状态怎么变的
+  stateTo: TaskState | null;
   body: string | null;
   createdAt: string;
 }

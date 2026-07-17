@@ -9,10 +9,23 @@ import { NEXT_ACTIONS, type TaskAction } from '../actions';
 
 const STATE_PILL: Record<TaskState, string> = { planning: 'plan', awaiting_confirm: 'confirm', executing: 'exec', awaiting_decision: 'decide', testing: 'test', done: 'done' };
 const ROLE_NAME: Record<Role, string> = { planner: '规划', executor: '执行', tester: '测试', questioner: '提问', decider: '决策' };
-// 「经过」里显示给人看的动词: 说人话, 不用协议名/比喻。(事件 kind 是协议内部名, 不动)
+// 「经过」要回答"谁在什么时候做了什么", 就必须说出**宾语和变化**。
+// 之前只有一张动词表, 于是四次换手长得一模一样: "你 交给了下一个人" ×4 —— 等于没说。
 const KIND_VERB: Record<string, string> = {
-  handoff: '交给了下一个人', comment: '留言', output: '交了产出', clarify: '提了个问题等人决定', decide: '拍了板', claim: '接手',
+  handoff: '转交', comment: '留言', output: '交了产出', clarify: '提了个问题等人决定', decide: '拍了板', claim: '接手',
 };
+
+// 把一条事件说成一句人话: 谁 + 做了什么 + 给谁 + 状态怎么变
+function eventText(ev: TaskEvent, nameOf: (id: string | null) => string | null): string {
+  if (ev.kind !== 'handoff') return KIND_VERB[ev.kind] ?? ev.kind;
+  const to = nameOf(ev.toActor);
+  const moved = ev.stateFrom && ev.stateTo && ev.stateFrom !== ev.stateTo
+    ? `${STATE_NAME[ev.stateFrom]} → ${STATE_NAME[ev.stateTo]}` : null;
+  if (to && moved) return `转交给 ${to} · ${moved}`;
+  if (to) return `转交给 ${to}`;      // 同态换手(纯改派): 阶段没变就别硬编一个变化
+  if (moved) return `推进到 ${moved}`; // 老事件没记 to_actor, 至少说出状态变化
+  return '转交';                       // 迁移前的老事件: 确实没记, 不编
+}
 
 // ——— 图标(照搬 mockup 的 inline SVG) ———
 const IconFile = () => (
@@ -390,7 +403,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
               const whoCls = actorType === 'human' ? 'h' : 'a';
               const dotCls = ev.kind === 'clarify' || ev.kind === 'decide' ? 'w' : whoCls;
               const who = actorsById[ev.actorId]?.name ?? ev.actorId;
-              const verb = KIND_VERB[ev.kind] ?? ev.kind;
+              const verb = eventText(ev, (id) => (id ? actorsById[id]?.name ?? id : null));
               return (
                 <div key={ev.id} className={`tevent ${dotCls}`}>
                   <span className="dot" />

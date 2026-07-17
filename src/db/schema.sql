@@ -39,6 +39,9 @@ CREATE TABLE IF NOT EXISTS events (
   kind       TEXT NOT NULL CHECK (kind IN ('handoff','comment','output','clarify','decide','claim')),
   role_from  TEXT,
   role_to    TEXT,
+  to_actor   TEXT REFERENCES actors(id),  -- 交给了谁(actor_id 只是"谁发起的", 不含接手人)
+  state_from TEXT,                        -- 状态怎么变的 —— 没有它, "经过"只能说"交给了下一个人"这种废话
+  state_to   TEXT,
   body       TEXT,
   created_at TEXT NOT NULL
 );

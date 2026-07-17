@@ -21,12 +21,16 @@ export function handoff(db: DB, input: HandoffInput): Task {
     throw new Error(`非法状态流转: ${task.state} → ${toState}`);
   }
   const fromRole = task.currentRole;
+  const fromState = task.state;
   const updated = updateTask(db, input.taskId, {
     currentActor: input.toActor, currentRole: input.toRole, state: toState,
   });
+  // 记全"谁交给了谁 / 状态怎么变的" —— 少了这些, 历史只能说"交给了下一个人"这种废话
   appendEvent(db, {
     taskId: input.taskId, actorId: input.byActor, kind: 'handoff',
-    roleFrom: fromRole, roleTo: input.toRole, body: input.note ?? null,
+    roleFrom: fromRole, roleTo: input.toRole,
+    toActor: input.toActor, stateFrom: fromState, stateTo: toState,
+    body: input.note ?? null,
   });
   return updated;
 }
