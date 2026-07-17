@@ -138,13 +138,15 @@ body { margin:0; background:var(--bg); color:var(--text); font-family:var(--font
 /* 计划清单 · 真复选框 */
 ul.plan { list-style:none; margin:8px 0 0; padding:0; display:flex; flex-direction:column; gap:5px; }
 ul.plan li { display:flex; align-items:flex-start; gap:8px; }
-ul.plan .ck { width:15px; height:15px; border-radius:4px; border:1.5px solid var(--border-2); flex:none; margin-top:1px; display:grid; place-items:center; }
-ul.plan li.done .ck { background:var(--done); border-color:var(--done); }
-ul.plan li.done .ck svg { width:9px; height:9px; color:#fff; }
+/* 完成标记(只读): ✓=已完成 / 素圆点=未完成。刻意不用方框 —— 方框=复选框=承诺"可勾选", 而这里勾不动 */
+ul.plan .pmark { width:14px; flex:none; margin-top:2px; display:grid; place-items:center; color:var(--done); }
+ul.plan .pmark svg { width:11px; height:11px; }
+ul.plan li:not(.done) .pmark::before { content:""; width:5px; height:5px; border-radius:50%; background:var(--border-2); }
 ul.plan li.done span { color:var(--text-faint); text-decoration:line-through; text-decoration-color:var(--border-2); }
 
 /* 产出 · 产物行 */
-.artifact-row { display:flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface); font-family:var(--font-mono); font-size:12px; margin-top:6px; }
+/* 产物是记录不是控件: 去掉圆角边框(那是按钮/输入框的相), 只留代码底衬 */
+.artifact-row { display:flex; align-items:center; gap:8px; padding:4px 8px; border-radius:5px; background:var(--surface-2); font-family:var(--font-mono); font-size:12px; margin-top:6px; color:var(--text-dim); }
 .artifact-row .ficon { color:var(--text-faint); display:inline-flex; }
 .artifact-row svg { width:14px; height:14px; }
 .summary { margin-top:10px; padding:10px 12px; border-radius:8px; background:var(--surface-2); border:1px dashed var(--border-2); color:var(--text-dim); font-size:12.5px; font-style:italic; }
@@ -176,17 +178,25 @@ ul.plan li.done span { color:var(--text-faint); text-decoration:line-through; te
 .confirm-actions .btn { font-size:13px; padding:7px 14px; }
 
 /* 子任务 / 关系边(侧栏风格搬进单列) */
-.sub { display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--border); font-size:12.5px; }
+/* 子任务行 = 真按钮(点进它的详情); 状态用点+文字, 不用假复选框 */
+.sub { display:flex; align-items:center; gap:8px; width:100%; text-align:left; padding:7px 6px; margin:0 -6px; border:none; border-bottom:1px solid var(--border); border-radius:6px; background:none; font-family:inherit; font-size:12.5px; color:var(--text); cursor:pointer; }
 .sub:last-child { border-bottom:none; }
-.sub .cb { width:14px; height:14px; border-radius:4px; border:1.5px solid var(--border-2); flex:none; display:grid; place-items:center; }
-.sub.done .cb { background:var(--done); border-color:var(--done); }
-.sub.done .cb svg { width:9px; height:9px; color:#fff; }
+.sub:hover { background:var(--surface-2); }
+.sub:focus-visible { outline:2px solid var(--human); outline-offset:-1px; }
+.sub .sdot { width:7px; height:7px; border-radius:50%; flex:none; }
 .sub.done .t { color:var(--text-faint); text-decoration:line-through; text-decoration-color:var(--border-2); }
 .sub .t { flex:1; color:var(--text); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.sub .id { font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint); }
+.sub .sstate { font-size:11px; color:var(--text-dim); flex:none; }
+.sub .id { font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint); flex:none; }
 .edges-list { display:flex; flex-direction:column; gap:8px; }
-.erow { display:flex; align-items:center; gap:9px; font-size:12px; }
-.erow .to { font-family:var(--font-mono); font-size:11.5px; color:var(--text-dim); }
+.erow { display:flex; align-items:center; gap:7px; font-size:12px; }
+.erow .to { font-family:var(--font-mono); font-size:11.5px; color:var(--text-faint); }
+/* 任务引用链接(子任务/关系边/依赖/面包屑指向的都是真任务) */
+.task-link { font-family:var(--font-mono); font-size:11.5px; font-weight:600; color:var(--human); background:none; border:none; padding:1px 3px; border-radius:4px; cursor:pointer; }
+.task-link:hover { background:var(--human-soft); text-decoration:underline; }
+.task-link:focus-visible { outline:2px solid var(--human); outline-offset:1px; }
+.dep-row { font-size:12px; color:var(--text-dim); margin-top:4px; display:flex; align-items:center; gap:2px; flex-wrap:wrap; }
+.dep-row .dep-sum { color:var(--text-faint); }
 
 /* 交互记录 · 时间线 */
 .thread { position:relative; padding-left:6px; }

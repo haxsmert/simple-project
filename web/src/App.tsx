@@ -91,10 +91,11 @@ export function App() {
     else { const p = projects.find((x) => x.id === f); if (p) { setPath([p]); await loadBoard(f); } }
   }), [guard, loadBoard, projects]);
 
+  // 抽屉未开时才记触发卡片: 在抽屉内沿子任务/关系边层层跳转时保留最初的卡, 关掉直接回到出发点
   const openTask = useCallback((id: string) => {
-    triggerRef.current = document.activeElement as HTMLElement; // 记住触发卡片, 供关闭时归还焦点
+    if (!detail) triggerRef.current = document.activeElement as HTMLElement;
     return guard(async () => { setDetail(await api.task(id)); });
-  }, [guard]);
+  }, [guard, detail]);
 
   // 不按 view 门控: 树视图里的操作(答复/换手)也要刷新 taskCols, 否则切回看板是过期数据
   const reloadCurrent = useCallback(async () => {
@@ -220,7 +221,7 @@ export function App() {
       {detail && (
         <>
           <div className="drawer-backdrop" onClick={closeDetail} aria-hidden="true" />
-          <TaskDetail pkg={detail} actorsById={actorsById} onAnswer={onAnswer} onHandoff={onHandoff} onComment={onComment} onClose={closeDetail} />
+          <TaskDetail pkg={detail} actorsById={actorsById} onAnswer={onAnswer} onHandoff={onHandoff} onComment={onComment} onOpenTask={openTask} onClose={closeDetail} />
         </>
       )}
     </div>

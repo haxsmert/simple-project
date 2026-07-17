@@ -6,6 +6,8 @@ import { EdgeChip } from './EdgeChip';
 
 const STATE_NAME: Record<TaskState, string> = { planning: '待规划', awaiting_confirm: '待确认', executing: '执行中', awaiting_decision: '待决策', testing: '测试中', done: '完成' };
 const STATE_PILL: Record<TaskState, string> = { planning: 'plan', awaiting_confirm: 'confirm', executing: 'exec', awaiting_decision: 'decide', testing: 'test', done: 'done' };
+// 子任务状态点用色 · 与看板 STRIPE / 树点同源(待确认与待决策同为"轮到你"琥珀)
+const STATE_COLOR: Record<TaskState, string> = { planning: 'var(--text-faint)', awaiting_confirm: 'var(--warn)', executing: 'var(--human)', awaiting_decision: 'var(--warn)', testing: 'var(--testing)', done: 'var(--done)' };
 const ROLE_NAME: Record<Role, string> = { planner: '规划', executor: '执行', tester: '测试', questioner: '提问', decider: '决策' };
 const ALL_STATES: TaskState[] = ['planning', 'awaiting_confirm', 'executing', 'awaiting_decision', 'testing', 'done'];
 const ALL_ROLES: Role[] = ['planner', 'executor', 'tester', 'questioner', 'decider'];
@@ -223,11 +225,12 @@ function CommentBox({ taskId, onComment }: { taskId: string; onComment: (taskId:
   );
 }
 
-export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, onClose }: {
+export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, onOpenTask, onClose }: {
   pkg: TaskPackage; actorsById: Record<string, Actor>;
   onAnswer: (clarId: string, answer: string) => void;
   onHandoff: (input: { taskId: string; toActor: string; toRole: Role; toState: TaskState; note: string }) => void;
   onComment: (taskId: string, body: string) => void;
+  onOpenTask: (id: string) => void; // 任务引用(面包屑/子任务/关系边/依赖)跳到那个任务的详情
   onClose: () => void;
 }) {
   const t = pkg.task;
@@ -236,6 +239,11 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
   const openClar = pkg.clarifications.filter((c) => c.state !== 'done');
   const openClarCount = openClar.length;
   const firstOpenId = openClar[0]?.id ?? null; // 只给第一条待决策自动聚焦
+
+  // 槽位有话说才出现(与子任务/关系边/待确认同一规则): 只有标题和"上一棒交付"这类承诺性副标题、
+  // 底下却空空如也, 是在承诺不存在的内容 —— 与假复选框同一类不诚实。
+  const hasInputs = !!pkg.inputs.goal || inputPlan.plain.length > 0 || inputPlan.items.length > 0 || pkg.inputs.depOutputs.length > 0;
+  const hasOutputs = outputArtifacts.plain.length > 0 || outputArtifacts.files.length > 0 || !!pkg.outputs.summary;
 
   // 待确认槽位: 计划就绪、开工前的人类关卡 —— 与待决策同为"轮到你"的最高价值动作, 提到最顶。
   const confirmSlot = t.state === 'awaiting_confirm' && (
@@ -301,7 +309,15 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
   return (
     <div className="drawer">
       <button className="btn" onClick={onClose} style={{ float: 'right' }}>关闭</button>
-      <div className="crumb">{pkg.breadcrumb.map((b) => <span key={b.id}>{b.title} ▸</span>)}</div>
+      {/* 面包屑是真链接: 点祖先即跳到它的详情 —— 也是抽屉内层层钻进后的返回路径 */}
+      <nav className="crumb" aria-label="所属层级">
+        {pkg.breadcrumb.map((b) => (
+          <span key={b.id} className="crumb-seg">
+            <button type="button" className="crumb-link" onClick={() => onOpenTask(b.id)}>{b.title}</button>
+            <span className="crumb-sep">▸</span>
+          </span>
+        ))}
+      </nav>
       <h2>{t.title}</h2>
       <div className="status-row">
         <span className={`pill ${STATE_PILL[t.state]}`}><span className="d" />{STATE_NAME[t.state]}</span>
@@ -312,27 +328,35 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
       {confirmSlot}
       {openClarCount > 0 && clarSlot}
 
+      {hasInputs && (
       <div className="slot">
         <SlotHead icon={<IconFile />} tint="human" title="输入" en="Inputs" tag="上一棒交付" />
         <div className="slot-body">
           {pkg.inputs.goal && <div className="goal"><b>目标:</b> {pkg.inputs.goal}</div>}
           {inputPlan.plain.map((l, i) => <p key={i}>{l}</p>)}
           {inputPlan.items.length > 0 && (
+            // 上一棒交付的计划记录, 只读: 用 ✓/素圆点 表示完成与否, 不用复选框
+            // ——勾选框会承诺一个不存在的操作(完成与否由状态机决定, 不是这里能勾的)
             <ul className="plan">
               {inputPlan.items.map((it, i) => (
                 <li key={i} className={it.done ? 'done' : ''}>
-                  <span className="ck">{it.done && <IconCheck />}</span>
+                  <span className="pmark">{it.done ? <IconCheck /> : null}</span>
                   <span>{it.text}</span>
                 </li>
               ))}
             </ul>
           )}
           {pkg.inputs.depOutputs.map((d) => (
-            <div key={d.taskId} className="card-id">依赖 {d.taskId}: {d.summary ?? '—'}</div>
+            <div key={d.taskId} className="dep-row">
+              依赖 <button type="button" className="task-link" onClick={() => onOpenTask(d.taskId)}>{d.taskId}</button>
+              <span className="dep-sum">: {d.summary ?? '—'}</span>
+            </div>
           ))}
         </div>
       </div>
+      )}
 
+      {hasOutputs && (
       <div className="slot">
         <SlotHead icon={<IconOutputs />} tint="agent" title="产出" en="Outputs" tag="换手后自动成为下一棒的输入" />
         <div className="slot-body">
@@ -343,6 +367,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
           {pkg.outputs.summary && <div className="summary"><b>摘要:</b> {pkg.outputs.summary}</div>}
         </div>
       </div>
+      )}
 
       {openClarCount === 0 && clarSlot}
 
@@ -351,12 +376,15 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
           <SlotHead icon={<IconChecklist />} tint="neutral" title="子任务" en="Subtasks"
             tag={`${pkg.subtasks.filter((s) => s.state === 'done').length} / ${pkg.subtasks.length}`} />
           <div className="slot-body">
+            {/* 子任务是真任务: 整行可点进它的详情; 完成与否用状态点+状态名(与任务树同语言), 不用假复选框 */}
             {pkg.subtasks.map((s) => (
-              <div key={s.id} className={`sub ${s.state === 'done' ? 'done' : ''}`}>
-                <span className="cb">{s.state === 'done' && <IconCheck />}</span>
+              <button key={s.id} type="button" className={`sub ${s.state === 'done' ? 'done' : ''}`}
+                onClick={() => onOpenTask(s.id)}>
+                <span className="sdot" style={{ background: STATE_COLOR[s.state] }} />
                 <span className="t">{s.title}</span>
+                <span className="sstate">{STATE_NAME[s.state]}</span>
                 <span className="id">{s.id}</span>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -367,17 +395,22 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
           <SlotHead icon={<IconLink />} tint="neutral" title="关系边" en="Edges" />
           <div className="slot-body">
             <div className="edges-list">
+              {/* 边指向的都是真任务: id 做成链接可跳过去, 不再是死文字 */}
               {pkg.edges.out.map((e) => (
-                <div key={e.id} className="erow"><EdgeChip type={e.type} /><span className="to">→ {e.toTask}</span></div>
+                <div key={e.id} className="erow"><EdgeChip type={e.type} /><span className="to">→</span>
+                  <button type="button" className="task-link" onClick={() => onOpenTask(e.toTask)}>{e.toTask}</button></div>
               ))}
               {pkg.edges.in.map((e) => (
-                <div key={e.id} className="erow"><EdgeChip type={e.type} /><span className="to">{e.fromTask} →</span></div>
+                <div key={e.id} className="erow"><EdgeChip type={e.type} />
+                  <button type="button" className="task-link" onClick={() => onOpenTask(e.fromTask)}>{e.fromTask}</button>
+                  <span className="to">→ 本任务</span></div>
               ))}
             </div>
           </div>
         </div>
       )}
 
+      {pkg.thread.length > 0 && (
       <div className="slot">
         <SlotHead icon={<IconThread />} tint="neutral" title="交互记录" en="Thread" tag="换手 / 评论 / 提问 / 决策全在此" />
         <div className="slot-body">
@@ -401,6 +434,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
           </div>
         </div>
       </div>
+      )}
 
       <div className="slot">
         <SlotHead icon={<IconHandoff />} tint="human" title="换手" en="Handoff" tag="转交给下一棒" />
