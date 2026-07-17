@@ -2,10 +2,9 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 import type { BoardColumn, TaskState, Actor } from '../types';
 import { TaskCard } from './TaskCard';
+import { STATE_NAME as NAME, STATE_COLOR as STRIPE } from '../states';
 
-const NAME: Record<TaskState, string> = { planning: '待规划', awaiting_confirm: '待确认', executing: '执行中', awaiting_decision: '待决策', testing: '测试中', done: '完成' };
-// 待确认/待决策同为"轮到你"关卡 → 同用琥珀(2026-07-17 收编, 与整卡琥珀底/列头琥珀一致); 两列靠列头文字区分
-const STRIPE: Record<TaskState, string> = { planning: 'var(--text-faint)', awaiting_confirm: 'var(--warn)', executing: 'var(--human)', awaiting_decision: 'var(--warn)', testing: 'var(--testing)', done: 'var(--done)' };
+
 
 // 纯函数: 计算把 dragId 插到 dropId 之前(after=false)或之后(after=true)后的新顺序。
 // 不依赖 DOM/事件, 便于在 jsdom 之外单测拖拽排序算法本身。

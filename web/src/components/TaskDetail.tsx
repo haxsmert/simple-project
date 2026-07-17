@@ -1,13 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { TaskPackage, Actor, TaskState, Role, Task, TaskEvent } from '../types';
 import { ActorBadge } from './ActorBadge';
 import { RoleChip } from './RoleChip';
 import { EdgeChip } from './EdgeChip';
+import { STATE_NAME, STATE_COLOR } from '../states';
 
-const STATE_NAME: Record<TaskState, string> = { planning: '待规划', awaiting_confirm: '待确认', executing: '执行中', awaiting_decision: '待决策', testing: '测试中', done: '完成' };
 const STATE_PILL: Record<TaskState, string> = { planning: 'plan', awaiting_confirm: 'confirm', executing: 'exec', awaiting_decision: 'decide', testing: 'test', done: 'done' };
-// 子任务状态点用色 · 与看板 STRIPE / 树点同源(待确认与待决策同为"轮到你"琥珀)
-const STATE_COLOR: Record<TaskState, string> = { planning: 'var(--text-faint)', awaiting_confirm: 'var(--warn)', executing: 'var(--human)', awaiting_decision: 'var(--warn)', testing: 'var(--testing)', done: 'var(--done)' };
 const ROLE_NAME: Record<Role, string> = { planner: '规划', executor: '执行', tester: '测试', questioner: '提问', decider: '决策' };
 const ALL_STATES: TaskState[] = ['planning', 'awaiting_confirm', 'executing', 'awaiting_decision', 'testing', 'done'];
 const ALL_ROLES: Role[] = ['planner', 'executor', 'tester', 'questioner', 'decider'];
@@ -191,8 +189,8 @@ function HandoffBox({ taskId, currentState, actors, onHandoff }: {
 
 // 计划确认块: 决策者在开工前的关卡 —— 一键批准(→执行中)或打回(→待规划), 补充意见随动作记入交互记录。
 // 默认把任务交给第一个 agent 执行/重规划; 想指定具体行动者仍可用下方「换手」。
-function ConfirmBox({ taskId, actorsById, onHandoff }: {
-  taskId: string; actorsById: Record<string, Actor>;
+function ConfirmBox({ taskId, actorsById, hasPlan, onHandoff }: {
+  taskId: string; actorsById: Record<string, Actor>; hasPlan: boolean;
   onHandoff: (input: { taskId: string; toActor: string; toRole: Role; toState: TaskState; note: string }) => void;
 }) {
   const [note, setNote] = useState('');
@@ -202,7 +200,8 @@ function ConfirmBox({ taskId, actorsById, onHandoff }: {
   const bounce = () => onHandoff({ taskId, toActor: target, toRole: 'planner', toState: 'planning', note: note.trim() });
   return (
     <div className="confirm-box">
-      <p className="confirm-hint">计划已就绪, 等你确认后开工。计划详情见下方「输入」。</p>
+      {/* 只有输入槽真的会渲染时才指路过去 —— 空槽门控下它可能整个不存在, 指了就是悬空 */}
+      <p className="confirm-hint">{hasPlan ? '计划已就绪, 等你确认后开工。计划详情见下方「输入」。' : '等你确认后开工。上一棒没留下计划详情。'}</p>
       <input className="confirm-note" placeholder="补充意见(可选, 随批准/打回记入交互记录)…"
         value={note} onChange={(e) => setNote(e.target.value)} />
       <div className="confirm-actions">
@@ -245,12 +244,21 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
   const hasInputs = !!pkg.inputs.goal || inputPlan.plain.length > 0 || inputPlan.items.length > 0 || pkg.inputs.depOutputs.length > 0;
   const hasOutputs = outputArtifacts.plain.length > 0 || outputArtifacts.files.length > 0 || !!pkg.outputs.summary;
 
+  // 抽屉内沿子任务/面包屑/关系边跳转时, 被点的按钮随即卸载 → 焦点会掉回 <body>, 键盘用户丢失位置。
+  // 跳转后把焦点送到新任务标题(读屏也借此播报"落到哪了"); 有待决策时让答复框的 autoFocus 接管, 不抢。
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const prevTaskId = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevTaskId.current && prevTaskId.current !== t.id && !firstOpenId) headingRef.current?.focus();
+    prevTaskId.current = t.id;
+  }, [t.id, firstOpenId]);
+
   // 待确认槽位: 计划就绪、开工前的人类关卡 —— 与待决策同为"轮到你"的最高价值动作, 提到最顶。
   const confirmSlot = t.state === 'awaiting_confirm' && (
     <div className="slot">
       <SlotHead icon={<IconWarnTriangle />} tint="warn" title="待你确认" en="Confirm" tag="计划就绪 · 开工前的关卡" />
       <div className="slot-body">
-        <ConfirmBox taskId={t.id} actorsById={actorsById} onHandoff={onHandoff} />
+        <ConfirmBox taskId={t.id} actorsById={actorsById} hasPlan={hasInputs} onHandoff={onHandoff} />
       </div>
     </div>
   );
@@ -318,7 +326,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
           </span>
         ))}
       </nav>
-      <h2>{t.title}</h2>
+      <h2 ref={headingRef} tabIndex={-1}>{t.title}</h2>
       <div className="status-row">
         <span className={`pill ${STATE_PILL[t.state]}`}><span className="d" />{STATE_NAME[t.state]}</span>
         <ActorBadge actor={t.currentActor ? actorsById[t.currentActor] ?? null : null} />
@@ -340,7 +348,8 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
             <ul className="plan">
               {inputPlan.items.map((it, i) => (
                 <li key={i} className={it.done ? 'done' : ''}>
-                  <span className="pmark">{it.done ? <IconCheck /> : null}</span>
+                  {/* ✓ 是 aria-hidden、圆点是 CSS ::before、删除线读屏不播报 → 必须补一句隐藏文本, 否则"已完成/未完成"对读屏毫无区别 */}
+                  <span className="pmark">{it.done ? <IconCheck /> : null}<span className="sr-only">{it.done ? '已完成' : '未完成'}</span></span>
                   <span>{it.text}</span>
                 </li>
               ))}
@@ -348,7 +357,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
           )}
           {pkg.inputs.depOutputs.map((d) => (
             <div key={d.taskId} className="dep-row">
-              依赖 <button type="button" className="task-link" onClick={() => onOpenTask(d.taskId)}>{d.taskId}</button>
+              依赖 <button type="button" className="task-link" aria-label={`打开依赖的任务 ${d.taskId}`} onClick={() => onOpenTask(d.taskId)}>{d.taskId}</button>
               <span className="dep-sum">: {d.summary ?? '—'}</span>
             </div>
           ))}
@@ -398,11 +407,11 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onHandoff, onComment, on
               {/* 边指向的都是真任务: id 做成链接可跳过去, 不再是死文字 */}
               {pkg.edges.out.map((e) => (
                 <div key={e.id} className="erow"><EdgeChip type={e.type} /><span className="to">→</span>
-                  <button type="button" className="task-link" onClick={() => onOpenTask(e.toTask)}>{e.toTask}</button></div>
+                  <button type="button" className="task-link" aria-label={`打开本任务指向的 ${e.toTask}`} onClick={() => onOpenTask(e.toTask)}>{e.toTask}</button></div>
               ))}
               {pkg.edges.in.map((e) => (
                 <div key={e.id} className="erow"><EdgeChip type={e.type} />
-                  <button type="button" className="task-link" onClick={() => onOpenTask(e.fromTask)}>{e.fromTask}</button>
+                  <button type="button" className="task-link" aria-label={`打开指向本任务的 ${e.fromTask}`} onClick={() => onOpenTask(e.fromTask)}>{e.fromTask}</button>
                   <span className="to">→ 本任务</span></div>
               ))}
             </div>

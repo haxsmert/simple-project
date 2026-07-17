@@ -109,13 +109,28 @@ describe('TaskDetail', () => {
     render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={() => {}} onHandoff={() => {}} onComment={() => {}} onOpenTask={onOpenTask} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: /tasks 表/ })); // 子任务行(R-143)
     expect(onOpenTask).toHaveBeenCalledWith('R-143');
-    // R-140 既是依赖又是关系边目标, 两处都应可跳
-    const refs = screen.getAllByRole('button', { name: 'R-140' });
-    expect(refs.length).toBe(2);
-    refs.forEach((r) => fireEvent.click(r));
+    // R-140 既是依赖又是关系边目标: 两处都可跳, 且可及名各自说清关系(不能都叫裸 "R-140")
+    fireEvent.click(screen.getByRole('button', { name: '打开依赖的任务 R-140' }));
+    fireEvent.click(screen.getByRole('button', { name: '打开本任务指向的 R-140' }));
     expect(onOpenTask).toHaveBeenCalledWith('R-140');
     fireEvent.click(screen.getByRole('button', { name: '项目' })); // 面包屑祖先
     expect(onOpenTask).toHaveBeenCalledWith('R-1');
+  });
+
+  it('完成与否对读屏可感知(✓/圆点都是视觉的, 必须配隐藏文本)', () => {
+    const planPkg: TaskPackage = { ...pkg, inputs: { ...pkg.inputs, inputsMd: '- [x] 令牌桶\n- [ ] 每 actor 配额' } };
+    render(<TaskDetail pkg={planPkg} actorsById={actors} onAnswer={() => {}} onHandoff={() => {}} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    expect(screen.getByText('已完成')).toBeInTheDocument();
+    expect(screen.getByText('未完成')).toBeInTheDocument();
+  });
+
+  it('抽屉内跳转后焦点落到新任务标题, 不掉回 body(键盘不断链)', () => {
+    const { rerender, container } = render(<TaskDetail pkg={pkg} actorsById={actors} onAnswer={() => {}} onHandoff={() => {}} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    const next: TaskPackage = { ...pkg, task: { ...pkg.task, id: 'R-143', title: '跳过去的任务', state: 'executing' }, clarifications: [] };
+    rerender(<TaskDetail pkg={next} actorsById={actors} onAnswer={() => {}} onHandoff={() => {}} onComment={() => {}} onOpenTask={() => {}} onClose={() => {}} />);
+    const h2 = container.querySelector('h2') as HTMLElement;
+    expect(h2.textContent).toBe('跳过去的任务');
+    expect(document.activeElement).toBe(h2);
   });
 
   it('空槽位不渲染: 输入/产出/交互记录 没内容时连标题都不出现(不承诺不存在的内容)', () => {

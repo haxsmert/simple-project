@@ -1,12 +1,12 @@
 import type { DragEvent } from 'react';
 import type { BoardCard, Actor, TaskState } from '../types';
 import { ActorBadge } from './ActorBadge';
+import { STATE_NAME } from '../states';
 
 // 卡面刻意克制(2026-07-17 去杂乱约定): 状态由所在列 + 琥珀底色承载, 不再挂状态 chip;
 // 角色/关系边归详情抽屉; 项目名只在跨项目的"全部任务"视图显示(单项目视图里每张卡重复同一项目名=纯噪声)。
 // 读屏不受降噪影响: aria-label 完整携带 项目/状态/待处理数/优先级。
 const PRIO_LABEL: Record<'hi' | 'mid' | 'lo', string> = { hi: '高', mid: '中', lo: '低' };
-const STATE_NAME: Record<TaskState, string> = { planning: '待规划', awaiting_confirm: '待确认', executing: '执行中', awaiting_decision: '待决策', testing: '测试中', done: '完成' };
 
 export function TaskCard({ task, actor, onOpen, onDescend, showProject, draggable, dragging, onDragStart, onDragOver, onDrop, onDragEnd }: {
   task: BoardCard; actor: Actor | null; onOpen: (id: string) => void;
