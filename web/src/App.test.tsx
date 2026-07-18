@@ -129,11 +129,12 @@ describe('App shell', () => {
     expect(await screen.findByText(/数据库炸了/)).toBeInTheDocument();
   });
 
-  it('项目卡展示"待处理" attention chip(待确认+待决策), 顶栏展示可点击的全局 pill', async () => {
+  it('项目卡展示"待处理"数(待确认+待决策)与进度, 顶栏展示可点击的全局 pill', async () => {
     render(<App />);
     await screen.findByText('演示项目');
-    expect(screen.getByText('2 待处理')).toBeInTheDocument();
-    expect(screen.getByText('🔔 待你处理 2')).toBeInTheDocument();
+    expect(screen.getByText('🔔 2 待你处理')).toBeInTheDocument(); // 项目层透镜: 待处理数做成醒目 pill
+    expect(screen.getByText('子任务 0/1')).toBeInTheDocument();    // 进度也在卡面
+    expect(screen.getByText('🔔 待你处理 2')).toBeInTheDocument(); // 顶栏全局 pill(文案顺序不同, 不与卡片撞)
   });
 
   it('顶栏 pill 点击后跳到「全部任务」扁平看板', async () => {

@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { api } from './api';
-import type { BoardColumn, TaskNode, TaskPackage, Actor } from './types';
+import type { BoardColumn, BoardCard, TaskNode, TaskPackage, Actor } from './types';
 import { Board } from './components/Board';
+import { ProjectGrid } from './components/ProjectGrid';
 import { Tree } from './components/Tree';
 import { TaskDetail } from './components/TaskDetail';
 import { ProjectPicker } from './components/ProjectPicker';
@@ -49,6 +50,13 @@ export function App() {
   const actorsById = Object.fromEntries(actors.map((a) => [a.id, a]));
   const projects = projectCols.flatMap((c) => c.tasks).map((t) => ({ id: t.id, title: t.title }));
   const pendingTotal = projectCols.flatMap((c) => c.tasks).reduce((s, t) => s + (t.attention ?? 0), 0);
+  // 项目总览是"该关心哪个项目"的分诊台 → 有活等你的项目冒头; 同 attention 再按后端排序(rank→优先级→id)
+  const prioW = (p: BoardCard['priority']) => (p === 'hi' ? 0 : p === 'mid' ? 1 : p === 'lo' ? 2 : 3);
+  const projectList = projectCols.flatMap((c) => c.tasks).slice().sort((a, b) =>
+    (b.attention ?? 0) - (a.attention ?? 0)
+    || (a.rank ?? Infinity) - (b.rank ?? Infinity)
+    || prioW(a.priority) - prioW(b.priority)
+    || parseInt(a.id.slice(2), 10) - parseInt(b.id.slice(2), 10));
   const atRoot = path.length === 0;
   const currentId = atRoot ? null : path[path.length - 1].id;
   const isAll = currentId === 'all';
@@ -312,9 +320,8 @@ export function App() {
 
       {!loaded && !error && <div className="board-empty">加载中…</div>}
       {loaded && view === 'board' && (atRoot ? (
-        <Board columns={projectCols} actorsById={actorsById}
+        <ProjectGrid projects={projectList} actorsById={actorsById}
           onOpen={(id) => { const p = projects.find((x) => x.id === id); if (p) enterProject(p); }}
-          onReorder={onReorder}
           emptyHint={<><b>还没有项目</b><div>点右上角「+ 新建项目」开始</div></>} />
       ) : (
         <Board columns={taskCols} actorsById={actorsById} onOpen={openTask} onReorder={onReorder} flashId={flash?.id ?? null}
