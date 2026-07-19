@@ -5,6 +5,8 @@ import type { TaskEvent } from '../model/types';
 // frontmatter 保持机器可读(枚举原值)。审计教训(2026-07-18): 缺 hold、中英混排标题、
 // 问题卡在两节重复列、交互记录 "claim (? → planner)" 这类带问号的黑话 —— 全部清掉。
 const STATE_NAME: Record<string, string> = { planning: '待规划', executing: '执行中', testing: '测试中', done: '完成' };
+// 项目(顶层任务)说项目语言(审计第 3 轮: 界面叫「已完结」, 镜像写「完成」= 用词链路断裂)
+const PROJECT_STATE_NAME: Record<string, string> = { executing: '执行中', done: '已完结' };
 const HOLD_NAME: Record<string, string> = { confirm: '等确认', decision: '等决策' };
 const ROLE_NAME: Record<string, string> = { planner: '规划', executor: '执行', tester: '测试', decider: '决策' };
 
@@ -45,7 +47,7 @@ export function renderTaskMarkdown(pkg: TaskPackage): string {
     '',
     `# ${t.title}`,
     '',
-    `**${STATE_NAME[t.state] ?? t.state}**${t.hold ? ` · ${HOLD_NAME[t.hold]}` : ''}${t.currentActor ? ` · 在 ${t.currentActor} 手里` : ''}`,
+    `**${(t.parentId === null ? PROJECT_STATE_NAME[t.state] : STATE_NAME[t.state]) ?? t.state}**${t.hold ? ` · ${HOLD_NAME[t.hold]}` : ''}${t.currentActor ? ` · 在 ${t.currentActor} 手里` : ''}`,
     '',
   ];
 

@@ -59,6 +59,14 @@ describe('文件镜像', () => {
     expect(md2).toContain('转交给 admin · 提交等确认: 请拍板');
   });
 
+  it('项目镜像说项目语言: 已完结项目的状态行是「已完结」不是「完成」(用词链路一致)', () => {
+    const db = openDb(':memory:');
+    createTask(db, { id: 'R-1', title: '收官方向', state: 'done', goal: 'g' });
+    const md = renderTaskMarkdown(assemblePackage(db, 'R-1'));
+    expect(md).toContain('**已完结**');
+    expect(md).not.toContain('**完成**');
+  });
+
   it('把任务写成 <dir>/<id>.md 文件', () => {
     const db = openDb(':memory:');
     createTask(db, { id: 'R-7', title: '镜像我' });
