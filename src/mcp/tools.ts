@@ -114,7 +114,7 @@ export const listPendingTool = {
 
 export const getTaskTool = {
   name: 'get_task',
-  description: '取某个任务的完整信息包(输入/产出/待确认/交互记录/子任务/关系边)',
+  description: '取某个任务的完整信息包(输入/产出/待确认/交互记录/子任务/关系边)。项目(顶层任务)额外附 projectActivity: 全树最近动静(项目自身少有事件, 动静都在子孙任务上)。',
   schema: { id: z.string() },
   handler(service: RelayService, args: { id: string }): ToolResult {
     return ok(service.getPackage(args.id));

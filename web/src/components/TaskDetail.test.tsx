@@ -409,7 +409,25 @@ describe('TaskDetail 项目模式', () => {
       { id: 'R-3', title: '遗留乙', state: 'planning', hold: null, currentActor: null, currentRole: null, parentId: 'R-1', goal: null, planMd: null, outputsMd: null, summary: null, priority: null },
     ],
     edges: { out: [], in: [] },
+    projectActivity: [
+      { kind: 'output', actorId: 'a', actorName: '执行A', taskId: 'R-2', taskTitle: '遗留甲', toActor: null, body: '交了一版', stateFrom: null, stateTo: null, holdFrom: null, holdTo: null, createdAt: '2026-07-19T00:00:00Z' },
+    ],
   };
+
+  it('项目详情是结构化四区: 方向 / 任务全景(按阶段分组·挂起冒头) / 最近动静(全树) / 项目动作; 不渲任务槽位', () => {
+    const { container } = render(<TaskDetail pkg={projPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onUpdate={async () => true} onDelete={async () => true} onClose={() => {}} />);
+    const heads = Array.from(container.querySelectorAll('.slot-head h4')).map((h) => h.textContent);
+    expect(heads.slice(0, 4)).toEqual(['方向', '任务全景', '最近动静', '项目动作']); // 结构即秩序
+    expect(heads).not.toContain('任务内容'); // 任务槽位不再平铺给项目
+    expect(heads).not.toContain('子任务');
+    expect(heads).not.toContain('经过');
+    expect(screen.getByText('方向说明')).toBeInTheDocument();
+    // 全景: 按阶段分组, 组头带计数; tag 是分布摘要
+    expect(screen.getByText('执行中 1 · 待规划 1')).toBeInTheDocument();
+    // 动静: 谁在哪个任务干了什么(任务名可点跳)
+    expect(screen.getByText(/交了产出/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '遗留甲' })).toBeInTheDocument();
+  });
 
   it('执行中项目: 状态说「执行中」, 给「项目动作」; 完结不被子任务禁用, 但如实提示将遗留', async () => {
     const onAct = vi.fn(async () => true);
@@ -432,8 +450,8 @@ describe('TaskDetail 项目模式', () => {
   it('已完结项目: 状态说「已完结」, 动作只有「重开项目」', async () => {
     const onAct = vi.fn(async () => true);
     const donePkg: TaskPackage = { ...projPkg, task: { ...projPkg.task, state: 'done' }, subtasks: [] };
-    render(<TaskDetail pkg={donePkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={onAct} onComment={() => {}} onOpenTask={() => {}} onUpdate={async () => true} onDelete={async () => true} onClose={() => {}} />);
-    expect(screen.getByText('已完结')).toBeInTheDocument();
+    const { container } = render(<TaskDetail pkg={donePkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={onAct} onComment={() => {}} onOpenTask={() => {}} onUpdate={async () => true} onDelete={async () => true} onClose={() => {}} />);
+    expect(container.querySelector('.status-row .pill')!.textContent).toBe('已完结');
     fireEvent.click(screen.getByRole('button', { name: '重开项目' }));
     await waitFor(() => expect(onAct).toHaveBeenCalled());
     const input = (onAct.mock.calls[0] as unknown[])[0] as { toState: string };

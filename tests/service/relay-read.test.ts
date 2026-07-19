@@ -80,6 +80,21 @@ describe('RelayService reads', () => {
     expect(ov.closed[0].lastEvent).toBeNull(); // C 没有任何事件 —— 不编
   });
 
+  it('getPackage: 项目(顶层)附全树最近动静 projectActivity(新→旧, 含孙层级); 普通任务不附', () => {
+    const { db, service } = svc();
+    service.registerActor({ id: 'x', name: 'X', type: 'agent' });
+    createTask(db, { id: 'R-1', title: '项目', state: 'executing', goal: 'g' });
+    createTask(db, { id: 'R-2', title: '任务', parentId: 'R-1', state: 'executing', currentActor: 'x', currentRole: 'executor' });
+    createTask(db, { id: 'R-3', title: '孙任务', parentId: 'R-2', state: 'executing', currentActor: 'x', currentRole: 'executor' });
+    service.comment('R-2', 'x', '第一条');
+    service.comment('R-3', 'x', '第二条(孙层级)');
+    const pkg = service.getPackage('R-1');
+    expect(pkg.projectActivity!.map((a) => a.body)).toEqual(['第二条(孙层级)', '第一条']); // 新→旧, 全树
+    expect(pkg.projectActivity![0].taskTitle).toBe('孙任务');
+    expect(pkg.projectActivity![0].actorName).toBe('X');
+    expect(service.getPackage('R-2').projectActivity).toBeUndefined(); // 任务不附(它有自己的 thread)
+  });
+
   it('taskBoard(projectId) 只按状态分组该项目的直接子任务, 不含孙任务', () => {
     const { db, service } = svc();
     createTask(db, { id: 'R-30', title: '项目', state: 'executing' });

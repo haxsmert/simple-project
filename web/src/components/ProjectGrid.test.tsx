@@ -19,7 +19,7 @@ describe('ProjectGrid(项目总览)', () => {
     render(<ProjectGrid overview={{
       active: [
         { ...base, id: 'R-1', title: '有活等你', attention: 2,
-          lastEvent: { kind: 'handoff', actorName: '执行·A', taskId: 'R-2', taskTitle: '限流', toActor: 'admin', body: null, stateFrom: 'executing', stateTo: 'testing', holdFrom: null, holdTo: null, createdAt: '2026-07-19T00:00:00Z' } },
+          lastEvent: { kind: 'handoff', actorId: 'a', actorName: '执行·A', taskId: 'R-2', taskTitle: '限流', toActor: 'admin', body: null, stateFrom: 'executing', stateTo: 'testing', holdFrom: null, holdTo: null, createdAt: '2026-07-19T00:00:00Z' } },
         { ...base, id: 'R-9', title: '没写目标的老项目', goal: null },
       ], closed: [],
     }} actorsById={actors} onOpen={() => {}} />);
@@ -51,7 +51,7 @@ describe('ProjectGrid(项目总览)', () => {
     render(<ProjectGrid overview={{
       active: [], closed: [
         { ...base, id: 'R-16', title: '刚收官', state: 'done',
-          lastEvent: { kind: 'handoff', actorName: 'admin', taskId: 'R-16', taskTitle: '刚收官', toActor: 'admin', body: '方向搁置', stateFrom: 'executing', stateTo: 'done', holdFrom: null, holdTo: null, createdAt: '2026-07-19T00:00:00Z' } },
+          lastEvent: { kind: 'handoff', actorId: 'admin', actorName: 'admin', taskId: 'R-16', taskTitle: '刚收官', toActor: 'admin', body: '方向搁置', stateFrom: 'executing', stateTo: 'done', holdFrom: null, holdTo: null, createdAt: '2026-07-19T00:00:00Z' } },
       ],
     }} actorsById={actors} onOpen={() => {}} />);
     expect(screen.getByText(/admin 完结关闭: 方向搁置/)).toBeInTheDocument();

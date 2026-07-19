@@ -3,11 +3,11 @@ import type { TaskPackage, Actor, Task, TaskEvent } from '../types';
 import { ActorBadge } from './ActorBadge';
 import { RoleChip } from './RoleChip';
 import { EdgeChip } from './EdgeChip';
-import { STATE_NAME, STATE_COLOR, HOLD_NAME, PROJECT_STATE_NAME } from '../states';
+import { STATE_NAME, STATE_COLOR, HOLD_NAME, HOLD_FLAG, PROJECT_STATE_NAME } from '../states';
 import { NextActions } from './NextActions';
 import { actionsFor, projectActionsFor, type TaskAction, type ActInput } from '../actions';
 // 「经过」的叙述层在 events.ts(单一来源, 项目卡的"最近动静"同引): 谁+做了什么+给谁+怎么变
-import { eventText } from '../events';
+import { eventText, timeAgo } from '../events';
 
 const STATE_PILL = { planning: 'plan', executing: 'exec', testing: 'test', done: 'done' } as const;
 const HOLD_PILL = { confirm: 'confirm', decision: 'decide' } as const;
@@ -375,8 +375,91 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
       {confirmSlot}
       {openClarCount > 0 && clarSlot}
 
+      {/* ── 项目模式(2026-07-19 用户: "项目详情太简单/没有结构化"): 任务的四槽位对项目天然是空的
+          (没有产出/问题卡/自身事件), 换成项目自己的结构 —— 方向 → 任务全景 → 最近动静 → 项目动作。 */}
+      {isProject && (
+        <div className="slot">
+          <SlotHead icon={<IconFile />} tint="human" title="方向" tag="为什么开这个方向" />
+          <div className="slot-body">
+            {t.goal
+              ? <p className="pv-goal">{t.goal}</p>
+              : <p className="confirm-hint">还没写目标 —— 点右上 ✎ 补上(项目不能只有一个名字)。</p>}
+            {t.state === 'done' && (
+              <p className="pv-closed-note">已完结{pkg.subtasks.filter((s) => s.state !== 'done').length > 0
+                ? ` · 完结时遗留 ${pkg.subtasks.filter((s) => s.state !== 'done').length} 项未完成(见下)` : ''}</p>
+            )}
+          </div>
+        </div>
+      )}
+      {isProject && (() => {
+        // 任务全景: 按阶段分组(在跑的在前), 组内挂起冒头(琥珀+「待你确认/待你决策」);
+        // 行内第二列给"比阶段更有用"的信息 —— 阶段已由组头表达, 行里说 挂起/负责人
+        const order: Task['state'][] = ['executing', 'testing', 'planning', 'done'];
+        const groups = order
+          .map((s) => ({ state: s, tasks: pkg.subtasks.filter((x) => x.state === s).sort((a, b) => (b.hold ? 1 : 0) - (a.hold ? 1 : 0)) }))
+          .filter((g) => g.tasks.length > 0);
+        const attnCount = pkg.subtasks.filter((x) => x.hold).length;
+        const dist = groups.map((g) => `${STATE_NAME[g.state]} ${g.tasks.length}`).join(' · ');
+        return (
+          <div className="slot">
+            <SlotHead icon={<IconChecklist />} tint={attnCount > 0 ? 'warn' : 'neutral'} title="任务全景"
+              tag={attnCount > 0 ? `🔔 ${attnCount} 待你处理 · ${dist}` : (dist || '还没有任务')} />
+            <div className="slot-body">
+              {groups.length === 0 && <p className="confirm-hint">还没有任务 —— 回看板「+ 追加任务」开工。</p>}
+              {groups.map((g) => (
+                <div key={g.state} className="pv-group">
+                  <div className="pv-group-head">
+                    <span className="sdot" style={{ background: STATE_COLOR[g.state] }} />
+                    {STATE_NAME[g.state]}<span className="pv-cnt">{g.tasks.length}</span>
+                  </div>
+                  {g.tasks.map((s) => (
+                    <button key={s.id} type="button" className={`sub ${s.state === 'done' ? 'done' : ''}${s.hold ? ' held' : ''}`}
+                      onClick={() => onOpenTask(s.id)}>
+                      <span className="t">{s.title}</span>
+                      <span className="sstate">{s.hold ? HOLD_FLAG[s.hold] : s.currentActor ? actorsById[s.currentActor]?.name ?? s.currentActor : '未分派'}</span>
+                      <span className="id">{s.id}</span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+      {isProject && (() => {
+        const acts = pkg.projectActivity ?? [];
+        return (
+          <div className="slot">
+            <SlotHead icon={<IconThread />} tint="neutral" title="最近动静" tag="全项目 · 谁在哪个任务干了什么" />
+            <div className="slot-body">
+              {acts.length === 0 ? <p className="confirm-hint">还没动静。</p> : (
+                <div className="thread">
+                  {acts.map((ev, i) => {
+                    const actorType = actorsById[ev.actorId]?.type;
+                    const whoCls = actorType === 'human' ? 'h' : 'a';
+                    const dotCls = ev.kind === 'clarify' || ev.kind === 'decide' ? 'w' : whoCls;
+                    return (
+                      <div key={i} className={`tevent ${dotCls}`}>
+                        <span className="dot" />
+                        <div className="tline">
+                          <span className={`who ${whoCls}`}>{ev.actorName}</span>{' '}
+                          {eventText(ev, (id) => (id ? actorsById[id]?.name ?? id : null), { project: ev.taskId === t.id })}
+                          {ev.taskId !== t.id && <> · <button type="button" className="crumb-link" onClick={() => onOpenTask(ev.taskId)}>{ev.taskTitle}</button></>}
+                          {ev.body ? `: ${ev.body}` : ''}
+                        </div>
+                        <div className="twhen">{timeAgo(ev.createdAt)}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* 等确认时目标+计划已亮在拍板槽的按钮旁, 这里不再重复(同屏两份同一计划是噪音), 只剩依赖时保留依赖 */}
-      {(t.hold === 'confirm' ? pkg.inputs.depOutputs.length > 0 : hasInputs) && (
+      {!isProject && (t.hold === 'confirm' ? pkg.inputs.depOutputs.length > 0 : hasInputs) && (
       <div className="slot">
         <SlotHead icon={<IconFile />} tint="human" title="任务内容" tag="要做的事和计划" />
         <div className="slot-body">
@@ -411,7 +494,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
 
       {openClarCount === 0 && clarSlot}
 
-      {pkg.subtasks.length > 0 && (
+      {!isProject && pkg.subtasks.length > 0 && (
         <div className="slot">
           <SlotHead icon={<IconChecklist />} tint="neutral" title="子任务"
             tag={`${pkg.subtasks.filter((s) => s.state === 'done').length} / ${pkg.subtasks.length}`} />
@@ -451,7 +534,8 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
         </div>
       )}
 
-      {pkg.thread.length > 0 && (
+      {/* 项目自身的「经过」并进上面的「最近动静」(全树), 不重复渲染一份贫血版 */}
+      {!isProject && pkg.thread.length > 0 && (
       <div className="slot">
         <SlotHead icon={<IconThread />} tint="neutral" title="经过" tag="谁在什么时候做了什么" />
         <div className="slot-body">

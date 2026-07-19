@@ -29,7 +29,7 @@ export interface BoardCard extends Task {
 
 // 项目全树最近一条动静(卡面一行叙述的原料: 谁·干了什么·在哪个任务·多久前)
 export interface ProjectActivity {
-  kind: string; actorName: string; taskId: string; taskTitle: string;
+  kind: string; actorId: string; actorName: string; taskId: string; taskTitle: string;
   toActor: string | null; body: string | null;
   stateFrom: TaskState | null; stateTo: TaskState | null;
   holdFrom: Task['hold']; holdTo: Task['hold'];
@@ -81,8 +81,14 @@ export class RelayService {
     if (!getTask(this.db, id)) throw new Error(`任务不存在: ${id}`);
   }
 
-  getPackage(id: string): TaskPackage {
-    return assemblePackage(this.db, id);
+  // 项目(顶层任务)的信息包额外附全树最近动静: 项目自身几乎不产生事件, 它的"经过"
+  // 在子孙任务上 —— 不附的话项目详情比总览卡还空(信息量倒挂)。三通道(Web/HTTP/MCP)同享。
+  getPackage(id: string): TaskPackage & { projectActivity?: ProjectActivity[] } {
+    const pkg = assemblePackage(this.db, id);
+    if (pkg.task.parentId === null) {
+      return { ...pkg, projectActivity: this.recentActivity(id, 12) };
+    }
+    return pkg;
   }
 
   listActors(type?: ActorType): Actor[] {
@@ -131,27 +137,26 @@ export class RelayService {
     return listChildren(this.db, rootId).filter((t) => t.hold !== null).length;
   }
 
-  // 项目全树的最近一条动静(含所有后代任务的事件): 对持续流, "谁刚干了什么/多久没动"
+  // 项目全树的最近动静(含所有后代任务的事件): 对持续流, "谁刚干了什么/多久没动"
   // 比任何进度百分比都诚实(2026-07-19 拍板: 项目卡 = 目标 + 🔔 + 最近动静, 进度环删除)。
-  // 按 rowid 取最新(事件表插入序即全局时间序, created_at 秒级会撞)。
-  private lastActivity(rootId: string): ProjectActivity | null {
-    const r = this.db.prepare(
+  // 按 rowid 取最新(事件表插入序即全局时间序, created_at 秒级会撞)。总览卡取 1 条, 项目详情取一页。
+  private recentActivity(rootId: string, limit: number): ProjectActivity[] {
+    const rows = this.db.prepare(
       `WITH RECURSIVE sub(id) AS (SELECT ? UNION ALL SELECT t.id FROM tasks t JOIN sub s ON t.parent_id = s.id)
        SELECT e.*, a.name AS actor_name, tk.title AS task_title
        FROM events e JOIN sub ON e.task_id = sub.id
        LEFT JOIN actors a ON a.id = e.actor_id
        LEFT JOIN tasks tk ON tk.id = e.task_id
-       ORDER BY e.rowid DESC LIMIT 1`,
-    ).get(rootId) as (Record<string, unknown> & { actor_name: string | null; task_title: string | null }) | undefined;
-    if (!r) return null;
-    return {
-      kind: r.kind as string, actorName: (r.actor_name as string | null) ?? (r.actor_id as string),
+       ORDER BY e.rowid DESC LIMIT ?`,
+    ).all(rootId, limit) as Array<Record<string, unknown> & { actor_name: string | null; task_title: string | null }>;
+    return rows.map((r) => ({
+      kind: r.kind as string, actorId: r.actor_id as string, actorName: (r.actor_name as string | null) ?? (r.actor_id as string),
       taskId: r.task_id as string, taskTitle: (r.task_title as string | null) ?? (r.task_id as string),
       toActor: (r.to_actor as string | null), body: (r.body as string | null),
       stateFrom: (r.state_from as TaskState | null), stateTo: (r.state_to as TaskState | null),
       holdFrom: ((r.hold_from as string | null) ?? null) as Task['hold'], holdTo: ((r.hold_to as string | null) ?? null) as Task['hold'],
       createdAt: r.created_at as string,
-    };
+    }));
   }
 
   // 项目总览 = 项目层透镜(2026-07-19 定调): 项目是大号任务(长期、持续、不定期迭代),
@@ -162,7 +167,7 @@ export class RelayService {
     const cards = listRoots(this.db).map((t): ProjectCard => ({
       ...t,
       attention: this.pendingAttention(t.id),
-      lastEvent: this.lastActivity(t.id),
+      lastEvent: this.recentActivity(t.id, 1)[0] ?? null,
     }));
     const active = cards.filter((c) => c.state !== 'done').sort((a, b) =>
       b.attention - a.attention
