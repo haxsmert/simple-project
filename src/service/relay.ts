@@ -130,10 +130,31 @@ export class RelayService {
     }));
   }
 
+  // 任务是否躺在已完结项目里(审计实锤 2026-07-19: 完结允许遗留 × 挂起任务相撞时,
+  // "轮到你"的信号必须随项目完结熄灭 —— 否则 IM 推死活、agent 捡死活、已完结区还招手)。
+  // 项目本身不算"躺在里面"(它是 done 实体, 如实可查); 重开(done→executing)即自动复活, 不丢任何数据。
+  private inClosedProject(t: Task): boolean {
+    let cur: Task | null = t;
+    while (cur?.parentId) cur = getTask(this.db, cur.parentId);
+    return cur !== null && cur.id !== t.id && cur.state === 'done';
+  }
+
+  // 死项目里不干活(与"完结项目下不许建新任务"同一条规则, 审计第 2 洞: 此前建新拦了、
+  // 推进/领取/提问/写计划却全放行 —— 尤其提问还能给遗留任务新造挂起, 而信号已熄灭 = 幽灵挂起)。
+  // comment/updateTaskInfo/deleteTask 不拦: 归档整理不算续作。
+  private mustLiveProject(taskId: string, doing: string): void {
+    const t = getTask(this.db, taskId);
+    if (t && this.inClosedProject(t)) {
+      throw new Error(`所属项目已完结, 不能再${doing}: 要续作先重开项目`);
+    }
+  }
+
   // 项目「直接任务(depth-1)」里"轮到你处理"的数量 = 挂起中的任务数(等确认 + 等决策)。
   // 刻意只数一层: 正是该项目任务看板上亮着挂起标、你会点开去处理的卡, 数字与看板一致、可对账。
   // (更深的执行子任务是 agent 领地, 由其父任务的挂起体现, 不重复计数。)
+  // 已完结项目恒为 0: 方向关了, 遗留的挂起不再是"待你处理"(完结留痕里已如实记档)。
   private pendingAttention(rootId: string): number {
+    if (getTask(this.db, rootId)?.state === 'done') return 0;
     return listChildren(this.db, rootId).filter((t) => t.hold !== null).length;
   }
 
@@ -210,7 +231,9 @@ export class RelayService {
   listTasks(filter?: { state?: TaskState; hold?: 'confirm' | 'decision' | 'none' | 'any'; unassigned?: boolean }): Task[] {
     let all = (this.db.prepare('SELECT id FROM tasks').all() as { id: string }[])
       .map((r) => getTask(this.db, r.id))
-      .filter((t): t is Task => t !== null);
+      .filter((t): t is Task => t !== null)
+      // 找活面不给死项目的遗留任务(与 allTasksBoard 同一原则); 项目本身仍可列(done 实体如实可查)
+      .filter((t) => !this.inClosedProject(t));
     if (filter?.state) all = all.filter((t) => t.state === filter.state);
     if (filter?.hold === 'any') all = all.filter((t) => t.hold !== null);
     else if (filter?.hold === 'none') all = all.filter((t) => t.hold === null);
@@ -226,7 +249,8 @@ export class RelayService {
     confirms: Array<{ task: Task; plan: string | null }>;
     decisions: Array<{ question: Task; questionText: string; options: Array<{ key: string; text: string }>; parent: Task | null }>;
   } {
-    const mine = this.listByActor(actorId);
+    // 死项目的挂起不进待办(IM 会照单推送 —— 推"批准一个已废弃方向的计划"是误导); 重开即恢复
+    const mine = this.listByActor(actorId).filter((t) => !this.inClosedProject(t));
     const confirms = mine.filter((t) => t.hold === 'confirm').map((t) => ({ task: t, plan: t.planMd }));
     const decisions = mine
       .filter((t) => t.hold === 'decision' && t.state !== 'done')
@@ -295,6 +319,7 @@ export class RelayService {
   claim(taskId: string, actorId: string, role?: Role): Task {
     const before = getTask(this.db, taskId);
     if (!before) throw new Error(`任务不存在: ${taskId}`);
+    this.mustLiveProject(taskId, '领取');
     // 挂起中的任务不是"可领取的活"(它在等确认/等决策): 自助领取会把锁连人抢走, 造出矛盾位。
     // 换人要走 handoff 改派(有角色守卫), 解锁要走 批准/打回/答复。
     if (before.hold !== null) {
@@ -392,6 +417,7 @@ export class RelayService {
   submitPlan(taskId: string, byActor: string, planMd: string): Task {
     this.mustTask(taskId);
     this.mustActor(byActor);
+    this.mustLiveProject(taskId, '改写计划');
     // 终态守卫(对抗审计 P2): 完成的任务不再接受计划改写 —— "完成"要有终态性
     if (getTask(this.db, taskId)!.state === 'done') throw new Error('任务已完成, 不再接受计划改写');
     let t!: Task;
@@ -410,6 +436,7 @@ export class RelayService {
   ): Task {
     this.mustTask(taskId);
     this.mustActor(byActor);
+    this.mustLiveProject(taskId, '改写产出');
     if (getTask(this.db, taskId)!.state === 'done') throw new Error('任务已完成, 不再接受产出改写');
     const patch: TaskPatch = {};
     if (out.outputsMd !== undefined) patch.outputsMd = out.outputsMd;
@@ -432,12 +459,14 @@ export class RelayService {
   }
 
   handoff(input: HandoffInput): Task {
+    this.mustLiveProject(input.taskId, '推进/转交'); // 项目本身不算"在里面", 重开不受影响
     const t = handoff(this.db, input);
     this.mirror(t.id);
     return t;
   }
 
   raiseClarification(input: RaiseInput): { clarTask: Task; parent: Task } {
+    this.mustLiveProject(input.parentId, '提问挂起');
     const r = raiseClarification(this.db, input);
     this.mirror(r.parent.id, r.clarTask.id);
     return r;

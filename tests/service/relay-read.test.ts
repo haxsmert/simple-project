@@ -80,6 +80,34 @@ describe('RelayService reads', () => {
     expect(ov.closed[0].lastEvent).toBeNull(); // C 没有任何事件 —— 不编
   });
 
+  // 审计实锤(2026-07-19 loop 第 1 轮): 完结允许遗留 × 挂起任务相撞 —— "轮到你"信号必须随完结熄灭
+  it('项目完结后信号熄灭: attention=0 / pendingFor 不推死活 / listTasks 找活面不含遗留; 重开全部复活', () => {
+    const { db, service } = svc();
+    service.registerActor({ id: 'admin', name: 'admin', type: 'human' });
+    service.registerActor({ id: 'a', name: 'A', type: 'agent' });
+    const p = service.createTask({ title: '要完结的方向', goal: 'g' });
+    const t1 = service.createTask({ title: '计划等拍板', parentId: p.id, state: 'planning', currentActor: 'a', currentRole: 'planner', planMd: '- [ ] x' });
+    service.handoff({ taskId: t1.id, byActor: 'a', toActor: 'admin', toRole: 'decider', toHold: 'confirm' });
+    const t2 = service.createTask({ title: '卡住提问', parentId: p.id, state: 'executing', currentActor: 'a', currentRole: 'executor' });
+    service.raiseClarification({ parentId: t2.id, byActor: 'a', question: '选哪个?', toDecider: 'admin' });
+    // 完结前: 信号都在
+    expect(service.projectOverview().active[0].attention).toBe(2);
+    expect(service.pendingFor('admin').confirms).toHaveLength(1);
+    // 完结 → 全部熄灭(遗留照留, 但不再是"活")
+    service.handoff({ taskId: p.id, byActor: 'admin', toActor: 'admin', toRole: 'planner', toState: 'done', note: '废弃' });
+    expect(service.projectOverview().closed[0].attention).toBe(0);
+    const pend = service.pendingFor('admin');
+    expect(pend.confirms).toHaveLength(0);
+    expect(pend.decisions).toHaveLength(0);
+    expect(service.listTasks({ hold: 'any' })).toHaveLength(0);
+    expect(service.listTasks().map((t) => t.id)).toEqual([p.id]); // 项目本身仍如实可查
+    // 重开 → 原样复活(数据没动过, 只是信号随项目生死)
+    service.handoff({ taskId: p.id, byActor: 'admin', toActor: 'admin', toRole: 'planner', toState: 'executing' });
+    expect(service.projectOverview().active[0].attention).toBe(2);
+    expect(service.pendingFor('admin').confirms).toHaveLength(1);
+    expect(service.pendingFor('admin').decisions).toHaveLength(1);
+  });
+
   it('getPackage: 项目(顶层)附全树最近动静 projectActivity(新→旧, 含孙层级); 普通任务不附', () => {
     const { db, service } = svc();
     service.registerActor({ id: 'x', name: 'X', type: 'agent' });

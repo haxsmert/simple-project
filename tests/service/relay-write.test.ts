@@ -169,6 +169,29 @@ describe('RelayService writes (part A)', () => {
     expect(listEvents(db, t.id).at(-1)!.body).toBe('看一下这里');
   });
 
+  // 审计第 2 洞(2026-07-19 loop 第 1 轮): 死项目里不干活 —— 与"完结项目下不许建新任务"同一条规则
+  it('死项目的遗留任务: 推进/领取/提问/写计划/交产出全拦(提示重开); 留言与删除(归档整理)放行; 重开后恢复', () => {
+    const { service } = svc();
+    service.registerActor({ id: 'admin', name: 'admin', type: 'human' });
+    service.registerActor({ id: 'a', name: 'A', type: 'agent' });
+    service.registerActor({ id: 'b', name: 'B', type: 'agent' });
+    const p = service.createTask({ title: '要废弃的方向', goal: 'g' });
+    const t = service.createTask({ title: '遗留执行中', parentId: p.id, state: 'executing', currentActor: 'a', currentRole: 'executor', planMd: '- [ ] x' });
+    const orphan = service.createTask({ title: '遗留无主', parentId: p.id, state: 'planning' });
+    service.handoff({ taskId: p.id, byActor: 'admin', toActor: 'admin', toRole: 'planner', toState: 'done' });
+    expect(() => service.handoff({ taskId: t.id, byActor: 'a', toActor: 'a', toRole: 'tester', toState: 'testing' })).toThrow(/先重开/);
+    expect(() => service.claim(orphan.id, 'b', 'planner')).toThrow(/先重开/);
+    expect(() => service.raiseClarification({ parentId: t.id, byActor: 'a', question: '?', toDecider: 'admin' })).toThrow(/先重开/);
+    expect(() => service.submitPlan(t.id, 'a', '- [ ] 新计划')).toThrow(/先重开/);
+    expect(() => service.submitOutput(t.id, 'a', { summary: 'x' })).toThrow(/先重开/);
+    // 归档整理不算续作
+    expect(() => service.comment(t.id, 'a', '当时为什么废弃: …')).not.toThrow();
+    expect(() => service.deleteTask(orphan.id, 'admin')).not.toThrow();
+    // 重开 → 一切恢复
+    service.handoff({ taskId: p.id, byActor: 'admin', toActor: 'admin', toRole: 'planner', toState: 'executing' });
+    expect(service.handoff({ taskId: t.id, byActor: 'a', toActor: 'a', toRole: 'tester', toState: 'testing' }).state).toBe('testing');
+  });
+
   it('对项目提问被拒(项目不挂起 —— 提问挂起是任务层节奏)', () => {
     const { service } = svc();
     service.registerActor({ id: 'x', name: 'X', type: 'agent' });
