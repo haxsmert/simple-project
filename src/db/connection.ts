@@ -7,49 +7,63 @@ const here = dirname(fileURLToPath(import.meta.url));
 
 export type DB = Database.Database;
 
+// 同步小睡(启动路径专用): better-sqlite3 全同步, 重试等待只能忙等 —— 用 Atomics.wait 不烧 CPU
+const sleepSync = (ms: number) => { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); };
+
 export function openDb(path: string = ':memory:'): DB {
-  const db = new Database(path);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
+  const db = new Database(path); // better-sqlite3 默认 busy_timeout=5000: 多进程写靠它等锁(审计第 4 轮实测确认)
+  // delete→WAL 切换要排他锁且**不吃 busy_timeout**(实锤: 并发首开旧库时直接 SQLITE_BUSY 崩) —— 退避重试
+  for (let i = 0; ; i++) {
+    try { db.pragma('journal_mode = WAL'); break; }
+    catch (e) {
+      if (i >= 40 || !(e instanceof Error && /locked|busy/i.test(e.message))) throw e;
+      sleepSync(50 + i * 10);
+    }
+  }
   const schema = readFileSync(join(here, 'schema.sql'), 'utf8');
   db.exec(schema);
-  // 安全迁移: 已存在的 db 文件不会被 CREATE TABLE IF NOT EXISTS 重建, 需手动补列
-  const cols = db.prepare('PRAGMA table_info(tasks)').all() as { name: string }[];
-  if (!cols.some((c) => c.name === 'rank')) db.exec('ALTER TABLE tasks ADD COLUMN rank REAL');
-  // 字段语义大扫除(2026-07-18): inputs_md 存的一直是"计划" → 改名 plan_md, 名实相符
-  if (cols.some((c) => c.name === 'inputs_md')) db.exec('ALTER TABLE tasks RENAME COLUMN inputs_md TO plan_md');
-  // actors.handle 只写不读零消费 → 删列
-  const acols = db.prepare('PRAGMA table_info(actors)').all() as { name: string }[];
-  if (acols.some((c) => c.name === 'handle')) db.exec('ALTER TABLE actors DROP COLUMN handle');
-  // 关系边收敛为两种: blocks 与 depends_on 互为反向(翻转保留信息), spawns 是 clarifies 的反向冗余(直接删)
-  db.exec("UPDATE edges SET type='depends_on', from_task=to_task, to_task=from_task WHERE type='blocks'"); // SET 右侧取旧值, swap 安全
-  db.exec("DELETE FROM edges WHERE type='spawns'");
-  // edges 表 CHECK 漂移(对抗审计实锤): blocks/spawns 从白名单删了但旧表从未重建 → 旧库还能插进已删类型。
-  // 数据已在上面翻好, 这里重建套新 CHECK(edges 不被别表 FK 引用, 普通 rename 安全)
-  // guard 判"没有新白名单"而非"有旧类型": 更老的库 edges 可能根本没 CHECK, 同样要重建收紧
-  if (!(db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='edges'").get() as { sql: string }).sql.includes("'clarifies'")) {
-    db.transaction(() => {
+
+  // ── 安全迁移(2026-07-19 审计第 4 轮重构): 已存在的 db 文件不会被 CREATE TABLE IF NOT EXISTS 重建, 需手动补/改。
+  // **多进程并发开同一旧库是真实场景**(升级后 web 与 MCP 同时拉起) —— 探针实锤: guard 在锁外判断时,
+  // 后来的进程会对已迁好的表重跑重建, 把 hold 全抹成 NULL(数据丢失), 或在 DDL 混战中 database is locked 崩掉。
+  // 因此整个迁移段包进 BEGIN IMMEDIATE(先抢写锁), **每个 guard 都在锁内判断**(double-check):
+  // 先到者完成迁移, 后到者等锁 → 拿到后重判全部不满足 → 全程 no-op。
+  // FK 迁移期全程 OFF(tasks 重建需要; legacy_alter_table 让 RENAME 不改写别表的 FK 引用), 事务后恢复。
+  db.pragma('foreign_keys = OFF');
+  db.pragma('legacy_alter_table = ON');
+  const tableSql = (name: string): string =>
+    (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(name) as { sql: string }).sql;
+
+  db.transaction(() => {
+    const cols = db.prepare('PRAGMA table_info(tasks)').all() as { name: string }[];
+    if (!cols.some((c) => c.name === 'rank')) db.exec('ALTER TABLE tasks ADD COLUMN rank REAL');
+    // 字段语义大扫除(2026-07-18): inputs_md 存的一直是"计划" → 改名 plan_md, 名实相符
+    if (cols.some((c) => c.name === 'inputs_md')) db.exec('ALTER TABLE tasks RENAME COLUMN inputs_md TO plan_md');
+    // actors.handle 只写不读零消费 → 删列
+    const acols = db.prepare('PRAGMA table_info(actors)').all() as { name: string }[];
+    if (acols.some((c) => c.name === 'handle')) db.exec('ALTER TABLE actors DROP COLUMN handle');
+    // 关系边收敛为两种: blocks 与 depends_on 互为反向(翻转保留信息), spawns 是 clarifies 的反向冗余(直接删)
+    db.exec("UPDATE edges SET type='depends_on', from_task=to_task, to_task=from_task WHERE type='blocks'"); // SET 右侧取旧值, swap 安全
+    db.exec("DELETE FROM edges WHERE type='spawns'");
+    // edges 表 CHECK 漂移(对抗审计实锤): blocks/spawns 从白名单删了但旧表从未重建 → 旧库还能插进已删类型。
+    // guard 判"没有新白名单"而非"有旧类型": 更老的库 edges 可能根本没 CHECK, 同样要重建收紧
+    if (!tableSql('edges').includes("'clarifies'")) {
       db.exec('ALTER TABLE edges RENAME TO edges_legacy');
       db.exec(schema);
       db.exec("INSERT INTO edges SELECT id, from_task, to_task, type, created_at FROM edges_legacy WHERE type IN ('depends_on','clarifies')");
       db.exec('DROP TABLE edges_legacy');
       db.exec('CREATE INDEX IF NOT EXISTS idx_edges_from ON edges(from_task)');
       db.exec('CREATE INDEX IF NOT EXISTS idx_edges_to ON edges(to_task)');
-    })();
-  }
-  const ev = db.prepare('PRAGMA table_info(events)').all() as { name: string }[];
-  if (!ev.some((c) => c.name === 'to_actor')) db.exec('ALTER TABLE events ADD COLUMN to_actor TEXT REFERENCES actors(id)');
-  if (!ev.some((c) => c.name === 'state_from')) db.exec('ALTER TABLE events ADD COLUMN state_from TEXT');
-  if (!ev.some((c) => c.name === 'state_to')) db.exec('ALTER TABLE events ADD COLUMN state_to TEXT');
-  if (!ev.some((c) => c.name === 'hold_from')) db.exec('ALTER TABLE events ADD COLUMN hold_from TEXT');
-  if (!ev.some((c) => c.name === 'hold_to')) db.exec('ALTER TABLE events ADD COLUMN hold_to TEXT');
+    }
+    const ev = db.prepare('PRAGMA table_info(events)').all() as { name: string }[];
+    if (!ev.some((c) => c.name === 'to_actor')) db.exec('ALTER TABLE events ADD COLUMN to_actor TEXT REFERENCES actors(id)');
+    if (!ev.some((c) => c.name === 'state_from')) db.exec('ALTER TABLE events ADD COLUMN state_from TEXT');
+    if (!ev.some((c) => c.name === 'state_to')) db.exec('ALTER TABLE events ADD COLUMN state_to TEXT');
+    if (!ev.some((c) => c.name === 'hold_from')) db.exec('ALTER TABLE events ADD COLUMN hold_from TEXT');
+    if (!ev.some((c) => c.name === 'hold_to')) db.exec('ALTER TABLE events ADD COLUMN hold_to TEXT');
 
-  const tableSql = (name: string): string =>
-    (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(name) as { sql: string }).sql;
-
-  // kind 白名单扩过 'plan'(写了计划)与 'update'(更新任务信息): SQLite 改不了 CHECK, 旧库只能重建 events 表
-  if (!tableSql('events').includes("'update'")) {
-    db.transaction(() => {
+    // kind 白名单扩过 'plan'(写了计划)与 'update'(更新任务信息): SQLite 改不了 CHECK, 旧库只能重建 events 表
+    if (!tableSql('events').includes("'update'")) {
       db.exec('ALTER TABLE events RENAME TO events_legacy'); // 索引跟旧表走, 重建完要补
       db.exec(schema);
       db.exec(
@@ -58,19 +72,16 @@ export function openDb(path: string = ':memory:'): DB {
       );
       db.exec('DROP TABLE events_legacy');
       db.exec('CREATE INDEX IF NOT EXISTS idx_events_task ON events(task_id)');
-    })();
-  }
+    }
 
-  // 六态拆两字段(2026-07-17 模型定调): state 缩为主干四阶段, 挂起独立成 hold 列。
-  // 旧库重建 tasks 表并翻译: awaiting_confirm → planning+confirm(确认是"从计划往前走"的把关, 任务还在计划站);
-  // awaiting_decision → 问题卡(有 clarifies 出边)归 planning+decision, 被挂起的父任务归 executing+decision(旧模型只有执行中能提问)。
-  // guard 必须用 PRAGMA 判"hold 列存在与否", 不能搜建表 SQL 文本:
-  // 列名 hold 在 SQL 里不带引号, 文本搜索会把新库也误判成旧库 → 每次重开都重跑重建, 把 hold 全抹成 NULL(踩过)
-  if (!cols.some((c) => c.name === 'hold')) {
-    // tasks 被 events/edges 外键引用: 默认 RENAME 会把它们的引用改写指向 legacy 表, drop 后悬空 —— 必须开 legacy 模式让引用按字面留在 'tasks'
-    db.pragma('foreign_keys = OFF');
-    db.pragma('legacy_alter_table = ON');
-    db.transaction(() => {
+    // 六态拆两字段(2026-07-17 模型定调): state 缩为主干四阶段, 挂起独立成 hold 列。
+    // 旧库重建 tasks 表并翻译: awaiting_confirm → planning+confirm(确认是"从计划往前走"的把关, 任务还在计划站);
+    // awaiting_decision → 问题卡(有 clarifies 出边)归 planning+decision, 被挂起的父任务归 executing+decision(旧模型只有执行中能提问)。
+    // guard 必须用 PRAGMA 判"hold 列存在与否", 不能搜建表 SQL 文本:
+    // 列名 hold 在 SQL 里不带引号, 文本搜索会把新库也误判成旧库 → 每次重开都重跑重建, 把 hold 全抹成 NULL(踩过)。
+    // 注意 cols 是**本事务内**读的(锁内 double-check): 并发进程先迁完时这里已看到 hold 列, 天然跳过。
+    const colsNow = db.prepare('PRAGMA table_info(tasks)').all() as { name: string }[];
+    if (!colsNow.some((c) => c.name === 'hold')) {
       db.exec('ALTER TABLE tasks RENAME TO tasks_legacy');
       db.exec(schema);
       db.exec(
@@ -96,15 +107,14 @@ export function openDb(path: string = ':memory:'): DB {
            state_to   = CASE state_to WHEN 'awaiting_confirm' THEN 'planning' WHEN 'awaiting_decision' THEN 'executing' ELSE state_to END
          WHERE state_from IN ('awaiting_confirm','awaiting_decision') OR state_to IN ('awaiting_confirm','awaiting_decision')`,
       );
-    })();
-    db.pragma('legacy_alter_table = OFF');
-    db.pragma('foreign_keys = ON');
-  }
+    }
 
-  // 项目 = 大号任务(2026-07-19 定调): 顶层任务只有「执行中/已完结」两态、不挂起。
-  // 旧库归一 + 每次开库校核不变量(幂等 UPDATE, 归一后天然空转):
-  // planning/testing 的根 → executing(项目开了就在跑, 没有"待规划/测试中"阶段); 根上的挂起清除。
-  db.exec("UPDATE tasks SET state='executing' WHERE parent_id IS NULL AND state IN ('planning','testing')");
-  db.exec('UPDATE tasks SET hold=NULL WHERE parent_id IS NULL AND hold IS NOT NULL');
+    // 项目 = 大号任务(2026-07-19 定调): 顶层任务只有「执行中/已完结」两态、不挂起。
+    // 旧库归一 + 每次开库校核不变量(幂等 UPDATE, 归一后天然空转)。
+    db.exec("UPDATE tasks SET state='executing' WHERE parent_id IS NULL AND state IN ('planning','testing')");
+    db.exec('UPDATE tasks SET hold=NULL WHERE parent_id IS NULL AND hold IS NOT NULL');
+  }).immediate();
+  db.pragma('legacy_alter_table = OFF');
+  db.pragma('foreign_keys = ON');
   return db;
 }
