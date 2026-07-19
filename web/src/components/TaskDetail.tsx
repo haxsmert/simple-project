@@ -332,7 +332,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
   );
 
   return (
-    <div className="drawer" role="dialog" aria-modal="true" aria-label={`任务详情: ${t.title}`}>
+    <div className="drawer" role="dialog" aria-modal="true" aria-label={`${isProject ? '项目' : '任务'}详情: ${t.title}`}>
       <button className="btn" onClick={onClose} style={{ float: 'right' }}>关闭</button>
       {/* 面包屑是真链接: 点祖先即跳到它的详情 —— 也是抽屉内层层钻进后的返回路径 */}
       <nav className="crumb" aria-label="所属层级">
@@ -619,7 +619,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
       )}
 
       <div className="slot">
-        <SlotHead icon={<IconPencil />} tint="neutral" title="说点什么" tag="留言给接手的人" />
+        <SlotHead icon={<IconPencil />} tint="neutral" title="说点什么" tag={isProject ? '给这个方向留一笔' : '留言给接手的人'} />
         <div className="slot-body">
           <CommentBox taskId={t.id} onComment={onComment} />
         </div>
@@ -630,14 +630,14 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
         {confirmDelete ? (
           <div className="act-form" role="group" aria-label="确认删除"
             onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setConfirmDelete(false); } }}>
-            <div className="act-form-title">删除后不可恢复(连同它的历史与关系)。{pkg.subtasks.length > 0 ? '它还有子任务, 需先移走或删除。' : ''}</div>
+            <div className="act-form-title">删除后不可恢复(连同它的历史与关系)。{pkg.subtasks.length > 0 ? `它还有${isProject ? '任务' : '子任务'}, 需先移走或删除。` : ''}</div>
             <div className="act-form-btns">
               <button type="button" className="btn danger-solid" onClick={async () => { if (await onDelete(t.id)) setConfirmDelete(false); }}>确认删除</button>
               <button type="button" autoFocus className="btn" onClick={() => setConfirmDelete(false)}>取消</button>
             </div>
           </div>
         ) : (
-          <button type="button" className="btn danger-ghost" onClick={() => setConfirmDelete(true)}>删除这个任务…</button>
+          <button type="button" className="btn danger-ghost" onClick={() => setConfirmDelete(true)}>{isProject ? '删除这个项目…' : '删除这个任务…'}</button>
         )}
       </div>
       </div>

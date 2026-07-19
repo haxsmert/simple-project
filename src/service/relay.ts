@@ -376,7 +376,11 @@ export class RelayService {
     const t = getTask(this.db, taskId);
     if (!t) throw new Error(`任务不存在: ${taskId}`);
     const children = listChildren(this.db, taskId);
-    if (children.length > 0) throw new Error(`还有 ${children.length} 个子任务, 先移走或删除它们再删本任务`);
+    if (children.length > 0) {
+      // 分层语言: 项目的直接子叫"任务", 任务的子叫"子任务"(与界面同一套叫法)
+      const word = t.parentId === null ? '任务' : '子任务';
+      throw new Error(`还有 ${children.length} 个${word}, 先移走或删除它们再删本${t.parentId === null ? '项目' : '任务'}`);
+    }
     const clarEdge = edgesFrom(this.db, taskId).find((e) => e.type === 'clarifies');
     const parentId = clarEdge?.toTask ?? null;
     // 删除前收集依赖对端: 边删掉后就找不回它们了, 而它们的 .md 里嵌着本任务(不重生成会悬挂)
