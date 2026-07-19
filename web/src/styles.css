@@ -132,8 +132,10 @@ body { margin:0; background:var(--bg); color:var(--text); font-family:var(--font
 @keyframes backdrop-in { from { opacity:0; } to { opacity:1; } }
 @keyframes drawer-in { from { transform:translateX(24px); opacity:.4; } to { transform:translateX(0); opacity:1; } }
 @media (prefers-reduced-motion: reduce) { .drawer, .drawer-backdrop { animation:none; } }
-.drawer h2 { font-size:19px; margin:6px 0 12px; outline:none; } /* 开抽屉程序送焦点不渲默认蓝框(渲出来像输入框, 误导可编辑) */
-.drawer h2:focus-visible { outline:2px solid var(--human); outline-offset:3px; border-radius:4px; } /* 键盘用户仍有焦点环 */
+/* 标题不是交互控件: 焦点送它只为读屏播报+把焦点带进抽屉, 任何焦点环都会渲成"可编辑输入框"的假象
+   (初载无指针交互时浏览器把程序聚焦也判成 :focus-visible —— 实测两次都亮框, 用户截图实锤) */
+.drawer h2 { font-size:19px; margin:6px 0 12px; outline:none; }
+.drawer h2:focus-visible { outline:none; }
 .crumb { font-family:var(--font-mono); font-size:12px; color:var(--text-faint); display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
 .crumb-seg { display:inline-flex; align-items:center; gap:6px; }
 .crumb-sep { color:var(--text-faint); }
@@ -221,9 +223,11 @@ ul.plan li.done .ptext { color:var(--text-faint); text-decoration:line-through; 
   box-shadow: 0 4px 16px rgba(20,30,45,.18); }
 
 /* 编辑任务(标题/目标)与删除 */
-.title-row { display:flex; align-items:flex-start; gap:8px; }
-.title-row h2 { flex:1; min-width:0; }
-.ghost-edit { border:none; background:none; color:var(--text-faint); padding:4px; margin-top:4px; }
+/* 抽屉头部: 左面包屑 + 右动作组(编辑/关闭)同一行 —— 动作归动作区, 不靠 float 漂(用户截图实锤斜叠) */
+.drawer-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:2px; }
+.drawer-head .crumb { flex:1; min-width:0; padding-top:7px; }
+.dh-actions { display:flex; gap:6px; flex:none; }
+.ghost-edit { border:none; background:none; color:var(--text-faint); padding:4px 8px; }
 .ghost-edit:hover { color:var(--human); background:var(--human-soft); }
 .edit-panel { display:flex; flex-direction:column; gap:8px; margin:4px 0 10px; }
 .danger-zone { margin-top:26px; padding-top:12px; border-top:1px dashed var(--border); }

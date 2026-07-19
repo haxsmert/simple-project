@@ -333,16 +333,26 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
 
   return (
     <div className="drawer" role="dialog" aria-modal="true" aria-label={`${isProject ? '项目' : '任务'}详情: ${t.title}`}>
-      <button className="btn" onClick={onClose} style={{ float: 'right' }}>关闭</button>
-      {/* 面包屑是真链接: 点祖先即跳到它的详情 —— 也是抽屉内层层钻进后的返回路径 */}
-      <nav className="crumb" aria-label="所属层级">
-        {pkg.breadcrumb.map((b) => (
-          <span key={b.id} className="crumb-seg">
-            <button type="button" className="crumb-link" onClick={() => onOpenTask(b.id)}>{b.title}</button>
-            <span className="crumb-sep">▸</span>
-          </span>
-        ))}
-      </nav>
+      {/* 头部一行: 左=面包屑(所属层级), 右=动作组(编辑/关闭) —— 此前「关闭」float 挂顶、「✎」在标题行,
+          两个按钮各自靠右斜叠成一团(用户截图实锤); 动作归动作区, 不靠 float 漂 */}
+      <div className="drawer-head">
+        {/* 面包屑是真链接: 点祖先即跳到它的详情 —— 也是抽屉内层层钻进后的返回路径 */}
+        <nav className="crumb" aria-label="所属层级">
+          {pkg.breadcrumb.map((b) => (
+            <span key={b.id} className="crumb-seg">
+              <button type="button" className="crumb-link" onClick={() => onOpenTask(b.id)}>{b.title}</button>
+              <span className="crumb-sep">▸</span>
+            </span>
+          ))}
+        </nav>
+        <div className="dh-actions">
+          {!editing && (
+            <button type="button" className="btn ghost-edit" aria-label={isProject ? '编辑标题、目标与规划' : '编辑标题与目标'}
+              onClick={() => { setEditTitle(t.title); setEditGoal(t.goal ?? ''); setEditPlan(pkg.inputs.planMd ?? ''); setEditing(true); }}><IconPencil /></button>
+          )}
+          <button className="btn" onClick={onClose}>关闭</button>
+        </div>
+      </div>
       {/* key=任务id: 换任务时整块重挂 → 触发交叉淡入, 不是硬切(同容器内替换内容的连续性) */}
       <div className="drawer-body" key={t.id}>
       {editing ? (
@@ -368,12 +378,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
           </div>
         </div>
       ) : (
-        <div className="title-row">
-          <h2 ref={headingRef} tabIndex={-1}>{t.title}</h2>
-          {/* 编辑入口给个真按钮: 建错了要能改(改动记进「经过」), 不能只有 agent 侧改得动 */}
-          <button type="button" className="btn ghost-edit" aria-label={isProject ? '编辑标题、目标与规划' : '编辑标题与目标'}
-            onClick={() => { setEditTitle(t.title); setEditGoal(t.goal ?? ''); setEditPlan(pkg.inputs.planMd ?? ''); setEditing(true); }}><IconPencil /></button>
-        </div>
+        <h2 ref={headingRef} tabIndex={-1}>{t.title}</h2>
       )}
       <div className="status-row">
         {/* 项目用项目语言(执行中/已完结), 不套任务四阶段名; 项目的角色是内部标签, 不亮出来 */}
