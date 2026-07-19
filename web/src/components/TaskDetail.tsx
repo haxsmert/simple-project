@@ -214,7 +214,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
   onAct: (input: ActInput, action: TaskAction) => Promise<boolean>;
   onComment: (taskId: string, body: string) => void;
   onOpenTask: (id: string) => void; // 任务引用(面包屑/子任务/关系边/依赖)跳到那个任务的详情
-  onUpdate: (taskId: string, patch: { title?: string; goal?: string }) => Promise<boolean>; // 改标题/目标(agent 侧早有, 页面补齐)
+  onUpdate: (taskId: string, patch: { title?: string; goal?: string; planMd?: string }) => Promise<boolean>; // 改标题/目标/(项目)长期规划 —— agent 侧早有对应通道, 页面补齐
   onDelete: (taskId: string) => Promise<boolean>; // 删除任务(不可恢复, 有子任务后端会拒)
   routing: Record<string, { actorId: string | null; basis: 'history' | 'fallback' }>; // 角色→{默认派给谁, 依据}
   onClose: () => void;
@@ -226,6 +226,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(t.title);
   const [editGoal, setEditGoal] = useState(t.goal ?? '');
+  const [editPlan, setEditPlan] = useState(pkg.inputs.planMd ?? ''); // 项目的长期规划(agent 侧 submit_plan 同通道)
   const [confirmDelete, setConfirmDelete] = useState(false);
   const inputPlan = parsePlan(pkg.inputs.planMd);
   const outputArtifacts = parseArtifacts(pkg.outputs.outputsMd);
@@ -348,11 +349,21 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
         <div className="edit-panel" role="group" aria-label="编辑任务"
           onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); } }}>
           {/* Esc 只退编辑不关抽屉: 写到一半按 Esc 把抽屉连改动一起关掉 = 数据丢失(审计实锤) */}
-          <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} aria-label="标题" placeholder="任务标题" autoFocus />
-          <textarea rows={2} value={editGoal} onChange={(e) => setEditGoal(e.target.value)} aria-label="目标" placeholder="目标(一句话说清做成什么样)" />
+          <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} aria-label="标题" placeholder={isProject ? '项目标题' : '任务标题'} autoFocus />
+          <textarea rows={2} value={editGoal} onChange={(e) => setEditGoal(e.target.value)} aria-label="目标" placeholder={isProject ? '目标/说明(为什么开这个方向)' : '目标(一句话说清做成什么样)'} />
+          {/* 项目=大号任务: 计划它一样要有(偏长期=规划); 只展示不给写入口 = 承诺不存在的操作 */}
+          {isProject && (
+            <textarea rows={4} value={editPlan} onChange={(e) => setEditPlan(e.target.value)} aria-label="长期规划"
+              placeholder={'长期规划(可空): 每行一条\n- [ ] 里程碑/方向节点…'} />
+          )}
           <div className="act-form-btns">
             <button type="button" className="btn primary" disabled={!editTitle.trim()}
-              onClick={async () => { if (await onUpdate(t.id, { title: editTitle.trim(), goal: editGoal.trim() || undefined })) setEditing(false); }}>保存</button>
+              onClick={async () => {
+                const patch: { title?: string; goal?: string; planMd?: string } = { title: editTitle.trim(), goal: editGoal.trim() || undefined };
+                // 规划只在真变了才发(否则空转会白记一条 plan 事件)
+                if (isProject && editPlan !== (pkg.inputs.planMd ?? '')) patch.planMd = editPlan;
+                if (await onUpdate(t.id, patch)) setEditing(false);
+              }}>保存</button>
             <button type="button" className="btn" onClick={() => setEditing(false)}>取消</button>
           </div>
         </div>
@@ -360,8 +371,8 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
         <div className="title-row">
           <h2 ref={headingRef} tabIndex={-1}>{t.title}</h2>
           {/* 编辑入口给个真按钮: 建错了要能改(改动记进「经过」), 不能只有 agent 侧改得动 */}
-          <button type="button" className="btn ghost-edit" aria-label="编辑标题与目标"
-            onClick={() => { setEditTitle(t.title); setEditGoal(t.goal ?? ''); setEditing(true); }}><IconPencil /></button>
+          <button type="button" className="btn ghost-edit" aria-label={isProject ? '编辑标题、目标与规划' : '编辑标题与目标'}
+            onClick={() => { setEditTitle(t.title); setEditGoal(t.goal ?? ''); setEditPlan(pkg.inputs.planMd ?? ''); setEditing(true); }}><IconPencil /></button>
         </div>
       )}
       <div className="status-row">
@@ -375,19 +386,40 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
       {confirmSlot}
       {openClarCount > 0 && clarSlot}
 
-      {/* ── 项目模式(2026-07-19 用户: "项目详情太简单/没有结构化"): 任务的四槽位对项目天然是空的
-          (没有产出/问题卡/自身事件), 换成项目自己的结构 —— 方向 → 任务全景 → 最近动静 → 项目动作。 */}
+      {/* ── 项目模式(2026-07-19 两轮定调): 项目=大号任务, **复用任务的内容结构**(目标/计划/产出
+          它一样要有, 只是计划偏长期=规划、产出=阶段性成果), 再叠"大号"带来的增量 —— 任务全景 + 全树动静。
+          顺序: 方向与规划 → (阶段性成果) → 任务全景 → 最近动静 → 项目动作。 */}
       {isProject && (
         <div className="slot">
-          <SlotHead icon={<IconFile />} tint="human" title="方向" tag="为什么开这个方向" />
+          <SlotHead icon={<IconFile />} tint="human" title="方向与规划" tag="为什么开这个方向 · 打算怎么走" />
           <div className="slot-body">
             {t.goal
               ? <p className="pv-goal">{t.goal}</p>
               : <p className="confirm-hint">还没写目标 —— 点右上 ✎ 补上(项目不能只有一个名字)。</p>}
+            <PlanBlock plan={inputPlan} />
+            {pkg.inputs.depOutputs.map((d) => (
+              <div key={d.taskId} className="dep-row">
+                依赖 <TaskRef title={d.title} id={d.taskId} label={`打开依赖的任务 ${d.title}`} onOpen={onOpenTask} />
+                <span className="dep-sum">: {d.summary ?? '—'}</span>
+              </div>
+            ))}
             {t.state === 'done' && (
               <p className="pv-closed-note">已完结{pkg.subtasks.filter((s) => s.state !== 'done').length > 0
                 ? ` · 完结时遗留 ${pkg.subtasks.filter((s) => s.state !== 'done').length} 项未完成(见下)` : ''}</p>
             )}
+          </div>
+        </div>
+      )}
+      {/* 阶段性成果(项目的"做出了什么"): 大号任务同构 —— 有才渲, 不承诺空内容 */}
+      {isProject && hasOutputs && (
+        <div className="slot">
+          <SlotHead icon={<IconOutputs />} tint="agent" title="做出了什么" tag="这个方向攒下的东西" />
+          <div className="slot-body">
+            {outputArtifacts.plain.map((l, i) => <p key={i}>{l}</p>)}
+            {outputArtifacts.files.map((f, i) => (
+              <div key={i} className="artifact-row"><span className="ficon"><IconFile /></span>{f}</div>
+            ))}
+            {pkg.outputs.summary && <div className="summary"><b>摘要:</b> {pkg.outputs.summary}</div>}
           </div>
         </div>
       )}
@@ -479,7 +511,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
       </div>
       )}
 
-      {hasOutputs && (
+      {!isProject && hasOutputs && (
       <div className="slot">
         <SlotHead icon={<IconOutputs />} tint="agent" title="做出了什么" tag="交出去后就是下一个人的输入" />
         <div className="slot-body">

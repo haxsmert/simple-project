@@ -216,11 +216,14 @@ export function App() {
     return ok;
   }, [actors, actorsById, reloadCurrent, guard]);
   // 页面侧的改/删(能力对齐 agent 侧): 改动记「经过」; 删除成功关抽屉回看板
-  const onUpdateTask = useCallback(async (taskId: string, patch: { title?: string; goal?: string }) => {
+  // 底层不动、应用层分流(2026-07-19 原则): 标题/目标走 updateTask, 规划走既有 plan 通道(与 agent 的 submit_plan 同一条)
+  const onUpdateTask = useCallback(async (taskId: string, patch: { title?: string; goal?: string; planMd?: string }) => {
     let ok = false;
     await guard(async () => {
       const you = actors.find((a) => a.type === 'human')?.id ?? 'admin';
-      await api.updateTask(taskId, { byActor: you, ...patch });
+      const { planMd, ...info } = patch;
+      await api.updateTask(taskId, { byActor: you, ...info });
+      if (planMd !== undefined) await api.plan(taskId, { byActor: you, planMd });
       await reloadCurrent();
       await refreshDetailIfStill(taskId);
       ok = true;

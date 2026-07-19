@@ -417,7 +417,7 @@ describe('TaskDetail 项目模式', () => {
   it('项目详情是结构化四区: 方向 / 任务全景(按阶段分组·挂起冒头) / 最近动静(全树) / 项目动作; 不渲任务槽位', () => {
     const { container } = render(<TaskDetail pkg={projPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onUpdate={async () => true} onDelete={async () => true} onClose={() => {}} />);
     const heads = Array.from(container.querySelectorAll('.slot-head h4')).map((h) => h.textContent);
-    expect(heads.slice(0, 4)).toEqual(['方向', '任务全景', '最近动静', '项目动作']); // 结构即秩序
+    expect(heads.slice(0, 4)).toEqual(['方向与规划', '任务全景', '最近动静', '项目动作']); // 结构即秩序(与任务同构: 目标+规划它一样有)
     expect(heads).not.toContain('任务内容'); // 任务槽位不再平铺给项目
     expect(heads).not.toContain('子任务');
     expect(heads).not.toContain('经过');
@@ -427,6 +427,20 @@ describe('TaskDetail 项目模式', () => {
     // 动静: 谁在哪个任务干了什么(任务名可点跳)
     expect(screen.getByText(/交了产出/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '遗留甲' })).toBeInTheDocument();
+  });
+
+  it('项目=大号任务同构: 长期规划(planMd)照常渲染; 编辑面板有规划输入口, 规划变了才随保存提交', async () => {
+    const onUpdate = vi.fn(async () => true);
+    const planPkg: TaskPackage = { ...projPkg, inputs: { ...projPkg.inputs, planMd: '- [ ] 里程碑一' } };
+    render(<TaskDetail pkg={planPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={async () => true} onComment={() => {}} onOpenTask={() => {}} onUpdate={onUpdate} onDelete={async () => true} onClose={() => {}} />);
+    expect(screen.getByText('里程碑一')).toBeInTheDocument(); // 规划清单照任务的 PlanBlock 渲染(复用, 不另起炉灶)
+    fireEvent.click(screen.getByRole('button', { name: /编辑标题、目标与规划/ }));
+    const planBox = screen.getByLabelText('长期规划');
+    expect((planBox as HTMLTextAreaElement).value).toBe('- [ ] 里程碑一'); // 预填现有, 不让人重打
+    fireEvent.change(planBox, { target: { value: '- [ ] 里程碑一\n- [ ] 里程碑二' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledWith('R-1',
+      expect.objectContaining({ planMd: '- [ ] 里程碑一\n- [ ] 里程碑二' })));
   });
 
   it('执行中项目: 状态说「执行中」, 给「项目动作」; 完结不被子任务禁用, 但如实提示将遗留', async () => {
