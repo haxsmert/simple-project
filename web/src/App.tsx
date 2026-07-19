@@ -100,17 +100,21 @@ export function App() {
   }, []);
 
   // ── 导航 ↔ URL 双向同步(浏览器后退/前进/深链/刷新恢复; contest-v2 范式 #1 Jakob)──
+  // 抽屉 = 弹窗(2026-07-19 用户定调): 临时展开, **不入 URL、不入历史** —— 刷新即无、导航即关。
+  // URL 只承载层级位置(view + 路径栈); ?task= 只作深链一次性入口(初载消费后立刻清掉)。
   // 状态 → URL: 导航状态一变就写 hash。防循环只靠"hash 相同不写"这一条(popstate 恢复后
   // 状态编码出的 hash 恰等于当前 hash → 天然不写; 不用 flag —— flag 在恢复到相同状态时会
   // 因 React bail-out 不被消费, 吃掉下一次真实导航)
   const didInitNav = useRef(false);
   useEffect(() => {
     if (!loaded || !didInitNav.current) return;
-    const h = encodeNav({ view, ids: path.map((p) => p.id), taskId: detail?.task.id ?? null });
+    const h = encodeNav({ view, ids: path.map((p) => p.id) });
     if (window.location.hash !== h) window.history.pushState(null, '', h);
-  }, [view, path, detail, loaded]);
-  // URL → 状态: 解析 hash, 重建路径栈(逐 id 取标题)与抽屉; 数据备齐后一批 set(避免中间态被写回 URL)
-  const restoreFromHash = useCallback(() => guard(async () => {
+  }, [view, path, loaded]);
+  // URL → 状态: 解析 hash, 重建路径栈(逐 id 取标题); 数据备齐后一批 set(避免中间态被写回 URL)。
+  // consumeTask 仅初载为真: 深链 ?task= 打开一次抽屉, 然后 replaceState 清参数 —— 之后刷新就没有它;
+  // popstate(后退/前进)恒不带抽屉恢复, 且顺手关掉当前抽屉(临时物不跨历史存活)。
+  const restoreFromHash = useCallback((consumeTask = false) => guard(async () => {
     const nav = decodeNav(window.location.hash);
     const nodes: NavNode[] = [];
     for (const id of nav.ids) {
@@ -118,47 +122,51 @@ export function App() {
       try { nodes.push({ id, title: (await api.task(id)).task.title }); } catch { /* 任务已删: 跳过该层 */ }
     }
     if (nav.view === 'board' && nodes.length) await loadBoard(nodes[nodes.length - 1].id);
-    const detailPkg = nav.taskId ? await api.task(nav.taskId).catch(() => null) : null;
+    const detailPkg = consumeTask && nav.taskId ? await api.task(nav.taskId).catch(() => null) : null;
     setView(nav.view); setPath(nodes); setDetail(detailPkg);
+    if (consumeTask) window.history.replaceState(null, '', encodeNav({ view: nav.view, ids: nodes.map((n) => n.id) }));
   }), [guard, loadBoard]);
   useEffect(() => {
     const onPop = () => { restoreFromHash(); };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, [restoreFromHash]);
-  // 初载: 有 hash 就恢复位置(刷新不再丢位置), 没有则写入根(replace, 不占历史)
+  // 初载: 有 hash 就恢复位置(刷新不再丢位置; ?task= 一次性消费), 没有则写入根(replace, 不占历史)
   useEffect(() => {
     if (!loaded || didInitNav.current) return;
     didInitNav.current = true;
-    if (window.location.hash && window.location.hash !== '#/') restoreFromHash();
+    if (window.location.hash && window.location.hash !== '#/') restoreFromHash(true);
     else window.history.replaceState(null, '', '#/');
   }, [loaded, restoreFromHash]);
 
-  // 项目总览点项目 → 钻进它的任务(路径栈 = [项目])
+  // 项目总览点项目 → 钻进它的任务(路径栈 = [项目])。抽屉=弹窗: 层级导航即关(下同)
   const enterProject = useCallback((p: NavNode) => guard(async () => {
-    setPath([p]); await loadBoard(p.id);
+    setDetail(null); setPath([p]); await loadBoard(p.id);
   }), [guard, loadBoard]);
 
   // 钻入一个任务的子任务(路径栈 +1 层) —— 递归下钻的落点
   const descend = useCallback((node: NavNode) => guard(async () => {
-    setPath((p) => [...p, node]); await loadBoard(node.id);
+    setDetail(null); setPath((p) => [...p, node]); await loadBoard(node.id);
   }), [guard, loadBoard]);
 
   // 上一层: 逐层弹回, 弹到底回到项目总览
   const ascend = useCallback(() => guard(async () => {
     if (view !== 'board' || path.length === 0) return;
+    setDetail(null);
     if (path.length >= 2) { const np = path.slice(0, -1); setPath(np); await loadBoard(np[np.length - 1].id); }
     else setPath([]);
   }), [guard, loadBoard, view, path]);
 
   // 面包屑跳转: index=-1 回项目总览; 否则截断到 path[0..index]
   const jumpTo = useCallback((index: number) => guard(async () => {
+    setDetail(null);
     if (index < 0) { setPath([]); return; }
     const np = path.slice(0, index + 1); setPath(np); await loadBoard(np[np.length - 1].id);
   }), [guard, loadBoard, path]);
 
   // 项目选择器(面包屑第一格): 横跳到某项目或全部任务
   const changeFilter = useCallback((f: string) => guard(async () => {
+    setDetail(null);
     if (f === 'all') { setPath([ALL_NODE]); await loadBoard('all'); }
     else { const p = projects.find((x) => x.id === f); if (p) { setPath([p]); await loadBoard(f); } }
   }), [guard, loadBoard, projects]);
@@ -321,8 +329,8 @@ export function App() {
             <button className="btn" onClick={() => openTask(path[0].id)}>项目详情</button>
           )}
           <div className="tabs">
-            <button className={`tab${view === 'board' ? ' active' : ''}`} onClick={() => setView('board')}>看板</button>
-            <button className={`tab${view === 'tree' ? ' active' : ''}`} onClick={() => setView('tree')}>任务树</button>
+            <button className={`tab${view === 'board' ? ' active' : ''}`} onClick={() => { setDetail(null); setView('board'); }}>看板</button>
+            <button className={`tab${view === 'tree' ? ' active' : ''}`} onClick={() => { setDetail(null); setView('tree'); }}>任务树</button>
           </div>
           {view === 'board' && atRoot && createControl('project', '项目标题…', '+ 新建项目')}
           {view === 'board' && canCreateTask && createControl('task', '任务标题…', '+ 追加任务')}

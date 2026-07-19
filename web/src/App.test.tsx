@@ -90,6 +90,32 @@ describe('App shell', () => {
     });
   });
 
+  // 抽屉=弹窗(2026-07-19 定调): 临时展开, 不入 URL/历史 —— 刷新即无、导航即关、深链只一次性消费
+  it('抽屉不写 URL: 打开详情后 hash 仍是层级位置(刷新自然不会带回抽屉)', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByText('演示项目'));
+    fireEvent.click(await screen.findByText('演示任务'));
+    await waitFor(() => expect(screen.getByText('演示目标')).toBeInTheDocument());
+    expect(window.location.hash).toBe('#/b/P-1'); // 没有 ?task=
+  });
+
+  it('深链 ?task= 一次性消费: 初载打开抽屉, URL 立刻清成层级位置', async () => {
+    window.history.replaceState(null, '', '#/b/P-1?task=R-1');
+    render(<App />);
+    await waitFor(() => expect(screen.getByText('演示目标')).toBeInTheDocument()); // 抽屉开了
+    await waitFor(() => expect(window.location.hash).toBe('#/b/P-1')); // 参数已清 —— 之后刷新即无
+  });
+
+  it('层级导航关抽屉(弹窗语义): 抽屉开着点「返回上一层」→ 抽屉关、回总览', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByText('演示项目'));
+    fireEvent.click(await screen.findByText('演示任务'));
+    await waitFor(() => expect(screen.getByText('演示目标')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '返回上一层' }));
+    await waitFor(() => expect(screen.queryByText('演示目标')).not.toBeInTheDocument()); // 抽屉关了
+    expect(screen.getByText('项目总览')).toBeInTheDocument();
+  });
+
   it('项目总览点项目 → 钻进任务看板, 面包屑第一格(picker)显示该项目', async () => {
     render(<App />);
     fireEvent.click(await screen.findByText('演示项目'));
