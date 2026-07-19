@@ -17,7 +17,8 @@ describe('RelayService flow', () => {
     const { db, service } = svc();
     service.registerActor({ id: 'x', name: 'X', type: 'agent' });
     service.registerActor({ id: 'y', name: 'Y', type: 'agent' });
-    const t = service.createTask({ title: 't', state: 'executing', currentActor: 'x', currentRole: 'executor' });
+    const h = service.createTask({ title: '宿主项目', goal: 'g' });
+    const t = service.createTask({ title: 't', parentId: h.id, state: 'executing', currentActor: 'x', currentRole: 'executor' });
     const after = service.handoff({ taskId: t.id, byActor: 'x', toActor: 'y', toRole: 'tester', toState: 'testing' });
     expect(after.currentRole).toBe('tester');
     expect(after.state).toBe('testing');
@@ -27,7 +28,8 @@ describe('RelayService flow', () => {
     const { db, service } = svc();
     service.registerActor({ id: 'x', name: 'X', type: 'agent' });
     service.registerActor({ id: 'admin', name: 'admin', type: 'human' });
-    const p = service.createTask({ title: 'p', state: 'executing', currentActor: 'x', currentRole: 'executor' });
+    const h = service.createTask({ title: '宿主项目', goal: 'g' });
+    const p = service.createTask({ title: 'p', parentId: h.id, state: 'executing', currentActor: 'x', currentRole: 'executor' });
     const { clarTask } = service.raiseClarification({ parentId: p.id, byActor: 'x', question: '附件?', toDecider: 'admin' });
     expect(getTask(db, p.id)!.hold).toBe('decision'); // 原地挂起, 阶段不动
     service.answerClarification({ clarTaskId: clarTask.id, byActor: 'admin', answer: '方案A' });
@@ -36,8 +38,8 @@ describe('RelayService flow', () => {
 
   it('linkEdge 建关系边', () => {
     const { service } = svc();
-    const a = service.createTask({ title: 'a' });
-    const b = service.createTask({ title: 'b' });
+    const a = service.createTask({ title: 'a', goal: 'ga' });
+    const b = service.createTask({ title: 'b', goal: 'gb' });
     const e = service.linkEdge({ fromTask: a.id, toTask: b.id, type: 'depends_on' });
     expect(e.type).toBe('depends_on');
   });

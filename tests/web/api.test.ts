@@ -26,7 +26,8 @@ describe('web api', () => {
     const { service, app } = mk();
     service.registerActor({ id: 'x', name: 'X', type: 'agent' });
     service.registerActor({ id: 'admin', name: 'admin', type: 'human' });
-    const p = service.createTask({ title: 'p', state: 'executing', currentActor: 'x', currentRole: 'executor' });
+    const h = service.createTask({ title: '宿主项目', goal: 'g' });
+    const p = service.createTask({ title: 'p', parentId: h.id, state: 'executing', currentActor: 'x', currentRole: 'executor' });
     const raised = await app.inject({ method: 'POST', url: '/api/clarifications', payload: { parentId: p.id, byActor: 'x', question: 'Q', toDecider: 'admin' } });
     const clarId = raised.json().clarTask.id;
     const ans = await app.inject({ method: 'POST', url: `/api/clarifications/${clarId}/answer`, payload: { byActor: 'admin', answer: 'A' } });
@@ -38,8 +39,9 @@ describe('web api', () => {
     const { service, app } = mk();
     service.registerActor({ id: 'x', name: 'X', type: 'agent' });
     service.registerActor({ id: 'admin', name: 'admin', type: 'human' });
-    service.createTask({ title: '没人认领', state: 'planning' });
-    const parent = service.createTask({ title: '执行中', state: 'executing', currentActor: 'x', currentRole: 'executor' });
+    const h = service.createTask({ title: '宿主项目', goal: 'g', currentActor: 'admin', currentRole: 'planner' });
+    service.createTask({ title: '没人认领', parentId: h.id, state: 'planning' });
+    const parent = service.createTask({ title: '执行中', parentId: h.id, state: 'executing', currentActor: 'x', currentRole: 'executor' });
     service.raiseClarification({ parentId: parent.id, byActor: 'x', question: '怎么选?', options: ['方案甲'], toDecider: 'admin' });
 
     const unassigned = await app.inject({ method: 'GET', url: '/api/tasks?unassigned=1' });
@@ -56,23 +58,27 @@ describe('web api', () => {
     expect(p.decisions[0].parent.title).toBe('执行中');
   });
 
-  it('GET /api/projects 返回主干四阶段分组的顶层任务', async () => {
+  it('GET /api/projects 返回项目总览 { active, closed }: 卡带目标/attention/最近动静', async () => {
     const { service, app } = mk();
-    const project = service.createTask({ title: '项目', state: 'executing' });
+    service.registerActor({ id: 'x', name: 'X', type: 'agent' });
+    const project = service.createTask({ title: '项目', goal: '长期方向' });
     service.createTask({ title: '子任务', parentId: project.id, state: 'done' });
+    service.comment(project.id, 'x', '动一下');
+    const closedP = service.createTask({ title: '收官项目', goal: 'g', state: 'done' });
     const res = await app.inject({ method: 'GET', url: '/api/projects' });
     expect(res.statusCode).toBe(200);
-    const board = res.json();
-    expect(board).toHaveLength(4);
-    const executing = board.find((c: any) => c.state === 'executing');
-    expect(executing.tasks.map((t: any) => t.id)).toEqual([project.id]);
-    const allIds = board.flatMap((c: any) => c.tasks.map((t: any) => t.id));
-    expect(allIds).not.toContain(undefined);
+    const ov = res.json();
+    expect(ov.active.map((t: any) => t.id)).toEqual([project.id]);
+    expect(ov.closed.map((t: any) => t.id)).toEqual([closedP.id]);
+    expect(ov.active[0].goal).toBe('长期方向');
+    expect(ov.active[0].attention).toBe(0);
+    expect(ov.active[0].lastEvent.kind).toBe('comment');
+    expect(ov.active[0].lastEvent.actorName).toBe('X');
   });
 
   it('GET /api/projects/:id/board 返回该项目的直接子任务', async () => {
     const { service, app } = mk();
-    const project = service.createTask({ title: '项目', state: 'planning' });
+    const project = service.createTask({ title: '项目', goal: 'g' });
     const task = service.createTask({ title: '子任务', parentId: project.id, state: 'executing' });
     service.createTask({ title: '孙任务', parentId: task.id, state: 'planning' });
     const res = await app.inject({ method: 'GET', url: `/api/projects/${project.id}/board` });
@@ -85,10 +91,10 @@ describe('web api', () => {
 
   it('GET /api/tasks-board 返回主干四阶段分组的全部项目一层任务', async () => {
     const { service, app } = mk();
-    const projectA = service.createTask({ title: '项目A', state: 'planning' });
+    const projectA = service.createTask({ title: '项目A', goal: 'ga' });
     const taskA = service.createTask({ title: 'A-任务', parentId: projectA.id, state: 'executing' });
     service.createTask({ title: 'A-孙任务', parentId: taskA.id, state: 'planning' });
-    const projectB = service.createTask({ title: '项目B', state: 'executing' });
+    const projectB = service.createTask({ title: '项目B', goal: 'gb' });
     const taskB = service.createTask({ title: 'B-任务', parentId: projectB.id, state: 'done' });
 
     const res = await app.inject({ method: 'GET', url: '/api/tasks-board' });
@@ -103,7 +109,7 @@ describe('web api', () => {
 
   it('POST /api/reorder 重排列内顺序, 看板反映新顺序', async () => {
     const { service, app } = mk();
-    const p = service.createTask({ title: '项目', state: 'executing' });
+    const p = service.createTask({ title: '项目', goal: 'g' });
     const t1 = service.createTask({ title: 't1', parentId: p.id, state: 'executing' });
     const t2 = service.createTask({ title: 't2', parentId: p.id, state: 'executing' });
     const t3 = service.createTask({ title: 't3', parentId: p.id, state: 'executing' });

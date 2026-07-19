@@ -21,7 +21,7 @@ function svc() {
 describe('MCP write tools', () => {
   it('claim + submit_output + comment', () => {
     const { db, service } = svc();
-    const t = service.createTask({ title: 't' });
+    const t = service.createTask({ title: 't', goal: 'g' });
     claimTool.handler(service, { task_id: t.id, actor: 'x', role: 'executor' });
     submitOutputTool.handler(service, { task_id: t.id, by_actor: 'x', summary: '完成' });
     commentTool.handler(service, { task_id: t.id, actor: 'x', body: 'note' });
@@ -31,14 +31,16 @@ describe('MCP write tools', () => {
 
   it('handoff 换手', () => {
     const { db, service } = svc();
-    const t = service.createTask({ title: 't', state: 'executing', currentActor: 'x', currentRole: 'executor' });
+    const h = service.createTask({ title: '宿主项目', goal: 'g' });
+    const t = service.createTask({ title: 't', parentId: h.id, state: 'executing', currentActor: 'x', currentRole: 'executor' });
     handoffTool.handler(service, { task_id: t.id, by_actor: 'x', to_actor: 'admin', to_role: 'tester', to_state: 'testing' });
     expect(getTask(db, t.id)!.state).toBe('testing');
   });
 
   it('raise + answer 待确认', () => {
     const { db, service } = svc();
-    const p = service.createTask({ title: 'p', state: 'executing', currentActor: 'x', currentRole: 'executor' });
+    const h = service.createTask({ title: '宿主项目', goal: 'g' });
+    const p = service.createTask({ title: 'p', parentId: h.id, state: 'executing', currentActor: 'x', currentRole: 'executor' });
     const raised = JSON.parse(raiseClarificationTool.handler(service, { parent_id: p.id, by_actor: 'x', question: 'Q', to_decider: 'admin' }).content[0].text);
     expect(getTask(db, p.id)!.hold).toBe('decision'); // 原地挂起, 阶段不动
     answerClarificationTool.handler(service, { clar_task_id: raised.clarTask.id, by_actor: 'admin', answer: 'A' });
@@ -47,7 +49,7 @@ describe('MCP write tools', () => {
 
   it('submit_plan 写计划(agent 规划者也要有写计划的通道, 不能只有 Web 界面能写)', () => {
     const { db, service } = svc();
-    const t = service.createTask({ title: 't' });
+    const t = service.createTask({ title: 't', goal: 'g' });
     submitPlanTool.handler(service, { task_id: t.id, by_actor: 'x', plan_md: '- [ ] 先建表' });
     expect(getTask(db, t.id)!.planMd).toBe('- [ ] 先建表');
   });

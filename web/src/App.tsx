@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { api } from './api';
-import type { BoardColumn, BoardCard, TaskNode, TaskPackage, Actor } from './types';
+import type { BoardColumn, ProjectOverview, TaskNode, TaskPackage, Actor } from './types';
 import { Board } from './components/Board';
 import { ProjectGrid } from './components/ProjectGrid';
 import { Tree } from './components/Tree';
@@ -18,7 +18,8 @@ const ALL_NODE: NavNode = { id: 'all', title: '全部任务' };
 export function App() {
   const [view, setView] = useState<'board' | 'tree'>('board');
   const [path, setPath] = useState<NavNode[]>([]);
-  const [projectCols, setProjectCols] = useState<BoardColumn[]>([]);
+  // 项目总览两组(执行中/已完结) —— 项目层透镜, 不是四阶段列(2026-07-19 定调: 项目=大号任务, 两态)
+  const [overview, setOverview] = useState<ProjectOverview>({ active: [], closed: [] });
   const [taskCols, setTaskCols] = useState<BoardColumn[]>([]);
   const [tree, setTree] = useState<TaskNode[]>([]);
   const [actors, setActors] = useState<Actor[]>([]);
@@ -27,7 +28,8 @@ export function App() {
   const [detail, setDetail] = useState<TaskPackage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false); // 首屏数据是否已到 —— 未到前不渲染空态, 避免误报"还没有项目"
-  const [draft, setDraft] = useState<{ kind: 'project' | 'task'; title: string } | null>(null);
+  // 新建草稿: 项目必须带目标/说明(项目=长期方向, 不能只有一个名字 —— 后端同闸), 任务只要标题
+  const [draft, setDraft] = useState<{ kind: 'project' | 'task'; title: string; goal: string } | null>(null);
   const triggerRef = useRef<HTMLElement | null>(null); // 打开抽屉的那张卡, 关闭后把焦点还给它(键盘闭环)
   // 动作反馈: toast 说"我干成了什么", flashId 让看板上那张卡亮一下 —— 两者合起来把"我点了→它去哪了"的因果做可见
   // 带 nonce: 同文案/同 id 连发时 React 会 bail-out 导致计时器不重置、动画不重播
@@ -48,15 +50,9 @@ export function App() {
   const navToken = useRef(0);
 
   const actorsById = Object.fromEntries(actors.map((a) => [a.id, a]));
-  const projects = projectCols.flatMap((c) => c.tasks).map((t) => ({ id: t.id, title: t.title }));
-  const pendingTotal = projectCols.flatMap((c) => c.tasks).reduce((s, t) => s + (t.attention ?? 0), 0);
-  // 项目总览是"该关心哪个项目"的分诊台 → 有活等你的项目冒头; 同 attention 再按后端排序(rank→优先级→id)
-  const prioW = (p: BoardCard['priority']) => (p === 'hi' ? 0 : p === 'mid' ? 1 : p === 'lo' ? 2 : 3);
-  const projectList = projectCols.flatMap((c) => c.tasks).slice().sort((a, b) =>
-    (b.attention ?? 0) - (a.attention ?? 0)
-    || (a.rank ?? Infinity) - (b.rank ?? Infinity)
-    || prioW(a.priority) - prioW(b.priority)
-    || parseInt(a.id.slice(2), 10) - parseInt(b.id.slice(2), 10));
+  const allProjects = [...overview.active, ...overview.closed];
+  const projects = allProjects.map((t) => ({ id: t.id, title: t.title }));
+  const pendingTotal = allProjects.reduce((s, t) => s + (t.attention ?? 0), 0);
   const atRoot = path.length === 0;
   const currentId = atRoot ? null : path[path.length - 1].id;
   const isAll = currentId === 'all';
@@ -69,7 +65,7 @@ export function App() {
 
   const refresh = useCallback(async () => {
     const [p, t, a, r] = await Promise.all([api.projects(), api.tree(), api.actors(), api.routing()]);
-    setProjectCols(p); setTree(t); setActors(a); setRouting(r);
+    setOverview(p); setTree(t); setActors(a); setRouting(r);
   }, []);
   // 首屏无论成败都置 loaded: 成功→出看板, 失败→出错误横幅+可导航的空看板, 绝不因失败卡死在"加载中…"
   useEffect(() => { guard(refresh).finally(() => setLoaded(true)); }, [refresh, guard]);
@@ -181,8 +177,10 @@ export function App() {
 
   const submitDraft = useCallback(() => guard(async () => {
     if (!draft || !draft.title.trim()) { setDraft(null); return; }
-    if (draft.kind === 'project') { await api.createTask({ title: draft.title.trim() }); }
-    else if (currentId && currentId !== 'all') { await api.createTask({ title: draft.title.trim(), parentId: currentId }); await loadBoard(currentId); }
+    if (draft.kind === 'project') {
+      if (!draft.goal.trim()) return; // 项目必须写清目标(按钮同禁用, 双保险)
+      await api.createTask({ title: draft.title.trim(), goal: draft.goal.trim() });
+    } else if (currentId && currentId !== 'all') { await api.createTask({ title: draft.title.trim(), parentId: currentId }); await loadBoard(currentId); }
     await refresh();
     setDraft(null);
   }), [draft, currentId, loadBoard, refresh, guard]);
@@ -259,11 +257,17 @@ export function App() {
         <input autoFocus placeholder={placeholder}
           value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })}
           onKeyDown={(e) => { if (e.key === 'Escape') setDraft(null); }} />
-        <button type="submit" className="btn primary">确定</button>
+        {/* 项目必须写清目标/说明(项目=长期方向, 不能只有一个名字; 后端同闸) */}
+        {kind === 'project' && (
+          <input placeholder="目标/说明(为什么开这个方向)…"
+            value={draft.goal} onChange={(e) => setDraft({ ...draft, goal: e.target.value })}
+            onKeyDown={(e) => { if (e.key === 'Escape') setDraft(null); }} />
+        )}
+        <button type="submit" className="btn primary" disabled={kind === 'project' && !draft.goal.trim()}>确定</button>
         <button type="button" className="btn" onClick={() => setDraft(null)}>取消</button>
       </form>
     ) : (
-      <button className="btn" onClick={() => setDraft({ kind, title: '' })}>{label}</button>
+      <button className="btn" onClick={() => setDraft({ kind, title: '', goal: '' })}>{label}</button>
     )
   );
 
@@ -309,6 +313,10 @@ export function App() {
               🔔 待你处理 {pendingTotal}
             </button>
           )}
+          {/* 项目详情入口: 项目本就是任务, 详情复用任务抽屉(编辑目标/完结/重开/「经过」都在里面) */}
+          {view === 'board' && !atRoot && !isAll && (
+            <button className="btn" onClick={() => openTask(path[0].id)}>项目详情</button>
+          )}
           <div className="tabs">
             <button className={`tab${view === 'board' ? ' active' : ''}`} onClick={() => setView('board')}>看板</button>
             <button className={`tab${view === 'tree' ? ' active' : ''}`} onClick={() => setView('tree')}>任务树</button>
@@ -319,8 +327,13 @@ export function App() {
       </div>
 
       {!loaded && !error && <div className="board-empty">加载中…</div>}
+      {/* 钻在某项目里时把它的目标压在面包屑下: 干活时方向在眼前(项目=大号任务, 目标是它存在的理由) */}
+      {loaded && view === 'board' && !atRoot && !isAll && (() => {
+        const g = allProjects.find((p) => p.id === path[0].id)?.goal;
+        return g ? <div className="ctx-goal"><b>目标</b>{g}</div> : null;
+      })()}
       {loaded && view === 'board' && (atRoot ? (
-        <ProjectGrid projects={projectList} actorsById={actorsById}
+        <ProjectGrid overview={overview} actorsById={actorsById}
           onOpen={(id) => { const p = projects.find((x) => x.id === id); if (p) enterProject(p); }}
           emptyHint={<><b>还没有项目</b><div>点右上角「+ 新建项目」开始</div></>} />
       ) : (

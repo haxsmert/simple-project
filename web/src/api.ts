@@ -1,4 +1,4 @@
-import type { BoardColumn, TaskNode, TaskPackage, Actor, Task } from './types';
+import type { BoardColumn, TaskNode, TaskPackage, Actor, Task, ProjectOverview } from './types';
 
 async function j<T>(url: string, opts?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -12,7 +12,7 @@ async function j<T>(url: string, opts?: RequestInit): Promise<T> {
 const post = <T>(url: string, body: unknown) => j<T>(url, { method: 'POST', body: JSON.stringify(body) });
 
 export const api = {
-  projects: () => j<BoardColumn[]>('/api/projects'),
+  projects: () => j<ProjectOverview>('/api/projects'),
   taskBoard: (id: string) => j<BoardColumn[]>(`/api/projects/${id}/board`),
   allTasks: () => j<BoardColumn[]>('/api/tasks-board'),
   tree: () => j<TaskNode[]>('/api/tree'),

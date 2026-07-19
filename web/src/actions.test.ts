@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { actionsFor, ALL_ACTION_ENTRIES } from './actions';
+import { actionsFor, projectActionsFor, ALL_ACTION_ENTRIES } from './actions';
 import { canMove } from '../../src/core/stateMachine';
 import type { TaskState, Hold } from './types';
 
@@ -80,5 +80,28 @@ describe('「下一步」动作表(阶段×挂起)', () => {
       expect(a.done).not.toBe(`已${a.label}`);
       expect(`${a.label}${a.hint}${a.done}`).not.toMatch(/换手|上一棒|下一棒|handoff|hold|confirm/i);
     }
+  });
+});
+
+// 项目=大号任务(2026-07-19 定调): 两态动作表 —— 执行中给 完结/换负责人, 已完结给 重开; 全程不碰挂起
+describe('项目动作表(两态)', () => {
+  it('执行中: 完结关闭(带可选理由面板)+ 换负责人; 已完结: 重开; 动作恒不设挂起', () => {
+    const active = projectActionsFor('executing', 'planner');
+    expect(active.map((a) => a.key)).toEqual(['close', 'reassign']);
+    const close = active.find((a) => a.key === 'close')!;
+    expect(close.toState).toBe('done');
+    expect(close.toHold, '项目不挂起').toBeNull();
+    expect(close.keepActor, '完结不换人').toBe(true);
+    expect(close.form?.kind, '完结理由记进「经过」(可选, 不强填)').toBe('reason');
+    expect(close.form?.required).toBeFalsy();
+    const done = projectActionsFor('done', 'planner');
+    expect(done.map((a) => a.key)).toEqual(['reopen']);
+    expect(done[0].toState, '重开 = done→executing 项目特例').toBe('executing');
+    expect(done[0].toHold).toBeNull();
+  });
+
+  it('项目动作保角色(原地改派闸要求同角色), 缺省角色兜底 planner', () => {
+    expect(projectActionsFor('executing', 'tester').every((a) => a.toRole === 'tester')).toBe(true);
+    expect(projectActionsFor('executing', null).every((a) => a.toRole === 'planner')).toBe(true);
   });
 });

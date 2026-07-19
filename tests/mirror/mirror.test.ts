@@ -37,7 +37,9 @@ describe('文件镜像', () => {
     const db = openDb(':memory:');
     createActor(db, { id: 'x', name: 'X', type: 'agent' });
     createActor(db, { id: 'admin', name: 'admin', type: 'human' });
-    const t = createTask(db, { id: 'R-1', title: '导出脚本', state: 'executing', currentActor: 'x', currentRole: 'executor', planMd: '- [ ] x' });
+    // 挂起/提问是任务层节奏(项目不挂起) —— fixture 挂在宿主项目下
+    createTask(db, { id: 'P-H', title: '宿主项目', state: 'executing', goal: 'g' });
+    const t = createTask(db, { id: 'R-1', title: '导出脚本', parentId: 'P-H', state: 'executing', currentActor: 'x', currentRole: 'executor', planMd: '- [ ] x' });
     raiseClarification(db, { parentId: t.id, byActor: 'x', question: '含子任务吗?', options: ['含', '不含'], toDecider: 'admin' });
     const md = renderTaskMarkdown(assemblePackage(db, t.id));
 
@@ -51,7 +53,7 @@ describe('文件镜像', () => {
     expect(md).not.toContain('(?');                   // 不再有 "(? → planner)" 这类问号黑话
 
     // 换手事件说人话: 转交给谁 · 挂起/阶段怎么变
-    const t2 = createTask(db, { id: 'R-9', title: '另一个', state: 'planning', currentActor: 'x', currentRole: 'planner', planMd: '- [ ] y' });
+    const t2 = createTask(db, { id: 'R-9', title: '另一个', parentId: 'P-H', state: 'planning', currentActor: 'x', currentRole: 'planner', planMd: '- [ ] y' });
     handoff(db, { taskId: t2.id, byActor: 'x', toActor: 'admin', toRole: 'decider', toHold: 'confirm', note: '请拍板' });
     const md2 = renderTaskMarkdown(assemblePackage(db, t2.id));
     expect(md2).toContain('转交给 admin · 提交等确认: 请拍板');

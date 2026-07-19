@@ -24,7 +24,9 @@ const prioEnum = z.enum(['hi', 'mid', 'lo']);
 
 export const createTaskTool = {
   name: 'create_task',
-  description: '创建任务(默认生在计划阶段)。parent_id 指定父任务即建子任务; actor/role 指定初始负责人。',
+  description:
+    '创建任务(默认生在计划阶段)。parent_id 指定父任务即建子任务; actor/role 指定初始负责人。' +
+    '不带 parent_id = 开项目: 项目是长期方向(大号任务), **必须提供 goal(目标/说明)**, 建即执行中。',
   schema: {
     title: z.string(), parent_id: z.string().optional(), goal: z.string().optional(),
     priority: prioEnum.optional(), actor: z.string().optional(), role: roleEnum.optional(),
@@ -137,7 +139,8 @@ export const handoffTool = {
   description:
     '把任务换手给另一个行动者/角色(经状态机校验)。to_state=主干阶段(计划/执行/测试/完成); ' +
     'to_hold=挂起变更: "confirm"=提交本阶段产出等决策者批准(批准后 to_state 前进一步), "none"=解除确认挂起(批准或打回), ' +
-    '缺省=挂起不动。等决策(decision)挂起由 raise/answer_clarification 专管, 不走本工具。',
+    '缺省=挂起不动。等决策(decision)挂起由 raise/answer_clarification 专管, 不走本工具。' +
+    '项目(顶层任务)特例: 只有 executing/done 两态 —— executing→done=完结关闭(允许遗留未完成任务, 自动留痕), done→executing=重开; 项目不挂起。',
   schema: {
     task_id: z.string(), by_actor: z.string(), to_actor: z.string(),
     to_role: roleEnum, to_state: stateEnum.optional(), to_hold: holdEnum.optional(), note: z.string().optional(),

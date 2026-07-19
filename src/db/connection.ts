@@ -100,5 +100,11 @@ export function openDb(path: string = ':memory:'): DB {
     db.pragma('legacy_alter_table = OFF');
     db.pragma('foreign_keys = ON');
   }
+
+  // 项目 = 大号任务(2026-07-19 定调): 顶层任务只有「执行中/已完结」两态、不挂起。
+  // 旧库归一 + 每次开库校核不变量(幂等 UPDATE, 归一后天然空转):
+  // planning/testing 的根 → executing(项目开了就在跑, 没有"待规划/测试中"阶段); 根上的挂起清除。
+  db.exec("UPDATE tasks SET state='executing' WHERE parent_id IS NULL AND state IN ('planning','testing')");
+  db.exec('UPDATE tasks SET hold=NULL WHERE parent_id IS NULL AND hold IS NOT NULL');
   return db;
 }

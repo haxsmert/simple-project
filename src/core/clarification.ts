@@ -28,6 +28,8 @@ export function raiseClarification(
     if (!getActor(db, a)) throw new Error(`行动者不存在: ${a}(先注册: register_actor / POST /api/actors)`);
   }
   if (parent.state === 'done') throw new Error('已完成的任务没有可提问的下一步');
+  // 项目不挂起(2026-07-19 定调): 提问挂起是任务层节奏 —— 对着项目提问会把长期方向整个锁死
+  if (parent.parentId === null) throw new Error('项目不挂起: 把问题提在具体任务上(或在项目里留言)');
   // decision 挂起中允许追加提问(并发多问, 全答完才解冻); confirm 挂起要先批准/打回, 两种挂起不叠加
   if (parent.hold === 'confirm') throw new Error('任务挂在等确认上, 先批准或打回再提问');
 

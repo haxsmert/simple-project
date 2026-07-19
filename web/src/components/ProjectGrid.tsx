@@ -1,71 +1,72 @@
 import type { ReactNode } from 'react';
-import type { BoardCard, Actor } from '../types';
+import type { ProjectCard, ProjectOverview, Actor } from '../types';
 import { ActorBadge } from './ActorBadge';
-import { STATE_NAME, STATE_COLOR } from '../states';
+import { eventText, timeAgo } from '../events';
 
-// 项目总览 = 项目层透镜(2026-07-18)。此前根视图复用任务看板的四阶段 kanban, 和下钻后的任务看板
-// 长得一模一样, 读起来像"任务看板的复制品"—— 而四阶段对"整个项目"几乎没信息量(项目这个顶层任务
-// 多半永远停在"待规划", 大家推的是它的子任务)。
-// 项目这一层真正要回答的是: **我该关心哪个项目** —— 进度到哪、有没有活卡着我。
-// 故弃四列, 改项目卡网格, 每张卡把两件事做大: 进度环(子任务完成度) + 🔔 待你处理(挂起任务数)。
-// 排序也让需要你的项目冒头(见 App 的 projectList)。点卡即钻入它的任务看板(那一层四阶段才是对的)。
+// 项目总览 = 项目层透镜(2026-07-19 定调: 项目=大号任务, 长期/持续/不定期迭代)。
+// 项目卡只回答「我该关心哪个项目」: **目标**(它为什么存在) + **🔔待你处理**(有活等我吗)
+// + **最近动静**(它还活着吗/谁刚干了什么)。进度百分比对持续追加任务的流是假指标, 已删。
+// 两组: 执行中在前(有活等你的冒头, 排序在后端), 已完结折叠沉底当归档。点卡钻入它的任务看板。
 
-function Ring({ pct }: { pct: number }) {
-  const r = 20.5;
-  const c = 2 * Math.PI * r;
-  const off = c * (1 - pct / 100);
+function activityLine(c: ProjectCard, nameOf: (id: string | null) => string | null): string {
+  const ev = c.lastEvent;
+  if (!ev) return '还没动静';
+  const verb = eventText(ev, nameOf, { project: ev.taskId === c.id });
+  const where = ev.taskId !== c.id ? `「${ev.taskTitle}」` : '';
+  const body = ev.body ? `: ${ev.body}` : '';
+  return `${ev.actorName} ${verb}${where}${body} · ${timeAgo(ev.createdAt)}`;
+}
+
+function Card({ p, actorsById, onOpen, closed }: {
+  p: ProjectCard; actorsById: Record<string, Actor>; onOpen: (id: string) => void; closed?: boolean;
+}) {
+  const attn = p.attention ?? 0;
+  const actor = p.currentActor ? actorsById[p.currentActor] ?? null : null;
+  const nameOf = (id: string | null) => (id ? actorsById[id]?.name ?? id : null);
+  const act = activityLine(p, nameOf);
+  // 卡面信号完整留给读屏(状态/目标/待处理数/最近动静)
+  const label = [p.title, closed ? '已完结' : '执行中', p.goal ?? '还没写目标', attn ? `${attn} 项待你处理` : '', act, p.id]
+    .filter(Boolean).join(' · ');
   return (
-    <svg className="ring" viewBox="0 0 46 46" width="46" height="46" aria-hidden="true">
-      <circle cx="23" cy="23" r={r} className="ring-track" />
-      <circle cx="23" cy="23" r={r} className="ring-fill" strokeDasharray={c} strokeDashoffset={off}
-        transform="rotate(-90 23 23)" style={pct === 100 ? { stroke: 'var(--done)' } : undefined} />
-      <text x="23" y="23" className="ring-num">{pct}%</text>
-    </svg>
+    <div className={`pcard${attn > 0 ? ' needs' : ''}${closed ? ' closed' : ''}`} onClick={() => onOpen(p.id)}>
+      {(attn > 0 || closed) && (
+        <div className="pcard-head">
+          {closed && <span className="pclosed-chip">已完结</span>}
+          {attn > 0 && <span className="attn-pill sm">🔔 {attn} 待你处理</span>}
+        </div>
+      )}
+      {/* 标题即"钻入项目"按钮: 卡片整体可点, 键盘/读屏走这个真按钮 */}
+      <button type="button" className="pcard-title" aria-label={label}
+        onClick={(e) => { e.stopPropagation(); onOpen(p.id); }}>{p.title}</button>
+      {/* 目标 = 项目为什么存在; 存量项目还没写的如实提示(空着比编内容诚实, 点开详情能补) */}
+      <div className={`pcard-goal${p.goal ? '' : ' missing'}`}>{p.goal ?? '还没写目标 —— 点开在详情里补上'}</div>
+      {/* 最近动静: 对持续流, "谁刚干了什么/多久没动"比任何百分比诚实 */}
+      <div className="pcard-act" title={act}>{act}</div>
+      <div className="pcard-foot">
+        <ActorBadge actor={actor} />
+        <span className="card-id">{p.id}</span>
+      </div>
+    </div>
   );
 }
 
-export function ProjectGrid({ projects, actorsById, onOpen, emptyHint }: {
-  projects: BoardCard[]; actorsById: Record<string, Actor>;
+export function ProjectGrid({ overview, actorsById, onOpen, emptyHint }: {
+  overview: ProjectOverview; actorsById: Record<string, Actor>;
   onOpen: (id: string) => void; emptyHint?: ReactNode;
 }) {
-  if (projects.length === 0 && emptyHint) return <div className="board-empty">{emptyHint}</div>;
+  const { active, closed } = overview;
+  if (active.length === 0 && closed.length === 0 && emptyHint) return <div className="board-empty">{emptyHint}</div>;
   return (
-    <div className="pgrid">
-      {projects.map((p) => {
-        const total = p.subtaskCount ?? 0;
-        const done = p.doneSubtaskCount ?? 0;
-        const pct = total ? Math.round((done / total) * 100) : 0;
-        const attn = p.attention ?? 0;
-        const actor = p.currentActor ? actorsById[p.currentActor] ?? null : null;
-        // 卡面降噪的信号(状态/进度/待处理数)完整留给读屏
-        const label = [
-          p.title, STATE_NAME[p.state], total ? `进度 ${done}/${total}` : '暂无子任务',
-          attn ? `${attn} 项待你处理` : '', p.id,
-        ].filter(Boolean).join(' · ');
-        return (
-          <div key={p.id} className={`pcard${attn > 0 ? ' needs' : ''}`} onClick={() => onOpen(p.id)}>
-            <div className="pcard-head">
-              <span className="pstate"><span className="pdot" style={{ background: STATE_COLOR[p.state] }} />{STATE_NAME[p.state]}</span>
-              {attn > 0 && <span className="attn-pill sm">🔔 {attn} 待你处理</span>}
-            </div>
-            <div className="pcard-body">
-              {total > 0
-                ? <Ring pct={pct} />
-                : <span className="ring ring-empty" aria-hidden="true">—</span>}
-              {/* 标题即"钻入项目"按钮: 卡片整体可点, 键盘/读屏走这个真按钮 */}
-              <button type="button" className="pcard-title" aria-label={label}
-                onClick={(e) => { e.stopPropagation(); onOpen(p.id); }}>{p.title}</button>
-            </div>
-            <div className="pcard-foot">
-              <ActorBadge actor={actor} />
-              <span className="pcard-meta">
-                <span className="psub">{total ? `子任务 ${done}/${total}` : '无子任务'}</span>
-                <span className="card-id">{p.id}</span>
-              </span>
-            </div>
-          </div>
-        );
-      })}
+    <div>
+      {active.length > 0
+        ? <div className="pgrid">{active.map((p) => <Card key={p.id} p={p} actorsById={actorsById} onOpen={onOpen} />)}</div>
+        : <div className="board-empty"><b>没有执行中的项目</b><div>点右上角「+ 新建项目」开一个方向</div></div>}
+      {closed.length > 0 && (
+        <details className="closed-sec">
+          <summary>已完结 {closed.length}</summary>
+          <div className="pgrid">{closed.map((p) => <Card key={p.id} p={p} actorsById={actorsById} onOpen={onOpen} closed />)}</div>
+        </details>
+      )}
     </div>
   );
 }

@@ -6,10 +6,16 @@ const ALL_STATES = ['planning', 'executing', 'testing', 'done'];
 
 const projectCard = {
   id: 'P-1', title: '演示项目', state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor',
-  parentId: null, goal: null, planMd: null, outputsMd: null, summary: null, priority: null,
-  subtaskCount: 1, doneSubtaskCount: 0, attention: 2,
+  parentId: null, goal: '演示目标方向', planMd: null, outputsMd: null, summary: null, priority: null,
+  attention: 2,
+  lastEvent: {
+    kind: 'comment', actorName: '执行A', taskId: 'R-1', taskTitle: '演示任务',
+    toActor: null, body: '推进了一步', stateFrom: null, stateTo: null, holdFrom: null, holdTo: null,
+    createdAt: '2026-07-19T00:00:00Z',
+  },
 };
-const projectBoard = ALL_STATES.map((s) => ({ state: s, tasks: s === 'executing' ? [projectCard] : [] }));
+// 项目总览两组结构(项目层透镜): 执行中 / 已完结
+const projectBoard = { active: [projectCard], closed: [] };
 
 const taskCard = {
   id: 'R-1', title: '演示任务', state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor',
@@ -129,12 +135,13 @@ describe('App shell', () => {
     expect(await screen.findByText(/数据库炸了/)).toBeInTheDocument();
   });
 
-  it('项目卡展示"待处理"数(待确认+待决策)与进度, 顶栏展示可点击的全局 pill', async () => {
+  it('项目卡 = 目标 + 🔔待处理 + 最近动静(项目层透镜, 无进度百分比), 顶栏展示可点击的全局 pill', async () => {
     render(<App />);
     await screen.findByText('演示项目');
-    expect(screen.getByText('🔔 2 待你处理')).toBeInTheDocument(); // 项目层透镜: 待处理数做成醒目 pill
-    expect(screen.getByText('子任务 0/1')).toBeInTheDocument();    // 进度也在卡面
-    expect(screen.getByText('🔔 待你处理 2')).toBeInTheDocument(); // 顶栏全局 pill(文案顺序不同, 不与卡片撞)
+    expect(screen.getByText('🔔 2 待你处理')).toBeInTheDocument();  // 待处理数做成醒目 pill
+    expect(screen.getByText('演示目标方向')).toBeInTheDocument();    // 目标 = 项目为什么存在, 必须在卡面
+    expect(screen.getByText(/执行A 留言「演示任务」: 推进了一步/)).toBeInTheDocument(); // 最近动静: 谁·干了什么·在哪个任务
+    expect(screen.getByText('🔔 待你处理 2')).toBeInTheDocument();  // 顶栏全局 pill(文案顺序不同, 不与卡片撞)
   });
 
   it('顶栏 pill 点击后跳到「全部任务」扁平看板', async () => {
@@ -181,12 +188,15 @@ describe('App shell', () => {
     expect(promptSpy).not.toHaveBeenCalled();
 
     fireEvent.change(input, { target: { value: '新项目A' } });
+    // 项目必须写清目标(没写时确定按钮禁用 —— 项目不能只有一个名字)
+    expect(screen.getByRole('button', { name: '确定' })).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText(/目标\/说明/), { target: { value: '一个新的长期方向' } });
     fireEvent.submit(input.closest('form')!);
 
     await waitFor(() => {
       const postCall = calls.find((c) => c.opts?.method === 'POST');
       expect(postCall).toBeTruthy();
-      expect(JSON.parse(String(postCall!.opts!.body))).toMatchObject({ title: '新项目A' });
+      expect(JSON.parse(String(postCall!.opts!.body))).toMatchObject({ title: '新项目A', goal: '一个新的长期方向' });
     });
     await waitFor(() => expect(screen.queryByPlaceholderText('项目标题…')).not.toBeInTheDocument());
   });

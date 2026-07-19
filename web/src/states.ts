@@ -13,3 +13,9 @@ export const STATE_COLOR: Record<TaskState, string> = {
 // 挂起的两种叫法: 中性名(徽标/事件用)与"轮到你"名(卡片/树上招手用)
 export const HOLD_NAME: Record<Exclude<Hold, null>, string> = { confirm: '等确认', decision: '等决策' };
 export const HOLD_FLAG: Record<Exclude<Hold, null>, string> = { confirm: '待你确认', decision: '待你决策' };
+
+// 项目 = 大号任务(2026-07-19 定调): 只有两态, 界面用项目自己的语言(内部仍复用 executing/done 枚举)
+// planning/testing 对项目不存在(迁移已归一), 映射仅为类型完整
+export const PROJECT_STATE_NAME: Record<TaskState, string> = {
+  planning: '执行中', executing: '执行中', testing: '执行中', done: '已完结',
+};

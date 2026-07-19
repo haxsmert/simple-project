@@ -31,14 +31,29 @@ export function handoff(db: DB, input: HandoffInput): Task {
   }
   const toState = input.toState ?? task.state;
   const toHold = input.toHold === undefined ? task.hold : input.toHold;
-  if (!canMove({ state: task.state, hold: task.hold }, { state: toState, hold: toHold })) {
-    throw new Error(`非法流转: ${task.state}${task.hold ? `(${task.hold})` : ''} → ${toState}${toHold ? `(${toHold})` : ''}`);
-  }
-  // 产品约定(2026-07-17): 确认关可以跳过, 但计划不能跳过 —— 计划是执行的输入,
-  // 从计划阶段推进(直接开工, 或提交等确认)都必须先有计划。
-  const advancing = task.state === 'planning' && task.hold === null && (toState !== 'planning' || toHold === 'confirm');
-  if (advancing && !(task.planMd ?? '').trim()) {
-    throw new Error('还没有计划: 先写计划(界面的计划输入 / MCP submit_plan)再推进');
+  // 项目 = 大号任务(2026-07-19 定调): 顶层任务是长期方向, 持续、不定期迭代 —— 只有
+  // 「执行中/已完结」两态, 不挂起、不走四阶段与计划闸(那些是任务层的节奏)。
+  // 完结(executing→done)允许遗留未完成任务(长期流的搁置/转向是真实结局, 如实留痕);
+  // 重开(done→executing)允许(完结后续作是「不定期迭代」的常态)。普通任务 done 仍是终态。
+  const isProject = task.parentId === null;
+  if (isProject) {
+    if (toHold !== null) throw new Error('项目不挂起: 等确认/等决策是任务层的节奏, 项目只有「执行中/已完结」');
+    const legal = toState === task.state
+      || (task.state === 'executing' && toState === 'done')
+      || (task.state === 'done' && toState === 'executing');
+    if (!legal) {
+      throw new Error(`项目只有「执行中/已完结」两态: 完结走 executing→done, 重开走 done→executing(${task.state} → ${toState} 不成立)`);
+    }
+  } else {
+    if (!canMove({ state: task.state, hold: task.hold }, { state: toState, hold: toHold })) {
+      throw new Error(`非法流转: ${task.state}${task.hold ? `(${task.hold})` : ''} → ${toState}${toHold ? `(${toHold})` : ''}`);
+    }
+    // 产品约定(2026-07-17): 确认关可以跳过, 但计划不能跳过 —— 计划是执行的输入,
+    // 从计划阶段推进(直接开工, 或提交等确认)都必须先有计划。
+    const advancing = task.state === 'planning' && task.hold === null && (toState !== 'planning' || toHold === 'confirm');
+    if (advancing && !(task.planMd ?? '').trim()) {
+      throw new Error('还没有计划: 先写计划(界面的计划输入 / MCP submit_plan)再推进');
+    }
   }
   // 原地改派保角色(2026-07-17 实洞): 位置不动(阶段、挂起都不变)的换手 = 纯换人,
   // 不许顺带改角色 —— 否则能把"等确认"连锁转给 planner, 造出"任务在规划者手里却还挂着等确认"的矛盾位。
@@ -65,11 +80,16 @@ export function handoff(db: DB, input: HandoffInput): Task {
     }
   }
   // 父子最小不变量(2026-07-17 用户拍板方案 B): 完成的任务不能有没完成的子 ——
-  // 进「完成」前直接子任务必须全完成(硬闸只设这一条; 进测试时子未完不拦, 界面如实提示)
+  // 进「完成」前直接子任务必须全完成(硬闸只设这一条; 进测试时子未完不拦, 界面如实提示)。
+  // 项目特例(2026-07-19 拍板): 完结允许遗留 —— 不拦, 改为下方写事件时如实留痕。
+  let leftoverNote: string | null = null;
   if (toState === 'done' && task.state !== 'done') {
     const open = listChildren(db, task.id).filter((c) => c.state !== 'done');
     if (open.length > 0) {
-      throw new Error(`还有 ${open.length} 个子任务未完成(${open.slice(0, 3).map((c) => c.id).join(', ')}${open.length > 3 ? '…' : ''}): 子任务全部完成才能标记完成`);
+      if (!isProject) {
+        throw new Error(`还有 ${open.length} 个子任务未完成(${open.slice(0, 3).map((c) => c.id).join(', ')}${open.length > 3 ? '…' : ''}): 子任务全部完成才能标记完成`);
+      }
+      leftoverNote = `完结时遗留 ${open.length} 项未完成: ${open.slice(0, 3).map((c) => `${c.title}(${c.id})`).join('、')}${open.length > 3 ? ' 等' : ''}`;
     }
   }
   // 全等空转(位置/持有人/角色都没变)幂等返回, 不追加事件 —— agent 重试同一调用不该把「经过」堆满空转记录
@@ -90,7 +110,7 @@ export function handoff(db: DB, input: HandoffInput): Task {
       roleFrom: fromRole, roleTo: input.toRole,
       toActor: input.toActor, stateFrom: fromState, stateTo: toState,
       holdFrom: fromHold, holdTo: toHold,
-      body: input.note ?? null,
+      body: [input.note, leftoverNote].filter(Boolean).join(' · ') || null,
     });
   })();
   return updated;

@@ -15,7 +15,7 @@ describe('MCP read tools', () => {
   it('list_my_tasks 返回该 actor 的任务 JSON', () => {
     const service = svc();
     service.registerActor({ id: 'a', name: 'A', type: 'agent' });
-    service.createTask({ title: 't', currentActor: 'a', currentRole: 'executor' });
+    service.createTask({ title: 't', goal: 'g', currentActor: 'a', currentRole: 'executor' });
     const res = listMyTasksTool.handler(service, { actor: 'a' });
     const data = JSON.parse(res.content[0].text);
     expect(data.map((t: any) => t.title)).toContain('t');

@@ -92,27 +92,32 @@ body { margin:0; background:var(--bg); color:var(--text); font-family:var(--font
 .bar { width:44px; height:4px; border-radius:3px; background:var(--surface-2); overflow:hidden; border:1px solid var(--border); flex:none; }
 .bar > i { display:block; height:100%; background:var(--human); }
 
-/* 项目总览 = 项目层透镜: 项目卡网格(非四列 kanban), 进度环 + 🔔待处理为主。min() 防窄屏溢出 → 手机自然 1 列 */
-.pgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(270px,100%),1fr)); gap:14px; padding:2px; }
-.pcard { background:var(--surface); border:1px solid var(--border); border-radius:13px; padding:14px; box-shadow:0 1px 2px rgba(20,30,45,.07); cursor:pointer; display:flex; flex-direction:column; gap:12px; min-height:132px; }
+/* 项目总览 = 项目层透镜(项目=大号任务, 两态): 卡 = 目标 + 🔔待处理 + 最近动静。
+   进度环已删(对持续追加任务的流, 百分比是假指标)。min() 防窄屏溢出 → 手机自然 1 列 */
+.pgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(290px,100%),1fr)); gap:14px; padding:2px; }
+.pcard { background:var(--surface); border:1px solid var(--border); border-radius:13px; padding:14px; box-shadow:0 1px 2px rgba(20,30,45,.07); cursor:pointer; display:flex; flex-direction:column; gap:8px; min-height:132px; }
 .pcard:hover { border-color:var(--border-2); box-shadow:0 3px 12px rgba(20,30,45,.10); }
 .pcard.needs { border-color:color-mix(in srgb,var(--warn) 45%,var(--border)); background:var(--warn-soft); } /* 有活等你 = 琥珀底招手, 不靠颜色单独传意(还有🔔文字) */
-.pcard-head { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:22px; }
-.pstate { display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--text-dim); } /* 状态退成小圆点: 项目层四阶段没信息量, 不再当列 */
-.pdot { width:7px; height:7px; border-radius:50%; flex:none; }
+.pcard.closed { opacity:.75; } /* 归档态: 沉一点, 但仍可点进去看/重开 */
+.pcard-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .attn-pill.sm { font-size:11px; padding:3px 9px; font-weight:600; }
 .pcard.needs .attn-pill.sm { background:var(--surface); } /* 琥珀底卡上换白底, 不融底 */
-.pcard-body { display:flex; align-items:center; gap:13px; flex:1; }
-.pcard-title { flex:1; text-align:left; background:none; border:none; padding:0; font-family:inherit; color:inherit; cursor:pointer; font-size:15px; font-weight:600; line-height:1.3; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.pclosed-chip { font-size:10.5px; font-weight:600; color:var(--done); border:1px solid color-mix(in srgb,var(--done) 40%,transparent); border-radius:6px; padding:2px 7px; }
+.pcard-title { text-align:left; background:none; border:none; padding:0; font-family:inherit; color:inherit; cursor:pointer; font-size:15px; font-weight:600; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .pcard-title:focus-visible { outline:2px solid var(--human); outline-offset:3px; border-radius:3px; }
-.ring { flex:none; }
-.ring-track { fill:none; stroke:var(--surface-2); stroke-width:5; }
-.ring-fill { fill:none; stroke:var(--human); stroke-width:5; stroke-linecap:round; transition:stroke-dashoffset .4s ease; }
-.ring-num { fill:var(--text-dim); font-size:11px; font-weight:600; font-family:var(--font-mono); text-anchor:middle; dominant-baseline:central; }
-.ring-empty { display:inline-flex; align-items:center; justify-content:center; width:46px; height:46px; border:2px dashed var(--border); border-radius:50%; color:var(--text-faint); font-size:16px; }
+.pcard-goal { font-size:12px; color:var(--text-dim); line-height:1.45; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.pcard-goal.missing { color:var(--text-faint); font-style:italic; } /* 存量项目没写目标: 如实提示, 不编内容 */
+.pcard-act { font-size:11.5px; color:var(--text-faint); margin-top:auto; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .pcard-foot { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.pcard-meta { display:flex; align-items:center; gap:10px; }
-.psub { font-size:11px; color:var(--text-faint); font-family:var(--font-mono); white-space:nowrap; }
+/* 已完结归档区: 折叠沉底(默认收起 —— 总览的主角是执行中) */
+.closed-sec { margin-top:22px; }
+.closed-sec > summary { cursor:pointer; font-size:12.5px; font-weight:600; color:var(--text-dim); padding:6px 2px; list-style-position:inside; }
+.closed-sec > summary:hover { color:var(--text); }
+.closed-sec > summary:focus-visible { outline:2px solid var(--human); outline-offset:2px; border-radius:4px; }
+.closed-sec[open] > summary { margin-bottom:10px; }
+/* 钻进项目后压在面包屑下的目标行: 干活时方向在眼前 */
+.ctx-goal { font-size:12.5px; color:var(--text-dim); padding:2px 2px 12px; line-height:1.5; }
+.ctx-goal b { font-weight:600; color:var(--text-faint); font-size:11px; margin-right:8px; border:1px solid var(--border); border-radius:5px; padding:1px 6px; vertical-align:1px; }
 
 /* detail drawer */
 .drawer-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.28); z-index:40; animation:backdrop-in .16s ease-out; }
@@ -336,7 +341,7 @@ select { cursor:pointer; }
 .picker-empty { padding:6px 9px; font-size:12px; color:var(--text-faint); }
 
 /* inline create · 内联创建表单(替代 window.prompt) */
-.inline-create { display:inline-flex; align-items:center; gap:6px; }
+.inline-create { display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; } /* 项目建卡有两个输入(标题+目标), 窄屏折行不溢出 */
 .inline-create input { min-width:180px; }
 
 /* ── 手机(≤640px): 按手机的框架重排, 不是把桌面塞小屏(范式取自 contest-v2 数据站) ──

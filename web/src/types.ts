@@ -24,6 +24,16 @@ export interface BoardCard extends Task {
   attention?: number;
 }
 export interface BoardColumn { state: TaskState; tasks: BoardCard[]; }
+// 项目层透镜(2026-07-19): 项目卡 = 目标 + 🔔待处理 + 最近动静; 两组 = 执行中/已完结
+export interface ProjectActivity {
+  kind: string; actorName: string; taskId: string; taskTitle: string;
+  toActor: string | null; body: string | null;
+  stateFrom: TaskState | null; stateTo: TaskState | null;
+  holdFrom: Hold; holdTo: Hold;
+  createdAt: string;
+}
+export interface ProjectCard extends Task { attention: number; lastEvent: ProjectActivity | null; }
+export interface ProjectOverview { active: ProjectCard[]; closed: ProjectCard[]; }
 export interface TaskEvent {
   id: string; taskId: string; actorId: string; kind: string;
   roleFrom: Role | null; roleTo: Role | null;

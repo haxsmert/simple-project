@@ -3,32 +3,14 @@ import type { TaskPackage, Actor, Task, TaskEvent } from '../types';
 import { ActorBadge } from './ActorBadge';
 import { RoleChip } from './RoleChip';
 import { EdgeChip } from './EdgeChip';
-import { STATE_NAME, STATE_COLOR, HOLD_NAME } from '../states';
+import { STATE_NAME, STATE_COLOR, HOLD_NAME, PROJECT_STATE_NAME } from '../states';
 import { NextActions } from './NextActions';
-import { actionsFor, type TaskAction, type ActInput } from '../actions';
+import { actionsFor, projectActionsFor, type TaskAction, type ActInput } from '../actions';
+// 「经过」的叙述层在 events.ts(单一来源, 项目卡的"最近动静"同引): 谁+做了什么+给谁+怎么变
+import { eventText } from '../events';
 
 const STATE_PILL = { planning: 'plan', executing: 'exec', testing: 'test', done: 'done' } as const;
 const HOLD_PILL = { confirm: 'confirm', decision: 'decide' } as const;
-// 「经过」要回答"谁在什么时候做了什么", 就必须说出**宾语和变化**。
-// 之前只有一张动词表, 于是四次换手长得一模一样: "你 交给了下一个人" ×4 —— 等于没说。
-const KIND_VERB: Record<string, string> = {
-  handoff: '转交', comment: '留言', output: '交了产出', clarify: '提了个问题等人决定', decide: '拍了板', claim: '接手', plan: '写了计划', update: '改了任务信息',
-};
-
-// 把一条事件说成一句人话: 谁 + 做了什么 + 给谁 + 阶段/挂起怎么变
-function eventText(ev: TaskEvent, nameOf: (id: string | null) => string | null): string {
-  if (ev.kind !== 'handoff') return KIND_VERB[ev.kind] ?? ev.kind;
-  const to = nameOf(ev.toActor);
-  const moved = ev.stateFrom && ev.stateTo && ev.stateFrom !== ev.stateTo
-    ? `${STATE_NAME[ev.stateFrom]} → ${STATE_NAME[ev.stateTo]}` : null;
-  // 挂起变化是动作的"名字": 提交等确认 / 批准(伴随阶段前进) / 打回(原地解除)
-  const holdVerb = ev.holdTo === 'confirm' && ev.holdFrom !== 'confirm' ? '提交等确认'
-    : ev.holdFrom === 'confirm' && !ev.holdTo ? (moved ? '批准通过' : '打回') : null;
-  const bits = [to ? `转交给 ${to}` : null, holdVerb, moved].filter(Boolean);
-  if (bits.length === 0) return '转交';           // 迁移前的老事件: 确实没记, 不编
-  if (!to && !holdVerb && moved) return `推进到 ${moved}`;
-  return bits.join(' · ');
-}
 
 // ——— 图标(照搬 mockup 的 inline SVG) ———
 const IconFile = () => (
@@ -238,6 +220,8 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
   onClose: () => void;
 }) {
   const t = pkg.task;
+  // 项目 = 顶层任务(2026-07-19 定调): 两态(执行中/已完结), 动作是 完结/重开/换负责人, 不走四阶段
+  const isProject = t.parentId === null;
   // 编辑态: 标题/目标就地改(改动会记进「经过」); 删除要二次确认(不可恢复)
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(t.title);
@@ -269,7 +253,8 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
   // 「下一步」面板 —— 同一个机制(状态机允许的去向翻成大白话动作), 只是摆放位置随"轮不轮到你"变:
   // 待确认(计划等你拍板)时提到最顶当主角; 其余状态放在底部当收尾动作。
   const nextActions = (
-    <NextActions key={t.id} taskId={t.id} state={t.state} hold={t.hold} currentActor={t.currentActor} actorsById={actorsById} routing={routing}
+    <NextActions key={t.id} taskId={t.id} state={t.state} hold={t.hold} currentActor={t.currentActor}
+      currentRole={t.currentRole} isProject={isProject} actorsById={actorsById} routing={routing}
       content={{ planMd: pkg.inputs.planMd, outputsMd: pkg.outputs.outputsMd, summary: pkg.outputs.summary }}
       openSubtasks={pkg.subtasks.filter((s) => s.state !== 'done').length} onAct={onAct} />
   );
@@ -380,10 +365,11 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
         </div>
       )}
       <div className="status-row">
-        <span className={`pill ${STATE_PILL[t.state]}`}><span className="d" />{STATE_NAME[t.state]}</span>
+        {/* 项目用项目语言(执行中/已完结), 不套任务四阶段名; 项目的角色是内部标签, 不亮出来 */}
+        <span className={`pill ${STATE_PILL[t.state]}`}><span className="d" />{isProject ? PROJECT_STATE_NAME[t.state] : STATE_NAME[t.state]}</span>
         {t.hold && <span className={`pill ${HOLD_PILL[t.hold]}`}><span className="d" />{HOLD_NAME[t.hold]}</span>}
         <ActorBadge actor={t.currentActor ? actorsById[t.currentActor] ?? null : null} />
-        <RoleChip role={t.currentRole} />
+        {!isProject && <RoleChip role={t.currentRole} />}
       </div>
 
       {confirmSlot}
@@ -475,7 +461,7 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
               const whoCls = actorType === 'human' ? 'h' : 'a';
               const dotCls = ev.kind === 'clarify' || ev.kind === 'decide' ? 'w' : whoCls;
               const who = actorsById[ev.actorId]?.name ?? ev.actorId;
-              const verb = eventText(ev, (id) => (id ? actorsById[id]?.name ?? id : null));
+              const verb = eventText(ev, (id) => (id ? actorsById[id]?.name ?? id : null), { project: isProject });
               return (
                 <div key={ev.id} className={`tevent ${dotCls}`}>
                   <span className="dot" />
@@ -506,11 +492,12 @@ export function TaskDetail({ pkg, actorsById, onAnswer, onAct, onComment, onOpen
       )}
 
       {/* 等确认时「下一步」已在顶部当主角, 此处不重复 */}
-      {t.hold !== 'confirm' && actionsFor(t.state, t.hold).length > 0 && (
+      {t.hold !== 'confirm' && (isProject ? projectActionsFor(t.state, t.currentRole) : actionsFor(t.state, t.hold)).length > 0 && (
         <div className="slot">
           {/* 任务在 agent 手里时, 这些动作是"替它推进"(人类是总管有此权限), 但要如实说, 不能和"轮到你"长一样 */}
-          <SlotHead icon={<IconHandoff />} tint="human" title="下一步"
-            tag={!confirmMine && t.currentActor && actorsById[t.currentActor]?.type === 'agent' ? `在 ${holder} 手里 —— 你是替它推进` : '推进它, 或交给别人'} />
+          <SlotHead icon={<IconHandoff />} tint="human" title={isProject ? '项目动作' : '下一步'}
+            tag={isProject ? (t.state === 'done' ? '已完结 —— 可以重开续作' : '完结、重开或换负责人')
+              : !confirmMine && t.currentActor && actorsById[t.currentActor]?.type === 'agent' ? `在 ${holder} 手里 —— 你是替它推进` : '推进它, 或交给别人'} />
           <div className="slot-body">{nextActions}</div>
         </div>
       )}

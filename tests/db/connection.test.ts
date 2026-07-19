@@ -20,11 +20,13 @@ describe('openDb', () => {
   it('重开已是新 schema 的库不得重跑迁移: hold 值原样保留(guard 误判会把挂起全抹掉 —— 踩过)', () => {
     const path = join(mkdtempSync(join(tmpdir(), 'relay-reopen-')), 'x.db');
     const db1 = openDb(path);
+    // 挂起位在子任务上(项目归一会清根上的挂起 —— 那是另一条不变量, 不是这条测的)
     db1.exec(`INSERT INTO actors VALUES ('a','A','agent','2026-01-01');
-      INSERT INTO tasks (id,title,state,hold,created_at,updated_at) VALUES ('R-1','t','planning','confirm','2026-01-01','2026-01-01');`);
+      INSERT INTO tasks (id,title,state,created_at,updated_at) VALUES ('R-1','宿主项目','executing','2026-01-01','2026-01-01');
+      INSERT INTO tasks (id,title,parent_id,state,hold,created_at,updated_at) VALUES ('R-2','t','R-1','planning','confirm','2026-01-01','2026-01-01');`);
     db1.close();
     const db2 = openDb(path); // 重开: 迁移 guard 不得触发重建
-    expect((db2.prepare("SELECT hold FROM tasks WHERE id='R-1'").get() as { hold: string }).hold).toBe('confirm');
+    expect((db2.prepare("SELECT hold FROM tasks WHERE id='R-2'").get() as { hold: string }).hold).toBe('confirm');
   });
 
   it('旧库迁移: kind 白名单没有 plan 的 events 表被重建 —— 老数据保留、能插 plan 事件、索引挂回新表', () => {
@@ -44,10 +46,12 @@ describe('openDb', () => {
       CREATE INDEX idx_events_task ON events(task_id);
       INSERT INTO actors VALUES ('a','A','agent',NULL,'2026-01-01');
       INSERT INTO tasks (id,title,state,created_at,updated_at) VALUES
-        ('R-1','t','planning','2026-01-01','2026-01-01'),
-        ('R-2','计划待确认','awaiting_confirm','2026-01-01','2026-01-01'),
-        ('R-3','被挂起的父任务','awaiting_decision','2026-01-01','2026-01-01'),
-        ('R-4','待确认: 问题卡','awaiting_decision','2026-01-01','2026-01-01');
+        ('R-0','宿主项目','executing','2026-01-01','2026-01-01');
+      INSERT INTO tasks (id,title,parent_id,state,created_at,updated_at) VALUES
+        ('R-1','t','R-0','planning','2026-01-01','2026-01-01'),
+        ('R-2','计划待确认','R-0','awaiting_confirm','2026-01-01','2026-01-01'),
+        ('R-3','被挂起的父任务','R-0','awaiting_decision','2026-01-01','2026-01-01'),
+        ('R-4','待确认: 问题卡','R-0','awaiting_decision','2026-01-01','2026-01-01');
       INSERT INTO edges VALUES ('ed1','R-4','R-3','clarifies','2026-01-01');
       INSERT INTO events (id,task_id,actor_id,kind,body,created_at) VALUES ('e1','R-1','a','comment','老事件','2026-01-01');
     `);

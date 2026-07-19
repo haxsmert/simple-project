@@ -27,6 +27,21 @@ export interface BoardCard extends Task {
   attention?: number;
 }
 
+// 项目全树最近一条动静(卡面一行叙述的原料: 谁·干了什么·在哪个任务·多久前)
+export interface ProjectActivity {
+  kind: string; actorName: string; taskId: string; taskTitle: string;
+  toActor: string | null; body: string | null;
+  stateFrom: TaskState | null; stateTo: TaskState | null;
+  holdFrom: Task['hold']; holdTo: Task['hold'];
+  createdAt: string;
+}
+
+// 项目卡(项目层透镜): 目标 + 🔔待处理 + 最近动静 —— 不带进度(对持续流是假指标)
+export interface ProjectCard extends Task {
+  attention: number;
+  lastEvent: ProjectActivity | null;
+}
+
 export class RelayService {
   constructor(
     private readonly db: DB,
@@ -116,13 +131,47 @@ export class RelayService {
     return listChildren(this.db, rootId).filter((t) => t.hold !== null).length;
   }
 
-  // 项目 = 顶层任务(parentId null); 项目卡额外带 attention(直接任务里"待你处理"的数量, 人类最高价值信号)
-  projectBoard(): Array<{ state: TaskState; tasks: BoardCard[] }> {
-    const grouped = this.groupByState(listRoots(this.db));
-    for (const col of grouped) {
-      for (const card of col.tasks) card.attention = this.pendingAttention(card.id);
-    }
-    return grouped;
+  // 项目全树的最近一条动静(含所有后代任务的事件): 对持续流, "谁刚干了什么/多久没动"
+  // 比任何进度百分比都诚实(2026-07-19 拍板: 项目卡 = 目标 + 🔔 + 最近动静, 进度环删除)。
+  // 按 rowid 取最新(事件表插入序即全局时间序, created_at 秒级会撞)。
+  private lastActivity(rootId: string): ProjectActivity | null {
+    const r = this.db.prepare(
+      `WITH RECURSIVE sub(id) AS (SELECT ? UNION ALL SELECT t.id FROM tasks t JOIN sub s ON t.parent_id = s.id)
+       SELECT e.*, a.name AS actor_name, tk.title AS task_title
+       FROM events e JOIN sub ON e.task_id = sub.id
+       LEFT JOIN actors a ON a.id = e.actor_id
+       LEFT JOIN tasks tk ON tk.id = e.task_id
+       ORDER BY e.rowid DESC LIMIT 1`,
+    ).get(rootId) as (Record<string, unknown> & { actor_name: string | null; task_title: string | null }) | undefined;
+    if (!r) return null;
+    return {
+      kind: r.kind as string, actorName: (r.actor_name as string | null) ?? (r.actor_id as string),
+      taskId: r.task_id as string, taskTitle: (r.task_title as string | null) ?? (r.task_id as string),
+      toActor: (r.to_actor as string | null), body: (r.body as string | null),
+      stateFrom: (r.state_from as TaskState | null), stateTo: (r.state_to as TaskState | null),
+      holdFrom: ((r.hold_from as string | null) ?? null) as Task['hold'], holdTo: ((r.hold_to as string | null) ?? null) as Task['hold'],
+      createdAt: r.created_at as string,
+    };
+  }
+
+  // 项目总览 = 项目层透镜(2026-07-19 定调): 项目是大号任务(长期、持续、不定期迭代),
+  // 只有「执行中/已完结」两态 —— 不按四阶段分列。执行中在前(有活等你的冒头), 已完结沉底归档。
+  projectOverview(): { active: ProjectCard[]; closed: ProjectCard[] } {
+    const byIdNum = (id: string) => parseInt(id.slice(2), 10);
+    const prioW = (p: Task['priority']) => (p === 'hi' ? 0 : p === 'mid' ? 1 : p === 'lo' ? 2 : 3);
+    const cards = listRoots(this.db).map((t): ProjectCard => ({
+      ...t,
+      attention: this.pendingAttention(t.id),
+      lastEvent: this.lastActivity(t.id),
+    }));
+    const active = cards.filter((c) => c.state !== 'done').sort((a, b) =>
+      b.attention - a.attention
+      || (a.rank ?? Infinity) - (b.rank ?? Infinity)
+      || prioW(a.priority) - prioW(b.priority)
+      || byIdNum(a.id) - byIdNum(b.id));
+    // 已完结按最近更新在前(最近完结/重开过的先看到)
+    const closed = cards.filter((c) => c.state === 'done').sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+    return { active, closed };
   }
 
   // 任务 = 项目的直接子任务
@@ -130,9 +179,9 @@ export class RelayService {
     return this.groupByState(listChildren(this.db, projectId));
   }
 
-  // 全部项目的一层任务: 跨所有项目聚合直接子任务(depth 1), 供任务看板"全部项目"筛选; 不含项目本身与更深的执行子任务
+  // 全部任务 = **执行中项目**的一层任务(depth 1): 已完结项目的遗留任务不再是"要干的活", 不进找活面
   allTasksBoard(): Array<{ state: TaskState; tasks: BoardCard[] }> {
-    const tasks = listRoots(this.db).flatMap((project) => listChildren(this.db, project.id));
+    const tasks = listRoots(this.db).filter((p) => p.state !== 'done').flatMap((project) => listChildren(this.db, project.id));
     return this.groupByState(tasks);
   }
 
@@ -205,18 +254,35 @@ export class RelayService {
   }
 
   createTask(input: CreateTaskInput): Task {
+    // 标题检查提前(repo 里也有, 但要抢在"项目目标必填"前报 —— 空标题是更根本的错, 报错要报根)
+    if (!input.title.trim()) throw new Error('标题不能为空');
     if (input.parentId) {
       this.mustTask(input.parentId);
       // 父子不变量前移到建子时刻(对抗审计 P1): 只在 handoff 进「完成」时拦, 事后给 done 父建开放子任务就绕过了
-      if (getTask(this.db, input.parentId)!.state === 'done' && input.state !== 'done') {
-        throw new Error(`父任务 ${input.parentId} 已完成: 不能再往完成的任务下添未完成的子任务`);
+      const parent = getTask(this.db, input.parentId)!;
+      if (parent.state === 'done' && input.state !== 'done') {
+        throw new Error(parent.parentId === null
+          ? `项目 ${input.parentId} 已完结: 要续作先重开项目, 再加任务`
+          : `父任务 ${input.parentId} 已完成: 不能再往完成的任务下添未完成的子任务`);
       }
     }
     if (input.currentActor) this.mustActor(input.currentActor);
     // 挂起要走流程造(提交确认=handoff, 提问=raise), 对外通道不许直接建出挂起位 ——
     // 直造的 confirm 探测不到提交人(自批闸失明), done+挂起是语义矛盾(对抗审计实锤)
     if (input.hold) throw new Error('不能直接建出挂起中的任务: 等确认走 handoff(toHold=confirm), 等决策走 raise_clarification');
-    const t = createTask(this.db, input);
+    // 项目 = 大号任务(2026-07-19 定调): 顶层任务是长期方向, 必须写清目标/说明(不能只有一个名字),
+    // 且只有「执行中/已完结」两态 —— 建即执行中(它没有"待规划"阶段, 开了就在跑)
+    const effective = { ...input };
+    if (!input.parentId) {
+      if (!(input.goal ?? '').trim()) {
+        throw new Error('项目(顶层任务)必须写清目标/说明: 它是长期方向, 不能只有一个名字');
+      }
+      if (input.state === undefined) effective.state = 'executing';
+      else if (input.state !== 'executing' && input.state !== 'done') {
+        throw new Error(`项目只有「执行中/已完结」两态, 不能建成 ${input.state}: 计划/测试是任务层的阶段`);
+      }
+    }
+    const t = createTask(this.db, effective);
     this.mirror(t.id);
     return t;
   }

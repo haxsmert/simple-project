@@ -9,7 +9,7 @@ import { raiseClarification } from './core/clarification';
 import { mirrorTask } from './mirror/writer';
 
 // Demo 数据 —— 目标是把产品讲清楚, 不是随便塞几条:
-//  · 六态每列都有内容(看板不出现整列空白)
+//  · 项目两态都有(执行中若干 + 已完结一个演示归档区); 任务四阶段每列都有内容
 //  · 两个"轮到你"的挂起: 计划等你拍板(hold=confirm) + agent 卡住提问(hold=decision) → 待你处理 = 2
 //  · 多 agent 且**真实扮演过各自角色**(默认路由是行为性推断: 没有这些历史就只能兜底瞎猜, 规则等于没有)
 //  · 子任务(可钻入)、依赖边(可跳转)、优先级、产出与摘要
@@ -78,8 +78,9 @@ export function seed(db: DB, dir: string): { taskCount: number; files: string[] 
   });
 
   // ── 项目 2: MCP 生态接入 ───────────────────────────────────────
+  // 项目只有「执行中/已完结」两态(2026-07-19 定调): 开了就在跑, 没有"待规划"阶段
   const p2 = createTask(db, {
-    id: 'R-9', title: 'MCP 生态接入', state: 'planning', currentActor: admin.id, currentRole: 'planner',
+    id: 'R-9', title: 'MCP 生态接入', state: 'executing', currentActor: admin.id, currentRole: 'planner',
     priority: 'mid', goal: '让第三方 agent 也能接进来干活。',
   });
 
@@ -95,7 +96,8 @@ export function seed(db: DB, dir: string): { taskCount: number; files: string[] 
 
   // ── 项目 3: 看板体验打磨 ───────────────────────────────────────
   const p3 = createTask(db, {
-    id: 'R-12', title: '看板体验打磨', state: 'testing', currentActor: testT.id, currentRole: 'tester', priority: 'mid',
+    id: 'R-12', title: '看板体验打磨', state: 'executing', currentActor: testT.id, currentRole: 'tester', priority: 'mid',
+    goal: '看板顺手、移动端不打折 —— 交互细节逐个磨平。',
   });
   createTask(db, { id: 'R-13', title: '详情抽屉点外关闭', parentId: p3.id, state: 'done', currentActor: testT.id, currentRole: 'tester' });
   createTask(db, {
@@ -106,16 +108,17 @@ export function seed(db: DB, dir: string): { taskCount: number; files: string[] 
   });
   createTask(db, { id: 'R-15', title: '列内拖拽排序', parentId: p3.id, state: 'planning', currentActor: admin.id, currentRole: 'planner', priority: 'lo' });
 
-  // ── 项目 4: 已完成的地基(演示"完成"态) ────────────────────────
+  // ── 项目 4: 已完结的地基(演示项目「已完结」态与归档区) ────────
   const p4 = createTask(db, {
     id: 'R-16', title: '核心地基 MVP', state: 'done', currentActor: testT.id, currentRole: 'tester',
-    priority: 'hi', summary: '四张表 + 六态状态机 + Markdown 镜像, 全部验收通过。',
+    priority: 'hi', goal: '把数据层与状态机地基打牢, 支撑之后一切。',
+    summary: '四张表 + 状态机 + Markdown 镜像, 全部验收通过。',
   });
   const dep = createTask(db, {
     id: 'R-20', title: 'MCP 工具集接口设计', parentId: p4.id, state: 'done',
     currentActor: execA.id, currentRole: 'executor', summary: '锁定 claim/handoff/raise 的字段命名。',
   });
-  handoffEvent('R-16', admin.id, testT.id, 'tester', 'testing', 'done', undefined, '验收通过');
+  handoffEvent('R-16', admin.id, testT.id, 'tester', 'executing', 'done', undefined, '方向做完, 收官');
 
   // 关系边: R-2 依赖 R-20 的接口定义(抽屉「相关任务」里点得进去)
   createEdge(db, { fromTask: t2.id, toTask: dep.id, type: 'depends_on' });

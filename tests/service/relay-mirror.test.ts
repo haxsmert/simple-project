@@ -16,7 +16,7 @@ describe('mirror-affected set', () => {
     const { dir, service } = svc();
     service.registerActor({ id: 'x', name: 'X', type: 'agent' });
     service.registerActor({ id: 'y', name: 'Y', type: 'agent' });
-    const parent = service.createTask({ title: '父', state: 'executing' });
+    const parent = service.createTask({ title: '父', goal: '装子任务的项目', state: 'executing' });
     const child = service.createTask({ title: '子', parentId: parent.id, state: 'executing', currentActor: 'x', currentRole: 'executor' });
     // 换手子任务到 testing(暂不 done, testing 不是 done 复选框, 改成先到 done 验证复选框)
     service.handoff({ taskId: child.id, byActor: 'x', toActor: 'y', toRole: 'tester', toState: 'testing' });
@@ -28,8 +28,8 @@ describe('mirror-affected set', () => {
   it('改依赖任务摘要后, 依赖者的 .md 反映新摘要', () => {
     const { dir, service } = svc();
     service.registerActor({ id: 'x', name: 'X', type: 'agent' });
-    const dep = service.createTask({ title: '被依赖', summary: '旧摘要' });
-    const consumer = service.createTask({ title: '依赖者' });
+    const dep = service.createTask({ title: '被依赖', goal: 'g1', summary: '旧摘要' });
+    const consumer = service.createTask({ title: '依赖者', goal: 'g2' });
     service.linkEdge({ fromTask: consumer.id, toTask: dep.id, type: 'depends_on' });
     service.submitOutput(dep.id, 'x', { summary: '新摘要' });
     const consumerMd = readFileSync(join(dir, `${consumer.id}.md`), 'utf8');

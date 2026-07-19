@@ -95,6 +95,23 @@ export function actionsFor(state: TaskState, hold: Hold): TaskAction[] {
   return MAIN_ACTIONS[state];
 }
 
+// 项目动作(2026-07-19 定调: 项目=大号任务, 只有 执行中/已完结 两态, 不走四阶段):
+// 执行中 → 完结关闭(允许遗留未完成任务, 后端自动留痕)/ 换负责人; 已完结 → 重开。
+// toRole 用项目当前角色(项目的角色只是标签, 原地改派保角色的闸要求同角色)。
+export function projectActionsFor(state: TaskState, currentRole: Role | null): TaskAction[] {
+  const role = currentRole ?? 'planner';
+  if (state === 'done') {
+    return [
+      { key: 'reopen', label: '重开项目', hint: '方向续作, 回到执行中', done: '已重开, 回到执行中', toState: 'executing', toHold: null, toRole: role, primary: true, keepActor: true },
+    ];
+  }
+  return [
+    { key: 'close', label: '完结关闭', hint: '方向收官或搁置, 项目沉入「已完结」', done: '已完结关闭', toState: 'done', toHold: null, toRole: role, keepActor: true, danger: true,
+      form: { kind: 'reason', title: '为什么完结?(可选)', hint: '会记进「经过」; 还有未完成任务的话会自动留痕' } },
+    { key: 'reassign', label: '换负责人', hint: '项目不动, 只换人', done: '已改派', toState: state, toRole: role },
+  ];
+}
+
 // 结构性测试用: 全部动作条目(带其前置位置), 逐条对 canMove 校验
 export const ALL_ACTION_ENTRIES: Array<{ from: { state: TaskState; hold: Hold }; action: TaskAction }> = [
   ...(Object.keys(MAIN_ACTIONS) as TaskState[]).flatMap((s) =>

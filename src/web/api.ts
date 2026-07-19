@@ -16,7 +16,8 @@ export function buildApp(service: RelayService): FastifyInstance {
       }
     };
 
-  app.get('/api/projects', wrap(() => service.projectBoard()));
+  // 项目总览(项目层透镜): { active: 执行中项目[], closed: 已完结项目[] }, 卡带 attention + 最近动静
+  app.get('/api/projects', wrap(() => service.projectOverview()));
   app.get('/api/projects/:id/board', wrap((req) => service.taskBoard(req.params.id)));
   app.get('/api/tasks-board', wrap(() => service.allTasksBoard()));
   app.get('/api/tree', wrap(() => service.tree()));

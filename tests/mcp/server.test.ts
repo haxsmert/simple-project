@@ -14,7 +14,7 @@ describe('MCP server (in-memory roundtrip)', () => {
     const db = openDb(':memory:');
     const service = new RelayService(db, mkdtempSync(join(tmpdir(), 'relay-srv-')));
     service.registerActor({ id: 'a', name: 'A', type: 'agent' });
-    service.createTask({ title: 'demo', currentActor: 'a', currentRole: 'executor' });
+    service.createTask({ title: 'demo', goal: 'demo 方向', currentActor: 'a', currentRole: 'executor' });
 
     const server = buildServer(service);
     const [clientT, serverT] = InMemoryTransport.createLinkedPair();
@@ -53,7 +53,10 @@ describe('MCP server (in-memory roundtrip)', () => {
     await call('register_actor', { id: 'admin', name: 'admin', type: 'human' });
     await call('register_actor', { id: 'cc', name: 'CC', type: 'agent' });
     expect((await call('list_actors', {})).length).toBe(2);
-    const t = await call('create_task', { title: '演练任务', goal: '走一遍' });
+    // 项目=长期方向(目标必填, 建即执行中); 任务挂在项目下走四阶段
+    const proj = await call('create_task', { title: '演练项目', goal: '把流程走一遍' });
+    expect(proj.state).toBe('executing');
+    const t = await call('create_task', { title: '演练任务', goal: '走一遍', parent_id: proj.id });
     expect((await call('list_tasks', { unassigned: true })).map((x: any) => x.id)).toContain(t.id);
     await call('claim', { task_id: t.id, actor: 'cc', role: 'planner' });
     await call('submit_plan', { task_id: t.id, by_actor: 'cc', plan_md: '- [ ] 一步' });
@@ -70,7 +73,7 @@ describe('MCP server (in-memory roundtrip)', () => {
     await call('handoff', { task_id: t.id, by_actor: 'cc', to_actor: 'admin', to_role: 'tester', to_state: 'testing' });
     await call('handoff', { task_id: t.id, by_actor: 'admin', to_actor: 'admin', to_role: 'tester', to_state: 'done' });
     await call('update_task', { task_id: t.id, by_actor: 'admin', priority: 'hi' });
-    const scratch = await call('create_task', { title: '建错了' });
+    const scratch = await call('create_task', { title: '建错了', parent_id: proj.id });
     await call('link_edge', { from_task: t.id, to_task: scratch.id, type: 'depends_on' });
     await call('delete_task', { task_id: scratch.id, by_actor: 'admin' });
     const final = await call('get_task', { id: t.id });
@@ -89,7 +92,7 @@ describe('MCP server (in-memory roundtrip)', () => {
     const db = openDb(':memory:');
     const service = new RelayService(db, mkdtempSync(join(tmpdir(), 'relay-w-')));
     service.registerActor({ id: 'a', name: 'A', type: 'agent' });
-    const t = service.createTask({ title: 'demo' });
+    const t = service.createTask({ title: 'demo', goal: 'g' });
     const server = buildServer(service);
     const [clientT, serverT] = InMemoryTransport.createLinkedPair();
     await server.connect(serverT);

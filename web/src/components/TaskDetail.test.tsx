@@ -395,3 +395,49 @@ describe('TaskDetail', () => {
     expect(within(clarCards[1] as HTMLElement).queryByText('执行A')).toBeNull();
   });
 });
+
+// 项目=大号任务(2026-07-19 定调): 详情复用任务抽屉, 但动作区换成项目动作(完结/重开), 状态说项目语言
+describe('TaskDetail 项目模式', () => {
+  const projPkg: TaskPackage = {
+    task: { id: 'R-1', title: '长期方向', state: 'executing', hold: null, currentActor: 'admin', currentRole: 'planner', parentId: null, goal: '方向说明', planMd: null, outputsMd: null, summary: null, priority: null },
+    breadcrumb: [],
+    inputs: { goal: '方向说明', planMd: null, depOutputs: [] },
+    outputs: { outputsMd: null, summary: null },
+    clarifications: [], thread: [],
+    subtasks: [
+      { id: 'R-2', title: '遗留甲', state: 'executing', hold: null, currentActor: null, currentRole: null, parentId: 'R-1', goal: null, planMd: null, outputsMd: null, summary: null, priority: null },
+      { id: 'R-3', title: '遗留乙', state: 'planning', hold: null, currentActor: null, currentRole: null, parentId: 'R-1', goal: null, planMd: null, outputsMd: null, summary: null, priority: null },
+    ],
+    edges: { out: [], in: [] },
+  };
+
+  it('执行中项目: 状态说「执行中」, 给「项目动作」; 完结不被子任务禁用, 但如实提示将遗留', async () => {
+    const onAct = vi.fn(async () => true);
+    const { container } = render(<TaskDetail pkg={projPkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={onAct} onComment={() => {}} onOpenTask={() => {}} onUpdate={async () => true} onDelete={async () => true} onClose={() => {}} />);
+    expect(container.querySelector('.status-row .pill')!.textContent).toBe('执行中'); // 项目语言(子任务行也有同词, 定位到状态 pill)
+    expect(screen.getByText('项目动作')).toBeInTheDocument();
+    const close = screen.getByRole('button', { name: '完结关闭' });
+    expect(close).not.toBeDisabled(); // 项目完结允许遗留(任务层的"子未完禁用"不适用)
+    expect(screen.getByText(/将遗留 2 项未完成/)).toBeInTheDocument();
+    // 点开理由面板(可选理由), 空着也能提交
+    fireEvent.click(close);
+    const panel = screen.getByRole('group', { name: /为什么完结/ });
+    fireEvent.click(within(panel).getByRole('button', { name: '完结关闭' }));
+    await waitFor(() => expect(onAct).toHaveBeenCalled());
+    const input = (onAct.mock.calls[0] as unknown[])[0] as { toState: string; toHold: unknown };
+    expect(input.toState).toBe('done');
+    expect(input.toHold).toBeNull();
+  });
+
+  it('已完结项目: 状态说「已完结」, 动作只有「重开项目」', async () => {
+    const onAct = vi.fn(async () => true);
+    const donePkg: TaskPackage = { ...projPkg, task: { ...projPkg.task, state: 'done' }, subtasks: [] };
+    render(<TaskDetail pkg={donePkg} actorsById={actors} routing={routing} onAnswer={() => {}} onAct={onAct} onComment={() => {}} onOpenTask={() => {}} onUpdate={async () => true} onDelete={async () => true} onClose={() => {}} />);
+    expect(screen.getByText('已完结')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '重开项目' }));
+    await waitFor(() => expect(onAct).toHaveBeenCalled());
+    const input = (onAct.mock.calls[0] as unknown[])[0] as { toState: string };
+    expect(input.toState).toBe('executing');
+    expect(screen.queryByRole('button', { name: '完结关闭' })).toBeNull();
+  });
+});

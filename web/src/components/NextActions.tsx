@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { Actor, TaskState, Hold } from '../types';
-import { actionsFor, type TaskAction, type ActInput } from '../actions';
+import type { Actor, TaskState, Hold, Role } from '../types';
+import { actionsFor, projectActionsFor, type TaskAction, type ActInput } from '../actions';
 
 // 「下一步」面板: 取代原来的「换手」三元组表单。
 // - 只列当前状态允许的去向, 每条是一句大白话 + 后果 → 拼不出非法组合
@@ -9,15 +9,17 @@ import { actionsFor, type TaskAction, type ActInput } from '../actions';
 // - **带内容的动作点开先展开输入区**(计划/产出/理由): 内容和动作同址 —— "提交计划"却没处写计划,
 //   动作就是空话。展开区预填现有内容, 改完一并提交。
 // - 主动作只有一个; 点击后禁用 + 「处理中…」防连点
-export function NextActions({ taskId, state, hold, currentActor, actorsById, routing, content, openSubtasks, onAct }: {
+export function NextActions({ taskId, state, hold, currentActor, currentRole, isProject, actorsById, routing, content, openSubtasks, onAct }: {
   taskId: string; state: TaskState; hold: Hold; currentActor: string | null;
+  currentRole?: Role | null;   // 项目动作要保角色(原地改派闸), 任务动作按流程定角色
+  isProject?: boolean;         // 项目=两态(完结/重开/换负责人), 不走任务四阶段动作表
   actorsById: Record<string, Actor>;
   routing: Record<string, { actorId: string | null; basis: 'history' | 'fallback' }>;
   content: { planMd: string | null; outputsMd: string | null; summary: string | null }; // 表单预填: 已写过的别让人重打
-  openSubtasks: number; // 未完成的直接子任务数 —— 完成前必须清零(硬闸在后端), 进测试只如实提示
+  openSubtasks: number; // 未完成的直接子任务数 —— 完成前必须清零(硬闸在后端), 进测试只如实提示; 项目完结不拦、只留痕
   onAct: (input: ActInput, action: TaskAction) => Promise<boolean>;
 }) {
-  const actions = actionsFor(state, hold);
+  const actions = isProject ? projectActionsFor(state, currentRole ?? null) : actionsFor(state, hold);
   const agents = Object.values(actorsById).filter((a) => a.type === 'agent');
   const human = Object.values(actorsById).find((a) => a.type === 'human');
   const fallback = agents[0]?.id ?? Object.keys(actorsById)[0] ?? '';
@@ -85,12 +87,14 @@ export function NextActions({ taskId, state, hold, currentActor, actorsById, rou
           const target = targetOf(a);
           const who = actorsById[target]?.name;
           // 父子最小不变量(方案 B): 完成的任务不能有没完成的子 —— 收官类动作禁用并说明原因(后端同拦);
-          // 进测试不拦, 但把"还有几个没完成"如实摆在按钮上
-          const blockedByChildren = a.toState === 'done' && openSubtasks > 0;
+          // 进测试不拦, 但把"还有几个没完成"如实摆在按钮上。
+          // 项目特例(2026-07-19 拍板): 完结允许遗留 —— 不禁用, 把"将遗留 N 项"如实写在按钮上(后端自动留痕)
+          const blockedByChildren = !isProject && a.toState === 'done' && openSubtasks > 0;
+          const projLeftover = isProject && a.key === 'close' && openSubtasks > 0 ? ` · 将遗留 ${openSubtasks} 项未完成(会留痕)` : '';
           // 按钮第二行直接写明后果 + 交给谁 —— 默认可见, 才谈得上"默认规则"而不是黑箱
           const sub = blockedByChildren ? `还有 ${openSubtasks} 个子任务未完成 —— 全完成才能收官`
             : isPick ? a.hint
-              : `${a.hint}${!a.keepActor && who ? ` · 交给 ${who}${isGuess(a) ? '(还没人做过这个角色, 先随便派的)' : ''}` : ''}${a.toState === 'testing' && openSubtasks > 0 ? ` · 还有 ${openSubtasks} 个子任务未完成` : ''}`;
+              : `${a.hint}${projLeftover}${!a.keepActor && who ? ` · 交给 ${who}${isGuess(a) ? '(还没人做过这个角色, 先随便派的)' : ''}` : ''}${a.toState === 'testing' && openSubtasks > 0 ? ` · 还有 ${openSubtasks} 个子任务未完成` : ''}`;
           if (isPick && openFor === a.key) {
             return (
               <div key={a.key} className="reassign-open"

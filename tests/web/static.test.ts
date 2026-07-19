@@ -25,6 +25,6 @@ describe('static app', () => {
   it('/api/projects 仍返回 JSON(静态托管不吞 API 路由)', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/projects' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toHaveLength(4);
+    expect(res.json()).toEqual({ active: [], closed: [] }); // 项目总览两组结构
   });
 });

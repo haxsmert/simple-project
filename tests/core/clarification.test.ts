@@ -12,8 +12,9 @@ describe('待确认闭环', () => {
     const db = openDb(':memory:');
     createActor(db, { id: 'exec', name: '执行·A', type: 'agent' });
     createActor(db, { id: 'admin', name: 'admin', type: 'human' });
+    createTask(db, { id: 'P-H', title: '宿主项目', state: 'executing' });
     const parent = createTask(db, {
-      title: '搭建数据层', state: 'executing', currentActor: 'exec', currentRole: 'executor',
+      title: '搭建数据层', parentId: 'P-H', state: 'executing', currentActor: 'exec', currentRole: 'executor',
     });
 
     const { clarTask } = raiseClarification(db, {
@@ -41,8 +42,9 @@ describe('待确认闭环', () => {
     const db = openDb(':memory:');
     createActor(db, { id: 'exec', name: '执行·A', type: 'agent' });
     createActor(db, { id: 'admin', name: 'admin', type: 'human' });
+    createTask(db, { id: 'P-H', title: '宿主项目', state: 'executing' });
     const parent = createTask(db, {
-      title: '搭建数据层', state: 'executing', currentActor: 'exec', currentRole: 'executor',
+      title: '搭建数据层', parentId: 'P-H', state: 'executing', currentActor: 'exec', currentRole: 'executor',
     });
     const { clarTask } = raiseClarification(db, {
       parentId: parent.id, byActor: 'exec', question: '附件?', toDecider: 'admin',
@@ -64,7 +66,8 @@ describe('待确认闭环', () => {
     const db = openDb(':memory:');
     createActor(db, { id: 'exec', name: '执行·A', type: 'agent' });
     createActor(db, { id: 'admin', name: 'admin', type: 'human' });
-    const parent = createTask(db, { title: 'p', state: 'executing', currentActor: 'exec', currentRole: 'executor' });
+    createTask(db, { id: 'P-H', title: '宿主项目', state: 'executing' });
+    const parent = createTask(db, { title: 'p', parentId: 'P-H', state: 'executing', currentActor: 'exec', currentRole: 'executor' });
     const { clarTask: c1 } = raiseClarification(db, { parentId: parent.id, byActor: 'exec', question: 'Q1', toDecider: 'admin' });
     const { clarTask: c2 } = raiseClarification(db, { parentId: parent.id, byActor: 'exec', question: 'Q2', toDecider: 'admin' });
     answerClarification(db, { clarTaskId: c1.id, byActor: 'admin', answer: 'A1' });
@@ -77,8 +80,9 @@ describe('待确认闭环', () => {
     const db = openDb(':memory:');
     createActor(db, { id: 'p', name: 'P', type: 'agent' });
     createActor(db, { id: 'admin', name: 'admin', type: 'human' });
+    createTask(db, { id: 'P-H', title: '宿主项目', state: 'executing' });
     for (const state of ['planning', 'testing'] as const) {
-      const t = createTask(db, { title: `${state} 卡住`, state, currentActor: 'p', currentRole: 'planner' });
+      const t = createTask(db, { title: `${state} 卡住`, parentId: 'P-H', state, currentActor: 'p', currentRole: 'planner' });
       const { clarTask } = raiseClarification(db, { parentId: t.id, byActor: 'p', question: '这样行吗?', toDecider: 'admin' });
       expect(getTask(db, t.id)!.hold).toBe('decision');
       expect(getTask(db, t.id)!.state).toBe(state);
@@ -87,7 +91,7 @@ describe('待确认闭环', () => {
       expect(getTask(db, t.id)!.state).toBe(state); // 原地继续, 不假设"回执行中"
     }
     // 同一任务可中断多次(序列): 再问一轮照样成立
-    const again = createTask(db, { title: '多次中断', state: 'executing', currentActor: 'p', currentRole: 'executor' });
+    const again = createTask(db, { title: '多次中断', parentId: 'P-H', state: 'executing', currentActor: 'p', currentRole: 'executor' });
     const r1 = raiseClarification(db, { parentId: again.id, byActor: 'p', question: '第一次?', toDecider: 'admin' });
     answerClarification(db, { clarTaskId: r1.clarTask.id, byActor: 'admin', answer: 'A' });
     const r2 = raiseClarification(db, { parentId: again.id, byActor: 'p', question: '第二次?', toDecider: 'admin' });
@@ -99,17 +103,21 @@ describe('待确认闭环', () => {
   it('完成的任务不能提问; 挂在等确认上的任务先批准/打回才能提问', () => {
     const db = openDb(':memory:');
     createActor(db, { id: 'admin', name: 'admin', type: 'human' });
-    const doneTask = createTask(db, { title: 'd', state: 'done' });
+    createTask(db, { id: 'P-H', title: '宿主项目', state: 'executing' });
+    const doneTask = createTask(db, { title: 'd', parentId: 'P-H', state: 'done' });
     expect(() => raiseClarification(db, { parentId: doneTask.id, byActor: 'admin', question: 'Q' })).toThrow(/已完成/);
-    const confirming = createTask(db, { title: 'c', state: 'planning', hold: 'confirm', currentActor: 'admin', currentRole: 'decider' });
+    const confirming = createTask(db, { title: 'c', parentId: 'P-H', state: 'planning', hold: 'confirm', currentActor: 'admin', currentRole: 'decider' });
     expect(() => raiseClarification(db, { parentId: confirming.id, byActor: 'admin', question: 'Q' })).toThrow(/等确认/);
+    // 对项目本身提问 → 拒(项目不挂起)
+    expect(() => raiseClarification(db, { parentId: 'P-H', byActor: 'admin', question: 'Q' })).toThrow(/项目不挂起/);
   });
 
   it('已决策的待确认不可重复答复', () => {
     const db = openDb(':memory:');
     createActor(db, { id: 'exec', name: 'A', type: 'agent' });
     createActor(db, { id: 'admin', name: 'admin', type: 'human' });
-    const parent = createTask(db, { title: 'p', state: 'executing', currentActor: 'exec', currentRole: 'executor' });
+    createTask(db, { id: 'P-H', title: '宿主项目', state: 'executing' });
+    const parent = createTask(db, { title: 'p', parentId: 'P-H', state: 'executing', currentActor: 'exec', currentRole: 'executor' });
     const { clarTask } = raiseClarification(db, { parentId: parent.id, byActor: 'exec', question: 'Q', toDecider: 'admin' });
     answerClarification(db, { clarTaskId: clarTask.id, byActor: 'admin', answer: 'A' });
     expect(() => answerClarification(db, { clarTaskId: clarTask.id, byActor: 'admin', answer: 'A2' })).toThrow(/勿重复/);
