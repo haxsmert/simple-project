@@ -1,8 +1,27 @@
+import { timingSafeEqual } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { RelayService } from '../service/relay';
 
-export function buildApp(service: RelayService): FastifyInstance {
+// HTTP Basic 全站门禁(页面+API 同闸): Relay 无多用户概念, 一套管理员凭据挡住"局域网内谁都能写"。
+// 浏览器首次访问弹原生登录框、记住后续自动带; API 集成方带 Authorization: Basic(curl -u)。
+// 注: Basic 在明文 HTTP 下是 base64 非加密 —— 局域网可信是前提, 不要暴露公网。
+export interface AuthConfig { user: string; pass: string }
+
+export function buildApp(service: RelayService, auth?: AuthConfig): FastifyInstance {
   const app = Fastify({ logger: false });
+  if (auth) {
+    const expected = Buffer.from(`${auth.user}:${auth.pass}`);
+    app.addHook('onRequest', async (req, reply) => {
+      const h = req.headers.authorization ?? '';
+      const got = h.startsWith('Basic ') ? Buffer.from(h.slice(6), 'base64') : Buffer.alloc(0);
+      // 长度不等直接拒(长度本身不算秘密); 等长走 timingSafeEqual 防时序侧信道
+      const ok = got.length === expected.length && timingSafeEqual(got, expected);
+      if (!ok) {
+        reply.header('www-authenticate', 'Basic realm="Relay", charset="UTF-8"'); // 触发浏览器原生登录框
+        reply.code(401).send({ error: '需要登录: 浏览器输入账号密码; API 集成带 Authorization: Basic(如 curl -u 账号:密码)' });
+      }
+    });
+  }
 
   // 统一: 把 service 调用包成 handler, 抛错 → 400 {error}
   const wrap =

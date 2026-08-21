@@ -5,10 +5,10 @@ import fastifyStatic from '@fastify/static';
 import type { FastifyInstance } from 'fastify';
 import { openDb } from '../db/connection';
 import { RelayService } from '../service/relay';
-import { buildApp } from './api';
+import { buildApp, type AuthConfig } from './api';
 
-export function buildStaticApp(service: RelayService, distDir: string): FastifyInstance {
-  const app = buildApp(service);
+export function buildStaticApp(service: RelayService, distDir: string, auth?: AuthConfig): FastifyInstance {
+  const app = buildApp(service, auth);
   app.register(fastifyStatic, { root: distDir });
   return app;
 }
@@ -22,7 +22,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   mkdirSync(dirname(dbPath), { recursive: true });
   const db = openDb(dbPath);
   const service = new RelayService(db, mirrorDir);
-  const app = buildStaticApp(service, dist);
+  // 管理员凭据: 默认值按用户指定写死(2026-08-21), RELAY_USER/RELAY_PASS 可覆盖 ——
+  // ⚠️ 本仓库是公开仓, 写死的默认密码等于公开; 换密码优先走环境变量, 别只当没人知道
+  const auth: AuthConfig = { user: process.env.RELAY_USER ?? 'bianzhiwen', pass: process.env.RELAY_PASS ?? 'bian2020' };
+  const app = buildStaticApp(service, dist, auth);
   const port = Number(process.env.PORT ?? 3000);
   // 默认只绑回环: Relay 没有鉴权, 谁连上谁就能读写 —— 要给局域网其他设备用,
   // 显式 RELAY_HOST=0.0.0.0(等于宣布"这个网段我信"), 不做静默暴露

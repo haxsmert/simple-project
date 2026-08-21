@@ -47,8 +47,14 @@ hold:  confirm 等确认 —— 本阶段产出已提交，等决策者批准前
 npm install
 npm run seed          # 重置并灌 demo 数据（会删库重建——先停掉正在跑的服务）
 PORT=3200 npm run web # Web + HTTP API 单端口（默认只绑 127.0.0.1）
-RELAY_HOST=0.0.0.0 PORT=3200 npm run web # 开放局域网访问（注意：无鉴权，网段内谁都能读写）
-npm run mcp           # MCP server（stdio）
+RELAY_HOST=0.0.0.0 PORT=3200 npm run web # 开放局域网访问
+npm run mcp           # MCP server（stdio，本机进程，不走 HTTP 门禁）
+```
+
+Web 与 HTTP API 有全站 HTTP Basic 门禁：默认账号 `bianzhiwen`（`RELAY_USER`/`RELAY_PASS` 可覆盖——默认密码在公开仓里，改密码请走环境变量）。浏览器首次访问弹登录框；API 集成方带凭据：
+
+```bash
+curl -u bianzhiwen:密码 http://<host>:3200/api/pending/admin
 npm test              # 后端测试
 npx vitest run --config web/vite.config.ts web/  # 前端测试
 ```
