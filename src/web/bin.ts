@@ -24,7 +24,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const service = new RelayService(db, mirrorDir);
   const app = buildStaticApp(service, dist);
   const port = Number(process.env.PORT ?? 3000);
-  app.listen({ port, host: '127.0.0.1' }).then(() => console.log(`✅ Relay Web 已启动: http://127.0.0.1:${port}`))
+  // 默认只绑回环: Relay 没有鉴权, 谁连上谁就能读写 —— 要给局域网其他设备用,
+  // 显式 RELAY_HOST=0.0.0.0(等于宣布"这个网段我信"), 不做静默暴露
+  const host = process.env.RELAY_HOST ?? '127.0.0.1';
+  app.listen({ port, host }).then(() => console.log(`✅ Relay Web 已启动: http://${host}:${port}`))
     .catch((e) => { console.error(e); process.exit(1); });
   // 优雅关闭: 信号 → 停收请求 → process.exit; 库统一在 exit 里关(WAL checkpoint 落盘,
   // better-sqlite3 的 close 是同步的, 放 exit 钩子安全, 且 stdin/异常等其他退出路径也兜住)

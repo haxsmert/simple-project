@@ -46,7 +46,8 @@ hold:  confirm 等确认 —— 本阶段产出已提交，等决策者批准前
 ```bash
 npm install
 npm run seed          # 重置并灌 demo 数据（会删库重建——先停掉正在跑的服务）
-PORT=3200 npm run web # Web + HTTP API 单端口
+PORT=3200 npm run web # Web + HTTP API 单端口（默认只绑 127.0.0.1）
+RELAY_HOST=0.0.0.0 PORT=3200 npm run web # 开放局域网访问（注意：无鉴权，网段内谁都能读写）
 npm run mcp           # MCP server（stdio）
 npm test              # 后端测试
 npx vitest run --config web/vite.config.ts web/  # 前端测试
