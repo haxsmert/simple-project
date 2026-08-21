@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import fastifyStatic from '@fastify/static';
@@ -6,6 +6,7 @@ import type { FastifyInstance } from 'fastify';
 import { openDb } from '../db/connection';
 import { RelayService } from '../service/relay';
 import { buildApp, type AuthConfig } from './api';
+import { resolveAuth } from './auth';
 
 export function buildStaticApp(service: RelayService, distDir: string, auth?: AuthConfig): FastifyInstance {
   const app = buildApp(service, auth);
@@ -22,13 +23,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   mkdirSync(dirname(dbPath), { recursive: true });
   const db = openDb(dbPath);
   const service = new RelayService(db, mirrorDir);
-  // 管理员凭据: 默认值按用户指定写死(2026-08-21), RELAY_USER/RELAY_PASS 可覆盖 ——
-  // ⚠️ 本仓库是公开仓, 写死的默认密码等于公开; 换密码优先走环境变量, 别只当没人知道
-  const auth: AuthConfig = { user: process.env.RELAY_USER ?? 'bianzhiwen', pass: process.env.RELAY_PASS ?? 'bian2020' };
+  // 管理员凭据: env > data/auth.json(gitignore 的部署配置, 真密码放这) > 写死默认。
+  // ⚠️ 公开仓里写死的默认密码等于公开 —— 真用请在 data/auth.json 设自己的密码(改密码即全端下线)
+  let fileJson: string | null = null;
+  try { fileJson = readFileSync('data/auth.json', 'utf8'); } catch { /* 没有就走后备 */ }
+  const auth: AuthConfig = resolveAuth(process.env, fileJson);
   const app = buildStaticApp(service, dist, auth);
   const port = Number(process.env.PORT ?? 3000);
-  // 默认只绑回环: Relay 没有鉴权, 谁连上谁就能读写 —— 要给局域网其他设备用,
-  // 显式 RELAY_HOST=0.0.0.0(等于宣布"这个网段我信"), 不做静默暴露
+  // 默认只绑回环; 要给局域网其他设备用, 显式 RELAY_HOST=0.0.0.0(等于宣布"这个网段我信"),
+  // 不做静默暴露 —— 门禁挡的是未登录读写, 明文 HTTP 本身不加密, 局域网可信仍是前提
   const host = process.env.RELAY_HOST ?? '127.0.0.1';
   app.listen({ port, host }).then(() => console.log(`✅ Relay Web 已启动: http://${host}:${port}`))
     .catch((e) => { console.error(e); process.exit(1); });

@@ -51,7 +51,7 @@ RELAY_HOST=0.0.0.0 PORT=3200 npm run web # 开放局域网访问
 npm run mcp           # MCP server（stdio，本机进程，不走 HTTP 门禁）
 ```
 
-Web 与 HTTP API 有登录门禁：浏览器走登录页（登录后 30 天免登，顶栏可退出），默认账号 `bianzhiwen`（`RELAY_USER`/`RELAY_PASS` 可覆盖——默认密码在公开仓里，改密码请走环境变量，改密码即全端下线）。API 集成方不用登录，直接带 Basic 凭据：
+Web 与 HTTP API 有登录门禁：浏览器走登录页（登录后 30 天免登，顶栏可退出）。凭据来源优先级：环境变量 `RELAY_USER`/`RELAY_PASS` > `data/auth.json`（gitignore 内，真密码放这，格式 `{"user":"…","pass":"…"}`）> 写死默认——默认密码在公开仓里等于公开，真用必设自己的；改密码即全端下线。API 集成方不用登录，直接带 Basic 凭据：
 
 ```bash
 curl -u bianzhiwen:密码 http://<host>:3200/api/pending/admin

@@ -6,7 +6,7 @@ import { openDb } from '../../src/db/connection';
 import { RelayService } from '../../src/service/relay';
 import { buildApp } from '../../src/web/api';
 import { buildStaticApp } from '../../src/web/bin';
-import { makeToken, verifyToken } from '../../src/web/auth';
+import { makeToken, verifyToken, resolveAuth } from '../../src/web/auth';
 
 // 登录门禁契约: 静态壳放行、API 401(不弹原生框)、登录发 HttpOnly cookie、Basic 直连留给集成方
 const AUTH = { user: 'bianzhiwen', pass: 'bian2020' };
@@ -77,6 +77,14 @@ describe('web auth(登录页 + 签名 cookie)', () => {
     const list = await app.inject({ method: 'GET', url: '/api/projects', headers: { authorization: basic(AUTH.user, AUTH.pass) } });
     expect(list.json().active).toEqual([]); // 401 的写没有落库
     await app.close();
+  });
+
+  it('凭据优先级: env > auth.json > 写死默认(文件坏了/缺字段回退, 不炸启动)', () => {
+    expect(resolveAuth({}, null)).toEqual({ user: 'bianzhiwen', pass: 'bian2020' });
+    expect(resolveAuth({}, '{"user":"u1","pass":"p1"}')).toEqual({ user: 'u1', pass: 'p1' });
+    expect(resolveAuth({ RELAY_PASS: 'envp' }, '{"user":"u1","pass":"p1"}')).toEqual({ user: 'u1', pass: 'envp' });
+    expect(resolveAuth({}, '{"pass":"仅密码"}')).toEqual({ user: 'bianzhiwen', pass: '仅密码' });
+    expect(resolveAuth({}, '不是json{')).toEqual({ user: 'bianzhiwen', pass: 'bian2020' });
   });
 
   it('登出: 回收浏览器侧 cookie(Max-Age=0)', async () => {

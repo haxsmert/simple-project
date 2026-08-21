@@ -41,6 +41,17 @@ export function checkLogin(user: unknown, pass: unknown, a: AuthConfig): boolean
   return got.length === want.length && timingSafeEqual(got, want);
 }
 
+// 凭据来源优先级: 环境变量 > data/auth.json(gitignore 内的部署配置 —— 真密码不进公开仓)> 写死默认。
+// 走文件而不是只靠 env: 重启忘带 env 会悄悄回落到公开仓里的默认密码, 那是假改密
+export function resolveAuth(env: { RELAY_USER?: string; RELAY_PASS?: string }, fileJson: string | null): AuthConfig {
+  let file: Partial<AuthConfig> = {};
+  try { file = JSON.parse(fileJson ?? '') as Partial<AuthConfig>; } catch { /* 没有或坏了 → 忽略, 走后备 */ }
+  return {
+    user: env.RELAY_USER ?? (typeof file.user === 'string' ? file.user : undefined) ?? 'bianzhiwen',
+    pass: env.RELAY_PASS ?? (typeof file.pass === 'string' ? file.pass : undefined) ?? 'bian2020',
+  };
+}
+
 export function cookieValue(cookieHeader: string | undefined, name: string): string | undefined {
   for (const part of (cookieHeader ?? '').split(';')) {
     const [k, ...v] = part.trim().split('=');
