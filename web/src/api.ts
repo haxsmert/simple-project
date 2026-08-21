@@ -1,12 +1,17 @@
 import type { BoardColumn, TaskNode, TaskPackage, Actor, Task, ProjectOverview } from './types';
 
+// 带状态码的错误: 401(未登录)要走登录页分流, 不能和业务错误(400 守卫拦下)混成一条横幅
+export class ApiError extends Error {
+  constructor(message: string, public status: number) { super(message); }
+}
+
 async function j<T>(url: string, opts?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...opts,
     headers: opts?.body ? { 'content-type': 'application/json' } : undefined,
   });
   const data = await res.json();
-  if (!res.ok) throw new Error((data as { error?: string }).error ?? `HTTP ${res.status}`);
+  if (!res.ok) throw new ApiError((data as { error?: string }).error ?? `HTTP ${res.status}`, res.status);
   return data as T;
 }
 const post = <T>(url: string, body: unknown) => j<T>(url, { method: 'POST', body: JSON.stringify(body) });
@@ -30,4 +35,6 @@ export const api = {
   deleteTask: (id: string, byActor: string) =>
     j<{ ok: boolean }>(`/api/tasks/${id}?byActor=${encodeURIComponent(byActor)}`, { method: 'DELETE' }),
   reorder: (ids: string[]) => post<{ ok: boolean }>('/api/reorder', { ids }),
+  login: (user: string, pass: string) => post<{ ok: boolean }>('/api/login', { user, pass }),
+  logout: () => post<{ ok: boolean }>('/api/logout', {}),
 };

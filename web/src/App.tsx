@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { api } from './api';
+import { api, ApiError } from './api';
+import { LoginPage } from './components/LoginPage';
 import type { BoardColumn, ProjectOverview, TaskNode, TaskPackage, Actor } from './types';
 import { Board } from './components/Board';
 import { ProjectGrid } from './components/ProjectGrid';
@@ -60,8 +61,13 @@ export function App() {
   const canCreateTask = !!currentId && !isAll; // "全部任务"无父节点, 不能就地追加
   const canAscend = view === 'board' && !atRoot;
 
+  // 401 与业务错误分流: 未登录不是"出错了", 是要去登录 —— 渲染登录页而非错误横幅
+  const [needLogin, setNeedLogin] = useState(false);
   const guard = useCallback(async (fn: () => Promise<void>) => {
-    try { setError(null); await fn(); } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    try { setError(null); await fn(); } catch (e) {
+      if (e instanceof ApiError && e.status === 401) { setNeedLogin(true); return; }
+      setError(e instanceof Error ? e.message : String(e));
+    }
   }, []);
 
   const refresh = useCallback(async () => {
@@ -283,6 +289,9 @@ export function App() {
     )
   );
 
+  // 未登录整页即登录页(不渲半个看板壳); 登录成功 reload 重新初载 —— 登录是边界事件, 全量重来最干净
+  if (needLogin) return <LoginPage onDone={() => window.location.reload()} />;
+
   return (
     <div className="app">
       {error && (
@@ -335,6 +344,8 @@ export function App() {
           </div>
           {view === 'board' && atRoot && createControl('project', '项目标题…', '+ 新建项目')}
           {view === 'board' && canCreateTask && createControl('task', '任务标题…', '+ 追加任务')}
+          {/* 有登录就有登出(可控闭环); reload 后 API 401 → 自然落回登录页 */}
+          <button className="btn logout-btn" onClick={() => { api.logout().finally(() => window.location.reload()); }}>退出</button>
         </div>
       </div>
 

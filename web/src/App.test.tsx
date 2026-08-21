@@ -161,6 +161,14 @@ describe('App shell', () => {
     expect(await screen.findByText(/数据库炸了/)).toBeInTheDocument();
   });
 
+  it('未登录(API 401)→ 渲染登录页而不是错误横幅(401 是要去登录, 不是出错了)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 401, json: async () => ({ error: '需要登录' }) })) as any);
+    render(<App />);
+    expect(await screen.findByRole('button', { name: '登录' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull(); // 不是横幅
+    expect(screen.queryByText('项目总览')).toBeNull(); // 不渲半个看板壳
+  });
+
   it('项目卡 = 目标 + 🔔待处理 + 最近动静(项目层透镜, 无进度百分比), 顶栏展示可点击的全局 pill', async () => {
     render(<App />);
     await screen.findByText('演示项目');

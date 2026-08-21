@@ -390,3 +390,18 @@ select { cursor:pointer; }
   .tevent .crumb-link { padding-top: 6px; padding-bottom: 6px; }
   .ttitle { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
+
+/* ── 登录页(2026-08-21): 未登录整页只有它 —— 数据在 /api 闸后, 壳先到、门在页内不在浏览器弹窗 ── */
+.login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); padding: 24px; }
+.login-card { width: 100%; max-width: 360px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  padding: 32px 28px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 8px 30px rgba(27,36,51,.08); }
+.login-brand { display: flex; align-items: center; gap: 10px; }
+.login-mark { width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(135deg, var(--human), var(--agent)); }
+.login-brand h1 { font-size: 22px; margin: 0; }
+.login-sub { margin: -6px 0 6px; color: var(--text-dim); font-size: 13px; }
+.login-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-dim); }
+.login-field input { padding: 9px 11px; border: 1px solid var(--border-2); border-radius: 8px; font: inherit; background: var(--surface); color: var(--text); }
+.login-field input:focus-visible { outline: 2px solid var(--human); outline-offset: 1px; border-color: var(--human); }
+.login-err { margin: 0; color: var(--danger); font-size: 13px; }
+.login-btn { margin-top: 4px; padding: 10px; font-size: 14px; }
+.logout-btn { color: var(--text-faint); }

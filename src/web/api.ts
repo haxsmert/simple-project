@@ -1,25 +1,41 @@
-import { timingSafeEqual } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { RelayService } from '../service/relay';
+import { COOKIE_NAME, TTL_MS, makeToken, verifyToken, checkBasic, checkLogin, cookieValue, type AuthConfig } from './auth';
 
-// HTTP Basic 全站门禁(页面+API 同闸): Relay 无多用户概念, 一套管理员凭据挡住"局域网内谁都能写"。
-// 浏览器首次访问弹原生登录框、记住后续自动带; API 集成方带 Authorization: Basic(curl -u)。
-// 注: Basic 在明文 HTTP 下是 base64 非加密 —— 局域网可信是前提, 不要暴露公网。
-export interface AuthConfig { user: string; pass: string }
+export type { AuthConfig } from './auth';
 
+// 登录门禁(2026-08-21 用户否掉浏览器原生弹窗 —— 那是把系统的模型端给人): 数据全在 /api 后面,
+// 静态壳(html/js/css, 不含数据)放行, API 无凭据回 401(**不带 WWW-Authenticate**, 不触发原生框),
+// 前端收到 401 渲染自己的登录页; 登录成功发 HttpOnly 签名 cookie。
+// API 集成方(Hermes/curl)仍可直接带 Basic 凭据, 不用先跑登录。
+// 注: 明文 HTTP 下传输不加密 —— 局域网可信是前提, 不要暴露公网。
 export function buildApp(service: RelayService, auth?: AuthConfig): FastifyInstance {
   const app = Fastify({ logger: false });
   if (auth) {
-    const expected = Buffer.from(`${auth.user}:${auth.pass}`);
+    const setSession = (reply: any) =>
+      reply.header('set-cookie',
+        `${COOKIE_NAME}=${makeToken(auth)}; Path=/; Max-Age=${Math.floor(TTL_MS / 1000)}; HttpOnly; SameSite=Lax`);
+
     app.addHook('onRequest', async (req, reply) => {
-      const h = req.headers.authorization ?? '';
-      const got = h.startsWith('Basic ') ? Buffer.from(h.slice(6), 'base64') : Buffer.alloc(0);
-      // 长度不等直接拒(长度本身不算秘密); 等长走 timingSafeEqual 防时序侧信道
-      const ok = got.length === expected.length && timingSafeEqual(got, expected);
-      if (!ok) {
-        reply.header('www-authenticate', 'Basic realm="Relay", charset="UTF-8"'); // 触发浏览器原生登录框
-        reply.code(401).send({ error: '需要登录: 浏览器输入账号密码; API 集成带 Authorization: Basic(如 curl -u 账号:密码)' });
+      const path = req.url.split('?')[0];
+      if (!path.startsWith('/api/') || path === '/api/login') return; // 静态壳与登录口不设闸
+      if (checkBasic(req.headers.authorization, auth)) return;
+      if (verifyToken(cookieValue(req.headers.cookie, COOKIE_NAME), auth)) return;
+      reply.code(401).send({ error: '需要登录' });
+    });
+
+    app.post('/api/login', async (req: any, reply: any) => {
+      const body = req.body ?? {};
+      if (!checkLogin(body.user, body.pass, auth)) {
+        reply.code(401);
+        return { error: '账号或密码不对' };
       }
+      setSession(reply);
+      return { ok: true };
+    });
+    app.post('/api/logout', async (_req: any, reply: any) => {
+      reply.header('set-cookie', `${COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`);
+      return { ok: true };
     });
   }
 
