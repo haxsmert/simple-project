@@ -190,6 +190,37 @@ describe('App shell', () => {
     expect(screen.queryByDisplayValue('半截草稿')).toBeNull(); // 草稿不残留
   });
 
+  // 抽屉本地状态(编辑态/删除二次确认/草稿)是"这个任务的"临时物: App 层按任务 id 重挂 TaskDetail,
+  // 不重挂的实锤后果 —— 编辑中沿子任务/面包屑跳走, 编辑面板带着旧值盖在新任务上, 保存即写串
+  it('编辑中跳到别的任务: 编辑面板不跟过去(防把上一个任务的标题写进新任务)', async () => {
+    const subRow = {
+      id: 'R-2', title: '演示子任务', state: 'executing', hold: null, currentActor: 'a', currentRole: 'executor',
+      parentId: 'R-1', goal: null, planMd: null, outputsMd: null, summary: null, priority: null,
+    };
+    const pkgA = { ...pkg, subtasks: [subRow] };
+    const pkgB = { ...pkg, task: subRow, breadcrumb: [taskCard] };
+    (fetch as any).mockImplementation(async (url: string) => ({
+      ok: true,
+      json: async () =>
+        url.includes('/api/projects/') && url.includes('/board') ? taskBoard :
+        url.includes('/api/tasks-board') ? allTasksBoard :
+        url.includes('/api/projects') ? projectBoard :
+        url.includes('/api/actors') ? actors :
+        url.includes('/api/tree') ? [] :
+        url.includes('/api/tasks/R-2') ? pkgB :
+        pkgA,
+    }));
+    render(<App />);
+    fireEvent.click(await screen.findByText('演示项目'));
+    fireEvent.click(await screen.findByText('演示任务'));
+    await waitFor(() => expect(screen.getByText('演示目标')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '编辑标题与目标' }));
+    expect(screen.getByDisplayValue('演示任务')).toBeInTheDocument(); // 编辑面板开着, 预填 R-1 的标题
+    fireEvent.click(screen.getByRole('button', { name: /演示子任务/ })); // 编辑中沿子任务行跳走
+    await waitFor(() => expect(screen.getByRole('heading', { name: '演示子任务' })).toBeInTheDocument());
+    expect(screen.queryByDisplayValue('演示任务')).toBeNull(); // 编辑面板(带旧值)没跟过去
+  });
+
   it('新建项目改为内联输入, 不再弹 window.prompt', async () => {
     const promptSpy = vi.spyOn(window, 'prompt');
     const calls: Array<{ url: string; opts?: RequestInit }> = [];

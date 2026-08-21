@@ -15,6 +15,15 @@ import { routingTable, type ActorSuggestion } from '../core/routing';
 // 主干四阶段即看板四列; 挂起(hold)不是列 —— 挂起的任务留在自己的阶段列里"原地举手"(卡片上亮挂起标)
 export const STATE_ORDER: TaskState[] = ['planning', 'executing', 'testing', 'done'];
 
+// 枚举前置校验(HTTP 是裸通道, MCP 有 zod 拦): 非法值砸到 SQLite CHECK 会吐约束黑话, 这里先翻成人话
+const PRIORITIES: Priority[] = ['hi', 'mid', 'lo'];
+const ROLES: Role[] = ['planner', 'executor', 'tester', 'decider'];
+function mustEnum<T extends string>(value: unknown, allowed: readonly T[], what: string): void {
+  if (value != null && !allowed.includes(value as T)) {
+    throw new Error(`没有这个${what}: ${String(value)}(可用: ${allowed.join('/')})`);
+  }
+}
+
 export interface TaskNode extends Task {
   children: TaskNode[];
 }
@@ -284,7 +293,11 @@ export class RelayService {
 
   createTask(input: CreateTaskInput): Task {
     // 标题检查提前(repo 里也有, 但要抢在"项目目标必填"前报 —— 空标题是更根本的错, 报错要报根)
-    if (!input.title.trim()) throw new Error('标题不能为空');
+    // typeof 兜住裸 HTTP 通道: body 里没给 title 时 .trim() 会吐 TypeError 黑话
+    if (typeof input.title !== 'string' || !input.title.trim()) throw new Error('标题不能为空');
+    mustEnum(input.state, STATE_ORDER, '阶段');
+    mustEnum(input.priority, PRIORITIES, '优先级');
+    mustEnum(input.currentRole, ROLES, '角色');
     if (input.parentId) {
       this.mustTask(input.parentId);
       // 父子不变量前移到建子时刻(对抗审计 P1): 只在 handoff 进「完成」时拦, 事后给 done 父建开放子任务就绕过了
@@ -350,14 +363,18 @@ export class RelayService {
   updateTaskInfo(taskId: string, byActor: string, patch: { title?: string; goal?: string | null; priority?: Priority | null }): Task {
     const before = getTask(this.db, taskId);
     if (!before) throw new Error(`任务不存在: ${taskId}`);
+    this.mustActor(byActor); // 改动要记进「经过」(events.actor_id 有 FK): 先把人验明, 别让 FK 黑话替我们报错
     const changed: string[] = [];
     const p: TaskPatch = {};
     if (patch.title !== undefined && patch.title !== before.title) {
-      if (!patch.title.trim()) throw new Error('标题不能为空');
+      if (typeof patch.title !== 'string' || !patch.title.trim()) throw new Error('标题不能为空');
       p.title = patch.title; changed.push(`标题: ${before.title} → ${patch.title}`);
     }
     if (patch.goal !== undefined && patch.goal !== before.goal) { p.goal = patch.goal; changed.push('目标'); }
-    if (patch.priority !== undefined && patch.priority !== before.priority) { p.priority = patch.priority; changed.push('优先级'); }
+    if (patch.priority !== undefined && patch.priority !== before.priority) {
+      mustEnum(patch.priority, PRIORITIES, '优先级');
+      p.priority = patch.priority; changed.push('优先级');
+    }
     if (changed.length === 0) return before;
     let t!: Task;
     this.db.transaction(() => {
@@ -375,6 +392,7 @@ export class RelayService {
   deleteTask(taskId: string, byActor: string): { ok: true; unfrozeParent: string | null } {
     const t = getTask(this.db, taskId);
     if (!t) throw new Error(`任务不存在: ${taskId}`);
+    this.mustActor(byActor); // 撤回提问路径会以 byActor 记事件(FK): 先验人, 别在事务中途砸 FK 黑话
     const children = listChildren(this.db, taskId);
     if (children.length > 0) {
       // 分层语言: 项目的直接子叫"任务", 任务的子叫"子任务"(与界面同一套叫法)

@@ -4,6 +4,8 @@ export type Hold = 'confirm' | 'decision' | null;
 export type Role = 'planner' | 'executor' | 'tester' | 'decider';
 export type ActorType = 'human' | 'agent';
 export type EdgeType = 'depends_on' | 'clarifies';
+// 与后端 events.kind 同一集合(叙述层 eventText 按它翻人话): 收紧成联合类型, 别名义上什么字符串都收
+export type EventKind = 'handoff' | 'comment' | 'output' | 'clarify' | 'decide' | 'claim' | 'plan' | 'update';
 
 export interface Task {
   id: string; title: string; parentId: string | null; state: TaskState; hold: Hold;
@@ -26,7 +28,7 @@ export interface BoardCard extends Task {
 export interface BoardColumn { state: TaskState; tasks: BoardCard[]; }
 // 项目层透镜(2026-07-19): 项目卡 = 目标 + 🔔待处理 + 最近动静; 两组 = 执行中/已完结
 export interface ProjectActivity {
-  kind: string; actorId: string; actorName: string; taskId: string; taskTitle: string;
+  kind: EventKind; actorId: string; actorName: string; taskId: string; taskTitle: string;
   toActor: string | null; body: string | null;
   stateFrom: TaskState | null; stateTo: TaskState | null;
   holdFrom: Hold; holdTo: Hold;
@@ -35,7 +37,7 @@ export interface ProjectActivity {
 export interface ProjectCard extends Task { attention: number; lastEvent: ProjectActivity | null; }
 export interface ProjectOverview { active: ProjectCard[]; closed: ProjectCard[]; }
 export interface TaskEvent {
-  id: string; taskId: string; actorId: string; kind: string;
+  id: string; taskId: string; actorId: string; kind: EventKind;
   roleFrom: Role | null; roleTo: Role | null;
   toActor: string | null; stateFrom: TaskState | null; stateTo: TaskState | null;
   holdFrom: Hold; holdTo: Hold;

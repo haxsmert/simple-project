@@ -12,4 +12,8 @@ mkdirSync(dirname(dbPath), { recursive: true });
 const db = openDb(dbPath);
 const service = new RelayService(db, mirrorDir);
 const server = buildServer(service);
+// 优雅关闭: MCP 宿主(Claude Code 等)结束会话时给信号或直接收走 stdio —— 关库让 WAL checkpoint 落盘
+process.on('exit', () => { if (db.open) db.close(); });
+process.on('SIGINT', () => process.exit(0));
+process.on('SIGTERM', () => process.exit(0));
 await server.connect(new StdioServerTransport());

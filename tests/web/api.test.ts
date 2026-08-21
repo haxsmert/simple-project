@@ -133,4 +133,51 @@ describe('web api', () => {
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toMatch(/不存在/);
   });
+
+  // HTTP 是裸通道(MCP 有 zod 拦, Web UI 只发合法值): 缺字段/非法枚举必须报人话,
+  // 不许把 TypeError / SQLite CHECK / FK 黑话吐给集成方(活约定清单 §二.3)
+  describe('裸通道加固: 残缺/非法输入报人话', () => {
+    it('POST /api/tasks 空 body(连 payload 都没有)→ 标题不能为空, 不是 TypeError', async () => {
+      const { app } = mk();
+      const res = await app.inject({ method: 'POST', url: '/api/tasks' });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toBe('标题不能为空');
+    });
+
+    it('POST /api/tasks {} → 标题不能为空', async () => {
+      const { app } = mk();
+      const res = await app.inject({ method: 'POST', url: '/api/tasks', payload: {} });
+      expect(res.json().error).toBe('标题不能为空');
+    });
+
+    it('POST /api/tasks 非法 state/priority/role → 人话枚举提示, 不是 CHECK 黑话', async () => {
+      const { service, app } = mk();
+      const h = service.createTask({ title: '宿主项目', goal: 'g' });
+      const bad = async (payload: Record<string, unknown>) =>
+        (await app.inject({ method: 'POST', url: '/api/tasks', payload: { title: 't', parentId: h.id, ...payload } })).json().error as string;
+      expect(await bad({ state: 'bogus' })).toBe('没有这个阶段: bogus(可用: planning/executing/testing/done)');
+      expect(await bad({ priority: 'urgent' })).toBe('没有这个优先级: urgent(可用: hi/mid/lo)');
+      expect(await bad({ role: 'boss' })).toBe('没有这个角色: boss(可用: planner/executor/tester/decider)');
+    });
+
+    it('PATCH /api/tasks/:id 非法 priority → 人话; 未注册 byActor → 人话(不是 FK 黑话)', async () => {
+      const { service, app } = mk();
+      service.registerActor({ id: 'admin', name: 'admin', type: 'human' });
+      const h = service.createTask({ title: '宿主项目', goal: 'g' });
+      const badPrio = await app.inject({ method: 'PATCH', url: `/api/tasks/${h.id}`, payload: { byActor: 'admin', priority: 'urgent' } });
+      expect(badPrio.json().error).toBe('没有这个优先级: urgent(可用: hi/mid/lo)');
+      const ghost = await app.inject({ method: 'PATCH', url: `/api/tasks/${h.id}`, payload: { byActor: '幽灵', title: '新标题' } });
+      expect(ghost.json().error).toMatch(/幽灵/);
+      expect(ghost.json().error).not.toMatch(/FOREIGN KEY/);
+    });
+
+    it('DELETE /api/tasks/:id 未注册 byActor → 人话拒绝(撤回提问路径会以它记事件)', async () => {
+      const { service, app } = mk();
+      const h = service.createTask({ title: '宿主项目', goal: 'g' });
+      const res = await app.inject({ method: 'DELETE', url: `/api/tasks/${h.id}?byActor=幽灵` });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toMatch(/幽灵/);
+      expect(res.json().error).not.toMatch(/FOREIGN KEY/);
+    });
+  });
 });

@@ -26,4 +26,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const port = Number(process.env.PORT ?? 3000);
   app.listen({ port, host: '127.0.0.1' }).then(() => console.log(`✅ Relay Web 已启动: http://127.0.0.1:${port}`))
     .catch((e) => { console.error(e); process.exit(1); });
+  // 优雅关闭: 信号 → 停收请求 → process.exit; 库统一在 exit 里关(WAL checkpoint 落盘,
+  // better-sqlite3 的 close 是同步的, 放 exit 钩子安全, 且 stdin/异常等其他退出路径也兜住)
+  process.on('exit', () => { if (db.open) db.close(); });
+  const shutdown = () => { app.close().finally(() => process.exit(0)); };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 }

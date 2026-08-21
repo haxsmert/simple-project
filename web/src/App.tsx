@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { api } from './api';
 import type { BoardColumn, ProjectOverview, TaskNode, TaskPackage, Actor } from './types';
 import { Board } from './components/Board';
@@ -49,7 +49,8 @@ export function App() {
   // 导航令牌: 快速连点两个导航时, 旧请求后到会把看板覆盖成与面包屑不符的内容 —— 过期响应丢弃
   const navToken = useRef(0);
 
-  const actorsById = Object.fromEntries(actors.map((a) => [a.id, a]));
+  // memo 不只是省重算: 它进了 onAct 等 useCallback 的依赖, 每渲染换新引用会让那些 callback 白重建
+  const actorsById = useMemo(() => Object.fromEntries(actors.map((a) => [a.id, a])), [actors]);
   const allProjects = [...overview.active, ...overview.closed];
   const projects = allProjects.map((t) => ({ id: t.id, title: t.title }));
   const pendingTotal = allProjects.reduce((s, t) => s + (t.attention ?? 0), 0);
@@ -366,7 +367,9 @@ export function App() {
       {detail && (
         <>
           <div className="drawer-backdrop" onClick={closeDetail} aria-hidden="true" />
-          <TaskDetail pkg={detail} actorsById={actorsById} onAnswer={onAnswer} onAct={onAct} onComment={onComment} onOpenTask={openTask} onUpdate={onUpdateTask} onDelete={onDeleteTask} routing={routing} onClose={closeDetail} />
+          {/* key=任务id: 抽屉内跳任务时整个详情重挂 —— 编辑态/删除二次确认/草稿都是"这个任务的"临时物,
+              不按 id 重挂会跨任务泄漏(实锤: 编辑中沿面包屑跳走, 保存会把上一个任务的标题写进新任务) */}
+          <TaskDetail key={detail.task.id} pkg={detail} actorsById={actorsById} onAnswer={onAnswer} onAct={onAct} onComment={onComment} onOpenTask={openTask} onUpdate={onUpdateTask} onDelete={onDeleteTask} routing={routing} onClose={closeDetail} />
         </>
       )}
     </div>

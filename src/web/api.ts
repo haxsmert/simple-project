@@ -9,6 +9,7 @@ export function buildApp(service: RelayService): FastifyInstance {
     (fn: (req: any) => unknown) =>
     async (req: any, reply: any) => {
       try {
+        req.body ??= {}; // POST 无 body 时 fastify 给 undefined: 直接下钻取字段会吐 TypeError 黑话
         return fn(req);
       } catch (e) {
         reply.code(400);
